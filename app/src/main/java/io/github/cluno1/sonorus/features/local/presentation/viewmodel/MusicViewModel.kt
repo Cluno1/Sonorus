@@ -401,6 +401,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // Lyrics fetch job tracking to prevent race conditions
     private var lyricsFetchJob: Job? = null
+    private var currentFetchingSongId: String? = null
 
     private var cachedSyncedLyricsRaw: String? = null
     private var cachedParsedSyncedLyrics: List<LyricLine> = emptyList()
@@ -5120,6 +5121,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         // Clear current lyrics to prevent showing stale lyrics from previous song
         _currentLyrics.value = null
+        currentFetchingSongId = null
 
         updateRecentlyPlayed(song)
         updateListeningStats(song)
@@ -5351,6 +5353,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         // Clear current lyrics to prevent showing stale lyrics from previous song
         _currentLyrics.value = null
+        currentFetchingSongId = null
         
         if (replaceQueue) {
             // Replace the entire queue with this song and context
@@ -5372,6 +5375,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         // Clear current lyrics to prevent showing stale lyrics from previous song
         _currentLyrics.value = null
+        currentFetchingSongId = null
         
         if (contextSongs.isEmpty()) {
             // Fallback to regular playSong
@@ -6176,6 +6180,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         // Clear current lyrics to prevent showing stale lyrics from previous song
         _currentLyrics.value = null
+        currentFetchingSongId = null
         
         if (songs.isEmpty()) {
             Log.e(TAG, "Cannot play empty queue")
@@ -8116,6 +8121,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         if (show && currentSong.value != null) {
             fetchLyricsForCurrentSong()
         } else {
+            lyricsFetchJob?.cancel()
+            currentFetchingSongId = null
             _currentLyrics.value = null
         }
     }
@@ -8341,7 +8348,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun fetchLyricsForCurrentSong(retryCount: Int = 0) {
+    private fun fetchLyricsForCurrentSong(retryCount: Int = 0, forceRefresh: Boolean = false) {
         val song = currentSong.value ?: return
         if (LanSubsonicPlaybackPolicy.isLanSong(
                 enabled = ProductCapabilities.lanSubsonicOnly,
@@ -8392,6 +8399,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             _isLoadingLyrics.value = false
             return
         }
+        
+        if (!forceRefresh && retryCount == 0 && currentFetchingSongId == song.id) {
+            if (lyricsFetchJob?.isActive == true || _currentLyrics.value != null) {
+                Log.d(TAG, "Lyrics fetch already in progress or completed for: ${song.title}")
+                return
+            }
+        }
+        currentFetchingSongId = song.id
         
         // Cancel any previous lyrics fetch to prevent race conditions
         lyricsFetchJob?.cancel()
@@ -9033,6 +9048,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Clears all lyrics cache (both memory and disk) across all songs and refetches for current song
+     */
+    fun clearAllLyricsCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Sonorus: also clears DEVICE metadata lyrics, like the settings action does.
+                repository.clearAllLyricsCaches()
+                Log.d(TAG, "Cleared entire lyrics cache")
+                withContext(Dispatchers.Main) {
+                    _currentLyrics.value = null
+                    _lyricsTimeOffset.value = 0
+                    if (showLyrics.value && _currentSong.value != null) {
+                        fetchLyricsForCurrentSong(retryCount = 0, forceRefresh = true)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error clearing all lyrics cache", e)
+            }
+        }
+    }
+
+    /**
      * Embed lyrics into the current song's audio file metadata
      */
     fun embedLyricsInFile(
@@ -9291,8 +9328,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     val json = Gson().toJson(lyricsData)
                     file.writeText(json)
                     
+                    repository.updateLyricsCache(artist, title, song.id, lyricsData)
+
                     // Update in-memory state
                     _currentLyrics.value = lyricsData
+                    currentFetchingSongId = song.id
                     
                     Log.d(TAG, "Saved edited lyrics for: $title by $artist (format: $format, isSynced: $isSynced, isWordByWord: $isWordByWord)")
                 } else {
