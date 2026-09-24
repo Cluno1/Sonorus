@@ -45,6 +45,7 @@ import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.infrastructure.service.player.RhythmPlayerEngine
 import io.github.cluno1.sonorus.infrastructure.service.player.TransitionController
 import io.github.cluno1.sonorus.infrastructure.service.player.PreloadController
+import io.github.cluno1.sonorus.infrastructure.service.util.RhythmBitmapLoader
 import io.github.cluno1.sonorus.infrastructure.widget.WidgetUpdater
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
@@ -1442,11 +1443,14 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val rhythmBitmapLoader = RhythmBitmapLoader(this)
+
         return MediaLibrarySession.Builder(
             this,
             player,
             MediaSessionCallback()
         ).setSessionActivity(pendingIntent)
+            .setBitmapLoader(rhythmBitmapLoader)
             .build()
     }
     
