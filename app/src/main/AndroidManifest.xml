@@ -15,6 +15,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Optional permission for auto-update installation from GitHub -->
@@ -183,6 +185,18 @@
                 android:name="androidx.media3.session.notification.small_icon"
                 android:resource="@drawable/ic_notification" />
         </service>
+
+        <!-- API 34+ uses an explicit user-initiated transfer job. Older releases use
+             WorkManager's foreground dataSync service so 160-image batches survive UI exit. -->
+        <service
+            android:name=".features.clientimages.background.ClientImageTransferJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
         
         <activity
             android:name=".activities.CrashActivity"

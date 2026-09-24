@@ -238,6 +238,12 @@ fun LabsSettingsScreen(
                             onToggleChange = { appSettings.setScoreChorusLabEnabled(it) }
                         ),
                         SettingItem(
+                            MaterialSymbolIcon("photo_library", filled = true),
+                            context.getString(R.string.labs_client_images),
+                            context.getString(R.string.labs_client_images_desc),
+                            onClick = { onNavigateTo(SettingsRoutes.CLIENT_IMAGES) }
+                        ),
+                        SettingItem(
                             MaterialSymbolIcon("admin_panel_settings", filled = true),
                             context.getString(R.string.chorus_admin_title),
                             context.getString(R.string.labs_chorus_admin_desc),

@@ -203,6 +203,29 @@ class CatalogPlaybackPolicyTest {
     }
 
     @Test
+    fun imageDeliveryAllowsSignedHttpsCustomDomainWithoutRelaxingUploadPolicy() {
+        val customPreview =
+            "https://images.sonorous.example/assets/photo?q-sign-algorithm=sha1&q-signature=deadbeef"
+        assertTrue(CatalogPlaybackPolicy.isSignedImageDeliveryUrl(customPreview))
+        assertFalse(CatalogPlaybackPolicy.isSignedObjectStoreUrl(customPreview))
+        assertFalse(
+            CatalogPlaybackPolicy.isSignedImageDeliveryUrl(
+                "https://images.sonorous.example/assets/photo",
+            ),
+        )
+        assertFalse(
+            CatalogPlaybackPolicy.isSignedImageDeliveryUrl(
+                "http://images.sonorous.example/assets/photo?q-sign-algorithm=sha1&q-signature=x",
+            ),
+        )
+        assertFalse(
+            CatalogPlaybackPolicy.isSignedImageDeliveryUrl(
+                "https://user@images.sonorous.example/assets/photo?q-sign-algorithm=sha1&q-signature=x",
+            ),
+        )
+    }
+
+    @Test
     fun automaticArtworkAllowsOnlyCatalogOriginOrSignedCos() {
         val origin = "http://10.88.0.1:8010"
 

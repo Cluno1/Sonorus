@@ -252,6 +252,7 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object CatalogSettings : Screen("catalog_settings")
     object ChorusAdmin : Screen("chorus_admin")
+    object ClientImages : Screen("client_images")
     object DeviceManualMetadata : Screen(
         "device_manual_metadata/{songId}?kind={kind}&artistName={artistName}",
     ) {
@@ -2341,6 +2342,12 @@ private fun LocalNavigationContent(
                     )
                 }
 
+                composable(Screen.ClientImages.route) {
+                    io.github.cluno1.sonorus.features.clientimages.presentation.ClientImageLabsScreen(
+                        onBackClick = { navController.popBackStack() },
+                    )
+                }
+
                 composable(
                     route = Screen.Chorus.route,
                     arguments = listOf(
@@ -2614,6 +2621,8 @@ private fun LocalNavigationContent(
                         onNavigateTo = { route ->
                             if (route == SettingsRoutes.CHORUS_ADMIN) {
                                 navController.navigate(Screen.ChorusAdmin.route) { launchSingleTop = true }
+                            } else if (route == SettingsRoutes.CLIENT_IMAGES) {
+                                navController.navigate(Screen.ClientImages.route) { launchSingleTop = true }
                             }
                         },
                     )

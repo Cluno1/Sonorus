@@ -298,9 +298,13 @@ internal class CatalogDeviceAuthClient(
             request.url.encodedPath.matches(Regex("^/v2/renditions/[^/]+/lyrics/[^/]+$"))
         val isChorusWrite = request.url.encodedPath.startsWith("/v2/chorus-") &&
             request.method in setOf("POST", "PUT", "PATCH", "DELETE")
+        val isOwnedImageWrite = (
+            request.url.encodedPath.startsWith("/v2/labs/image-upload") ||
+                request.url.encodedPath.startsWith("/v2/labs/images")
+            ) && request.method in setOf("POST", "PATCH", "DELETE")
         val isAdminWrite = request.url.encodedPath.startsWith("/v2/admin/") &&
             request.method in setOf("POST", "PATCH", "DELETE")
-        require(isRead || isLyricWrite || isChorusWrite || isAdminWrite) {
+        require(isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite) {
             "public Catalog only signs reads and narrow owned writes"
         }
         if (credentials.isReenrollmentRequired()) throw CatalogFailure.InvalidCredentials()

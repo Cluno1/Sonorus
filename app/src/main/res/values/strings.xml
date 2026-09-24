@@ -3572,4 +3572,6 @@
     <string name="chorus_track_delete_cancel">Keep track</string>
     <string name="chorus_track_deleting">Deleting</string>
     <string name="chorus_track_delete_error">Unable to delete this track</string>
+    <string name="labs_client_images">图片上传</string>
+    <string name="labs_client_images_desc">批量直传私有 COS，预览、下载并管理自己的图片</string>
 </resources>

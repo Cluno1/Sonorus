@@ -150,6 +150,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.cluno1.sonorus.shared.presentation.components.player.SleepTimerBottomSheetNew
 import io.github.cluno1.sonorus.features.local.presentation.navigation.Screen
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.MusicViewModel
+import io.github.cluno1.sonorus.features.clientimages.presentation.ClientImageLabsScreen
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsGroup
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsItem
 import androidx.compose.ui.res.stringResource
@@ -196,6 +197,7 @@ object SettingsRoutes {
     const val REPLAY_GAIN = "replay_gain_settings"
     const val CATALOG = "catalog_settings"
     const val CHORUS_ADMIN = "chorus_admin"
+    const val CLIENT_IMAGES = "client_images"
 }
 
 data class SettingItem(
@@ -1177,6 +1179,9 @@ fun SettingsScreenWrapper(
                             onNavigateTo = onNavigateToSubsetting,
                             onNavigateToGoSettings = { currentRoute = SettingsRoutes.GO_SETTINGS }
                         )
+                        SettingsRoutes.CLIENT_IMAGES -> ClientImageLabsScreen(
+                            onBackClick = { currentRoute = SettingsRoutes.LABS },
+                        )
                         SettingsRoutes.GO_SETTINGS -> io.github.cluno1.sonorus.features.streaming.presentation.screens.GoSettingsScreen(
                             onBackClick = { currentRoute = null },
                             onConfigureCurrentProvider = { serviceId ->
@@ -1311,6 +1316,9 @@ fun SettingsScreenWrapper(
                     onBackClick = { currentRoute = null },
                     onNavigateTo = onNavigateToSubsetting,
                     onNavigateToGoSettings = { currentRoute = SettingsRoutes.GO_SETTINGS }
+                )
+                SettingsRoutes.CLIENT_IMAGES -> ClientImageLabsScreen(
+                    onBackClick = { currentRoute = SettingsRoutes.LABS },
                 )
                 SettingsRoutes.GO_SETTINGS -> io.github.cluno1.sonorus.features.streaming.presentation.screens.GoSettingsScreen(
                     onBackClick = { currentRoute = null },

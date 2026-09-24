@@ -131,6 +131,20 @@ object CatalogPlaybackPolicy {
         runCatching { URI(uri) }.getOrNull()?.let(::isSignedObjectStoreUri) ?: false
 
     /**
+     * Image previews may use a backend-configured HTTPS COS custom domain. They still must carry
+     * the COS query signature and may never contain userinfo or a fragment.
+     */
+    fun isSignedImageDeliveryUrl(uri: String?): Boolean =
+        runCatching { URI(uri) }.getOrNull()?.let { parsed ->
+            parsed.scheme.equals("https", ignoreCase = true) &&
+                parsed.host?.isNotBlank() == true &&
+                parsed.userInfo == null &&
+                parsed.fragment == null &&
+                parsed.rawQuery.orEmpty().contains("q-signature=") &&
+                parsed.rawQuery.orEmpty().contains("q-sign-algorithm=")
+        } ?: false
+
+    /**
      * Resolves artwork returned by the Catalog while keeping automatic image requests inside the
      * product network boundary. Relative URLs are resolved only against the configured Catalog
      * origin; cross-origin artwork is accepted only when it is a signed Tencent COS URL.
