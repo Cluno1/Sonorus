@@ -119,11 +119,16 @@ fun ClientImageLabsScreen(
         legacyDownload?.let { download -> createDocument.launch(downloadName(download.record)) }
     }
     LaunchedEffect(tab, adminAvailable) {
-        if (tab == 2 && adminAvailable) {
-            while (true) {
-                delay(60_000)
-                viewModel.revalidateSharedAccess(sharedImages::refresh)
+        when {
+            tab == 1 -> ownImages.refresh()
+            tab == 2 && adminAvailable -> {
+                sharedImages.refresh()
+                while (true) {
+                    delay(60_000)
+                    viewModel.revalidateSharedAccess(sharedImages::refresh)
+                }
             }
+            else -> Unit
         }
     }
 
