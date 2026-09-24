@@ -20,7 +20,7 @@ object ClientImageTransferNotifications {
                 CHANNEL_ID,
                 "图片上传",
                 NotificationManager.IMPORTANCE_LOW,
-            ).apply { description = "显示 Labs 图片直传 COS 的进度" },
+            ).apply { description = "显示图片上传进度" },
         )
     }
 

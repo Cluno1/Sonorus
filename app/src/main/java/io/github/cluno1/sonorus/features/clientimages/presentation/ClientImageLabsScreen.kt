@@ -1,27 +1,28 @@
 package io.github.cluno1.sonorus.features.clientimages.presentation
 
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -30,11 +31,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -46,11 +49,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +72,8 @@ import io.github.cluno1.sonorus.features.clientimages.domain.ClientImageDelivery
 import io.github.cluno1.sonorus.features.clientimages.domain.ClientImageRecord
 import io.github.cluno1.sonorus.features.clientimages.domain.SelectedClientImage
 import io.github.cluno1.sonorus.shared.presentation.components.common.CollapsibleHeaderScreen
+import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
+import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -90,7 +95,6 @@ fun ClientImageLabsScreen(
     val ownImages = viewModel.ownImages.collectAsLazyPagingItems()
     val sharedImages = viewModel.sharedImages.collectAsLazyPagingItems()
     val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf(0) }
     var wifiOnly by remember { mutableStateOf(false) }
     var confirmShare by remember { mutableStateOf(false) }
@@ -111,8 +115,8 @@ fun ClientImageLabsScreen(
     LaunchedEffect(Unit) {
         viewModel.messages.collect(snackbar::showSnackbar)
     }
-    LaunchedEffect(legacyDownload?.id) {
-        legacyDownload?.let { image -> createDocument.launch(downloadName(image)) }
+    LaunchedEffect(legacyDownload?.record?.id) {
+        legacyDownload?.let { download -> createDocument.launch(downloadName(download.record)) }
     }
     LaunchedEffect(tab, adminAvailable) {
         if (tab == 2 && adminAvailable) {
@@ -124,7 +128,7 @@ fun ClientImageLabsScreen(
     }
 
     CollapsibleHeaderScreen(
-        title = "Labs 图片",
+        title = "图片空间",
         showBackButton = true,
         onBackClick = onBackClick,
     ) { modifier ->
@@ -143,13 +147,23 @@ fun ClientImageLabsScreen(
                     if (adminAvailable) add("用户共享")
                 }
                 if (tab >= tabs.size) tab = 0
-                TabRow(selectedTabIndex = tab) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = tab == index,
-                            onClick = { tab = index },
-                            text = { Text(title) },
-                        )
+                Surface(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                ) {
+                    TabRow(
+                        selectedTabIndex = tab,
+                        containerColor = Color.Transparent,
+                        divider = {},
+                    ) {
+                        tabs.forEachIndexed { index, title ->
+                            Tab(
+                                selected = tab == index,
+                                onClick = { tab = index },
+                                text = { Text(title, fontWeight = FontWeight.SemiBold) },
+                            )
+                        }
                     }
                 }
                 when (tab) {
@@ -157,7 +171,6 @@ fun ClientImageLabsScreen(
                         selected = selected,
                         batches = batches,
                         featureEnabled = capabilities?.enabled == true,
-                        unavailableReason = capabilities?.unavailableReason,
                         maxBytes = capabilities?.maxImageBytes,
                         wifiOnly = wifiOnly,
                         busy = busy,
@@ -203,7 +216,7 @@ fun ClientImageLabsScreen(
             onDismissRequest = { confirmShare = false },
             title = { Text("允许管理员查看图片？") },
             text = {
-                Text("开启后，拥有 image:read-shared 权限的管理员可在客户端和后台查看缩略图与预览图，但不能下载原图、删除图片或替你绑定内容。你可以随时关闭。")
+                Text("开启后，管理员可以查看并下载你上传的原图，但不能删除或修改。关闭后会立即停止共享。")
             },
             confirmButton = {
                 Button(onClick = {
@@ -223,7 +236,7 @@ fun ClientImageLabsScreen(
             delivery = state.delivery,
             shared = state.shared,
             onDismiss = viewModel::closePreview,
-            onDownload = { viewModel.download(state.record) },
+            onDownload = { viewModel.download(state.record, state.shared) },
             onDelete = { deleteCandidate = state.record },
         )
     }
@@ -251,7 +264,6 @@ private fun UploadTab(
     selected: List<SelectedClientImage>,
     batches: List<ClientImageTransferBatchEntity>,
     featureEnabled: Boolean,
-    unavailableReason: String?,
     maxBytes: Long?,
     wifiOnly: Boolean,
     busy: Boolean,
@@ -275,7 +287,8 @@ private fun UploadTab(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 12.dp),
+                .padding(top = 8.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (featureEnabled) {
                     MaterialTheme.colorScheme.primaryContainer
@@ -284,19 +297,53 @@ private fun UploadTab(
                 },
             ),
         ) {
-            Column(Modifier.padding(14.dp)) {
-                Text(
-                    if (featureEnabled) "图片直接上传到 COS" else "图片上传暂不可用",
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    if (featureEnabled) {
-                        "支持 PNG、JPEG、静态 WebP；单张上限 ${maxBytes?.let(::formatBytes) ?: "—"}。图片流量不会经过应用后台。"
+            Row(
+                modifier = Modifier.padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Surface(
+                    modifier = Modifier.size(52.dp),
+                    shape = CircleShape,
+                    color = if (featureEnabled) {
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        unavailableReason ?: "请先登记目录服务器，并让服务端配置私有 COS。"
+                        MaterialTheme.colorScheme.error
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            icon = MaterialSymbolIcon("add_photo_alternate", filled = true),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = if (featureEnabled) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onError
+                            },
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        if (featureEnabled) "上传你的图片" else "图片上传暂不可用",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        if (featureEnabled) {
+                            "支持 PNG、JPEG、静态 WebP，单张最大 ${maxBytes?.let(::formatBytes) ?: "—"}"
+                        } else {
+                            "请稍后重试，或检查账号连接状态"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (featureEnabled) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        },
+                    )
+                }
             }
         }
         Row(
@@ -305,56 +352,102 @@ private fun UploadTab(
                 .padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(onClick = onSelectImages, enabled = featureEnabled && !busy) { Text("选择图片") }
-            OutlinedButton(onClick = onSelectFolder, enabled = featureEnabled && !busy) { Text("选择文件夹") }
-            if (busy) {
-                CircularProgressIndicator(Modifier.size(28.dp))
+            Button(
+                onClick = onSelectImages,
+                enabled = featureEnabled && !busy,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                Icon(MaterialSymbolIcon("photo_library", filled = true), null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("选择图片")
+            }
+            OutlinedButton(
+                onClick = onSelectFolder,
+                enabled = featureEnabled && !busy,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) {
+                Icon(MaterialSymbolIcon("folder", filled = true), null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("选择文件夹")
             }
         }
-        Row(
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(top = 12.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("仅 Wi‑Fi 上传", style = MaterialTheme.typography.bodyMedium)
-                Text("关闭时移动网络并发 2，Wi‑Fi 并发 3", style = MaterialTheme.typography.bodySmall)
+            Column {
+                UploadPreferenceRow(
+                    icon = "wifi",
+                    title = "仅在 Wi‑Fi 下上传",
+                    description = "适合一次上传大量图片",
+                    checked = wifiOnly,
+                    onCheckedChange = onWifiOnlyChange,
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 72.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+                UploadPreferenceRow(
+                    icon = "admin_panel_settings",
+                    title = "允许管理员查看",
+                    description = if (visibilityEnabled) {
+                        "管理员可以查看并下载原图"
+                    } else {
+                        "仅你自己可以查看"
+                    },
+                    checked = visibilityEnabled,
+                    onCheckedChange = onVisibilityChange,
+                )
             }
-            Switch(checked = wifiOnly, onCheckedChange = onWifiOnlyChange)
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("允许管理员查看我的图片", style = MaterialTheme.typography.bodyMedium)
-                Text("默认关闭；管理员只能查看小图与预览图", style = MaterialTheme.typography.bodySmall)
-            }
-            Switch(checked = visibilityEnabled, onCheckedChange = onVisibilityChange)
-        }
-        HorizontalDivider(Modifier.padding(vertical = 10.dp))
         if (selected.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("待上传 ${selected.size} 张", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text("待上传 ${selected.size} 张", fontWeight = FontWeight.SemiBold)
+                    Text("轻触图片可从列表移除", style = MaterialTheme.typography.bodySmall)
+                }
                 TextButton(onClick = onClear) { Text("清空") }
-                Button(onClick = onUpload, enabled = featureEnabled && !busy) { Text("开始上传") }
+                Button(
+                    onClick = onUpload,
+                    enabled = featureEnabled && !busy,
+                    shape = RoundedCornerShape(16.dp),
+                ) { Text("开始上传") }
             }
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(104.dp),
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = 8.dp),
+            contentPadding = PaddingValues(top = 10.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (selected.isEmpty() && batches.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyUploadState()
+                }
+            }
             items(selected, key = { it.uri.toString() }) { image ->
                 SelectedImageCard(image, onRemove)
             }
-            items(batches.take(6), key = { "batch-${it.localId}" }) { batch ->
+            items(
+                items = batches.take(6),
+                key = { "batch-${it.localId}" },
+                span = { GridItemSpan(maxLineSpan) },
+            ) { batch ->
                 BatchCard(batch, onPause, onResume, onCancel)
             }
         }
@@ -362,8 +455,85 @@ private fun UploadTab(
 }
 
 @Composable
+private fun UploadPreferenceRow(
+    icon: String,
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(42.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon = MaterialSymbolIcon(icon, filled = true),
+                    contentDescription = null,
+                    modifier = Modifier.size(23.dp),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun EmptyUploadState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(64.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    MaterialSymbolIcon("imagesmode", filled = true),
+                    null,
+                    Modifier.size(30.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text("选择图片开始上传", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "可以一次选择多张，也可以选择整个文件夹",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun SelectedImageCard(image: SelectedClientImage, onRemove: (android.net.Uri) -> Unit) {
-    Card(onClick = { onRemove(image.uri) }) {
+    Card(
+        onClick = { onRemove(image.uri) },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
         Column {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
@@ -374,7 +544,7 @@ private fun SelectedImageCard(image: SelectedClientImage, onRemove: (android.net
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(96.dp),
+                    .aspectRatio(1f),
             )
             Text(
                 image.displayName,
@@ -394,14 +564,50 @@ private fun BatchCard(
     onResume: (String) -> Unit,
     onCancel: (String) -> Unit,
 ) {
-    Card {
-        Column(Modifier.padding(10.dp)) {
-            Text("后台任务", fontWeight = FontWeight.SemiBold)
-            Text(
-                "${batch.succeededCount}/${batch.totalCount} · ${batchStateLabel(batch.state)}",
-                style = MaterialTheme.typography.bodySmall,
+    val completed = (batch.succeededCount + batch.failedCount).coerceAtMost(batch.totalCount)
+    val progress = if (batch.totalCount == 0) 0f else completed.toFloat() / batch.totalCount
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            MaterialSymbolIcon("cloud_upload", filled = true),
+                            null,
+                            Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("上传任务", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "$completed/${batch.totalCount} · ${batchStateLabel(batch.state)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(7.dp)
+                    .clip(CircleShape),
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             )
-            Row {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 if (batch.state == ClientImageTransferState.PAUSED) {
                     TextButton(onClick = { onResume(batch.localId) }) { Text("继续") }
                 } else if (batch.state !in setOf("completed", ClientImageTransferState.CANCELLED)) {
@@ -423,13 +629,24 @@ private fun ImageGallery(
     onRequestThumbnail: (String, Boolean, Boolean) -> Unit,
     onOpen: (ClientImageRecord) -> Unit,
 ) {
+    val loading = images.loadState.refresh is LoadState.Loading
+    val error = (images.loadState.refresh as? LoadState.Error)
+        ?: (images.loadState.append as? LoadState.Error)
     LazyVerticalGrid(
         columns = GridCells.Adaptive(116.dp),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            GallerySummaryCard(shared = shared, count = images.itemCount, onRefresh = images::refresh)
+        }
+        if (images.itemCount == 0 && !loading && error == null) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                GalleryEmptyState(shared = shared, onRefresh = images::refresh)
+            }
+        }
         items(
             count = images.itemCount,
             key = { index -> images.peek(index)?.id ?: "placeholder-$index" },
@@ -443,18 +660,115 @@ private fun ImageGallery(
             }
         }
         if (images.loadState.append is LoadState.Loading || images.loadState.refresh is LoadState.Loading) {
-            item { CircularProgressIndicator(Modifier.padding(24.dp)) }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(28.dp),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+            }
         }
-        val error = (images.loadState.refresh as? LoadState.Error)
-            ?: (images.loadState.append as? LoadState.Error)
         if (error != null) {
-            item {
-                Column(Modifier.padding(12.dp)) {
-                    Text("加载失败", color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = images::retry) { Text("重试") }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text("暂时无法加载图片", color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text(
+                            "请检查账号连接后重试",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        TextButton(onClick = images::retry) { Text("重试") }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GallerySummaryCard(shared: Boolean, count: Int, onRefresh: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 2.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        MaterialSymbolIcon(if (shared) "group" else "photo_library", filled = true),
+                        null,
+                        Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (shared) "用户共享" else "我的图片",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    if (count > 0) "已显示 $count 张" else if (shared) "查看用户授权的图片" else "查看和管理已上传的图片",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onRefresh) { Text("刷新") }
+        }
+    }
+}
+
+@Composable
+private fun GalleryEmptyState(shared: Boolean, onRefresh: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 52.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(76.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    MaterialSymbolIcon(if (shared) "no_accounts" else "add_photo_alternate", filled = true),
+                    null,
+                    Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            if (shared) "还没有用户共享图片" else "还没有上传图片",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            if (shared) "用户开启管理员查看后，图片会出现在这里" else "完成上传后，图片会保存在这里",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(onClick = onRefresh, shape = RoundedCornerShape(16.dp)) { Text("重新加载") }
     }
 }
 
@@ -467,12 +781,16 @@ private fun RemoteImageCard(
     onOpen: (ClientImageRecord) -> Unit,
 ) {
     var refreshed by remember(record.id, shared) { mutableStateOf(false) }
-    Card(onClick = { onOpen(record) }) {
+    Card(
+        onClick = { onOpen(record) },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(112.dp)
+                    .aspectRatio(1f)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
@@ -540,14 +858,12 @@ private fun ImagePreviewDialog(
             }
         },
         confirmButton = {
-            if (shared) {
-                TextButton(onClick = onDismiss) { Text("关闭") }
-            } else {
-                Row {
-                    TextButton(onClick = onDownload) { Text("下载") }
+            Row {
+                TextButton(onClick = onDownload) { Text("下载原图") }
+                if (!shared) {
                     TextButton(onClick = onDelete) { Text("删除") }
-                    TextButton(onClick = onDismiss) { Text("关闭") }
                 }
+                TextButton(onClick = onDismiss) { Text("关闭") }
             }
         },
     )

@@ -331,9 +331,9 @@ class ClientImageRepository private constructor(private val context: Context) {
                 cleanupPrepared(item)
                 return
             }
-            val target = upload.upload ?: throw IOException("服务器没有返回 COS 上传目标")
+            val target = upload.upload ?: throw IOException("没有获取到图片上传地址")
             val thumbnailTarget = upload.thumbnailUpload
-                ?: throw IOException("服务器没有返回 COS 缩略图上传目标")
+                ?: throw IOException("没有获取到图片预览地址")
             val file = File(requireNotNull(item.preparedPath))
             val thumbnailFile = File(requireNotNull(item.thumbnailPreparedPath))
             var lastPublished = 0L
@@ -437,7 +437,11 @@ class ClientImageRepository private constructor(private val context: Context) {
 
     suspend fun delivery(imageId: String, purpose: String, shared: Boolean): ClientImageDelivery {
         val response = if (shared) {
-            val variant = if (purpose == "thumbnail") "thumbnail_512" else "preview_2048"
+            val variant = when (purpose) {
+                "thumbnail" -> "thumbnail_512"
+                "download" -> "original"
+                else -> "preview_2048"
+            }
             api().imageApi.sharedDelivery(imageId, variant)
         } else {
             api().imageApi.delivery(imageId, purpose)
@@ -462,8 +466,12 @@ class ClientImageRepository private constructor(private val context: Context) {
             .bodyOrThrow("删除图片失败")
     }
 
-    suspend fun downloadToUri(record: ClientImageRecord, target: Uri) = withContext(Dispatchers.IO) {
-        val verified = downloadVerifiedToTemporaryFile(record)
+    suspend fun downloadToUri(
+        record: ClientImageRecord,
+        target: Uri,
+        shared: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val verified = downloadVerifiedToTemporaryFile(record, shared)
         try {
             context.contentResolver.openOutputStream(target, "w")?.use { output ->
                 verified.file.inputStream().use { input -> input.copyTo(output) }
@@ -473,9 +481,12 @@ class ClientImageRepository private constructor(private val context: Context) {
         }
     }
 
-    suspend fun downloadToPictures(record: ClientImageRecord): Uri = withContext(Dispatchers.IO) {
+    suspend fun downloadToPictures(
+        record: ClientImageRecord,
+        shared: Boolean = false,
+    ): Uri = withContext(Dispatchers.IO) {
         require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-        val verified = downloadVerifiedToTemporaryFile(record)
+        val verified = downloadVerifiedToTemporaryFile(record, shared)
         try {
             val name = safeFileName(
                 verified.suggestedFilename ?: record.displayName,
@@ -551,14 +562,17 @@ class ClientImageRepository private constructor(private val context: Context) {
         item.thumbnailPreparedPath?.let(::File)?.takeIf(File::isFile)?.delete()
     }
 
-    private suspend fun downloadVerifiedToTemporaryFile(record: ClientImageRecord): VerifiedDownload {
+    private suspend fun downloadVerifiedToTemporaryFile(
+        record: ClientImageRecord,
+        shared: Boolean,
+    ): VerifiedDownload {
         val directory = File(context.cacheDir, "client_image_downloads").apply { mkdirs() }
         val target = File.createTempFile("client-image-", ".part", directory)
         try {
             var lastFailure: Throwable? = null
             repeat(2) { attempt ->
                 try {
-                    val descriptor = delivery(record.id, "download", shared = false)
+                    val descriptor = delivery(record.id, "download", shared = shared)
                     target.outputStream().use { output ->
                         downloadVerified(record, descriptor, output)
                     }

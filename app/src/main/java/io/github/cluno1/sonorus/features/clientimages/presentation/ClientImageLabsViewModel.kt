@@ -52,7 +52,7 @@ class ClientImageLabsViewModel(application: Application) : AndroidViewModel(appl
     private val _preview = MutableStateFlow<ClientImagePreview?>(null)
     val preview = _preview.asStateFlow()
 
-    private val _legacyDownload = MutableStateFlow<ClientImageRecord?>(null)
+    private val _legacyDownload = MutableStateFlow<ClientImageDownload?>(null)
     val legacyDownload = _legacyDownload.asStateFlow()
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -244,24 +244,26 @@ class ClientImageLabsViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
-    fun download(record: ClientImageRecord) {
+    fun download(record: ClientImageRecord, shared: Boolean = false) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            _legacyDownload.value = record
+            _legacyDownload.value = ClientImageDownload(record, shared)
             return
         }
         viewModelScope.launch {
-            runCatching { repository.downloadToPictures(record) }
+            runCatching { repository.downloadToPictures(record, shared) }
                 .onSuccess { _messages.emit("已保存到 Pictures/Sonorus") }
                 .onFailure { _messages.emit(it.userMessage()) }
         }
     }
 
     fun completeLegacyDownload(target: Uri?) {
-        val record = _legacyDownload.value ?: return
+        val download = _legacyDownload.value ?: return
         _legacyDownload.value = null
         if (target == null) return
         viewModelScope.launch {
-            runCatching { repository.downloadToUri(record, target) }
+            runCatching {
+                repository.downloadToUri(download.record, target, download.shared)
+            }
                 .onSuccess { _messages.emit("图片已下载") }
                 .onFailure { _messages.emit(it.userMessage()) }
         }
@@ -296,6 +298,11 @@ data class DeliveryKey(
 data class ClientImagePreview(
     val record: ClientImageRecord,
     val delivery: ClientImageDelivery,
+    val shared: Boolean,
+)
+
+data class ClientImageDownload(
+    val record: ClientImageRecord,
     val shared: Boolean,
 )
 
