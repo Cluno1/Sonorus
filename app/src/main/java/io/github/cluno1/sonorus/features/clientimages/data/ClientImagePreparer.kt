@@ -1,7 +1,9 @@
 package io.github.cluno1.sonorus.features.clientimages.data
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.util.Base64
 import androidx.exifinterface.media.ExifInterface
@@ -23,6 +25,13 @@ data class PreparedClientImage(
     val height: Int,
     val contentMd5: String,
     val sha256: String,
+    val thumbnailFile: File,
+    val thumbnailMediaType: String,
+    val thumbnailByteSize: Long,
+    val thumbnailWidth: Int,
+    val thumbnailHeight: Int,
+    val thumbnailContentMd5: String,
+    val thumbnailSha256: String,
 )
 
 /**
@@ -40,6 +49,7 @@ class ClientImagePreparer(private val context: Context) {
         val directory = File(context.filesDir, "client_image_uploads").apply { mkdirs() }
         val staging = File(directory, "$itemId.staging")
         var preparedTarget: File? = null
+        var thumbnailTarget: File? = null
         try {
             val buffer = ByteArray(64 * 1024)
             var copied = 0L
@@ -78,6 +88,15 @@ class ClientImagePreparer(private val context: Context) {
                 throw InvalidClientImage("图片像素尺寸超过限制")
             }
             val (md5, sha256) = hashes(target)
+            val thumbnail = createThumbnail(
+                source = target,
+                sourceMediaType = detected.mediaType,
+                sourceWidth = width,
+                sourceHeight = height,
+                directory = directory,
+                itemId = itemId,
+            )
+            thumbnailTarget = thumbnail.file
             PreparedClientImage(
                 file = target,
                 mediaType = detected.mediaType,
@@ -86,12 +105,90 @@ class ClientImagePreparer(private val context: Context) {
                 height = height,
                 contentMd5 = Base64.encodeToString(md5, Base64.NO_WRAP),
                 sha256 = sha256.joinToString("") { "%02x".format(it) },
+                thumbnailFile = thumbnail.file,
+                thumbnailMediaType = thumbnail.mediaType,
+                thumbnailByteSize = thumbnail.byteSize,
+                thumbnailWidth = thumbnail.width,
+                thumbnailHeight = thumbnail.height,
+                thumbnailContentMd5 = thumbnail.contentMd5,
+                thumbnailSha256 = thumbnail.sha256,
             )
         } catch (error: Throwable) {
             staging.delete()
             preparedTarget?.delete()
+            thumbnailTarget?.delete()
             throw error
         }
+    }
+
+    private fun createThumbnail(
+        source: File,
+        sourceMediaType: String,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        directory: File,
+        itemId: String,
+    ): PreparedThumbnail {
+        var sampleSize = 1
+        while (sourceWidth / sampleSize > THUMBNAIL_DECODE_EDGE ||
+            sourceHeight / sampleSize > THUMBNAIL_DECODE_EDGE
+        ) {
+            sampleSize *= 2
+        }
+        val decoded = BitmapFactory.decodeFile(
+            source.absolutePath,
+            BitmapFactory.Options().apply { inSampleSize = sampleSize },
+        ) ?: throw InvalidClientImage("无法生成图片预览")
+        val oriented = applyOrientation(decoded, ExifInterface(source).rotationDegrees)
+        if (oriented !== decoded) decoded.recycle()
+        val scale = minOf(1f, THUMBNAIL_EDGE.toFloat() / maxOf(oriented.width, oriented.height))
+        val targetWidth = maxOf(1, (oriented.width * scale).toInt())
+        val targetHeight = maxOf(1, (oriented.height * scale).toInt())
+        val scaled = if (targetWidth == oriented.width && targetHeight == oriented.height) {
+            oriented
+        } else {
+            Bitmap.createScaledBitmap(oriented, targetWidth, targetHeight, true)
+        }
+        if (scaled !== oriented) oriented.recycle()
+
+        val jpeg = sourceMediaType == "image/jpeg"
+        val mediaType = if (jpeg) "image/jpeg" else "image/png"
+        val extension = if (jpeg) "jpg" else "png"
+        val target = File(directory, "$itemId.thumbnail_512.$extension")
+        if (target.exists() && !target.delete()) throw IOException("cannot replace thumbnail")
+        try {
+            FileOutputStream(target).use { output ->
+                val format = if (jpeg) Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG
+                if (!scaled.compress(format, if (jpeg) 90 else 100, output)) {
+                    throw InvalidClientImage("无法生成图片预览")
+                }
+            }
+        } finally {
+            scaled.recycle()
+        }
+        val (md5, sha256) = hashes(target)
+        return PreparedThumbnail(
+            file = target,
+            mediaType = mediaType,
+            byteSize = target.length(),
+            width = targetWidth,
+            height = targetHeight,
+            contentMd5 = Base64.encodeToString(md5, Base64.NO_WRAP),
+            sha256 = sha256.joinToString("") { "%02x".format(it) },
+        )
+    }
+
+    private fun applyOrientation(bitmap: Bitmap, rotationDegrees: Int): Bitmap {
+        if (rotationDegrees == 0) return bitmap
+        return Bitmap.createBitmap(
+            bitmap,
+            0,
+            0,
+            bitmap.width,
+            bitmap.height,
+            Matrix().apply { postRotate(rotationDegrees.toFloat()) },
+            true,
+        )
     }
 
     private fun sanitizeMetadata(file: File) {
@@ -181,7 +278,19 @@ class ClientImagePreparer(private val context: Context) {
         val animated: Boolean,
     )
 
+    private data class PreparedThumbnail(
+        val file: File,
+        val mediaType: String,
+        val byteSize: Long,
+        val width: Int,
+        val height: Int,
+        val contentMd5: String,
+        val sha256: String,
+    )
+
     companion object {
+        private const val THUMBNAIL_EDGE = 512
+        private const val THUMBNAIL_DECODE_EDGE = 1024
         private val PNG_SIGNATURE = byteArrayOf(
             0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
         )

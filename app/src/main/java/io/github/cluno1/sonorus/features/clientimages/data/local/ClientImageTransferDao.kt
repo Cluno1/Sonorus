@@ -100,6 +100,13 @@ interface ClientImageTransferDao {
         UPDATE client_image_transfer_items
         SET preparedPath = :preparedPath, mediaType = :mediaType, byteSize = :byteSize,
             width = :width, height = :height, contentMd5 = :contentMd5, sha256 = :sha256,
+            thumbnailPreparedPath = :thumbnailPreparedPath,
+            thumbnailMediaType = :thumbnailMediaType,
+            thumbnailByteSize = :thumbnailByteSize,
+            thumbnailWidth = :thumbnailWidth,
+            thumbnailHeight = :thumbnailHeight,
+            thumbnailContentMd5 = :thumbnailContentMd5,
+            thumbnailSha256 = :thumbnailSha256,
             transferredBytes = 0, state = 'ready', errorCode = NULL, updatedAtEpochMs = :now
         WHERE localId = :itemId
         """,
@@ -113,6 +120,13 @@ interface ClientImageTransferDao {
         height: Int,
         contentMd5: String,
         sha256: String,
+        thumbnailPreparedPath: String,
+        thumbnailMediaType: String,
+        thumbnailByteSize: Long,
+        thumbnailWidth: Int,
+        thumbnailHeight: Int,
+        thumbnailContentMd5: String,
+        thumbnailSha256: String,
         now: Long,
     )
 

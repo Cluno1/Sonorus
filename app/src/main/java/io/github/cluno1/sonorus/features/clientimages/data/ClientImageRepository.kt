@@ -16,6 +16,7 @@ import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogApiClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageBatchCreateDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageCapabilitiesDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageDeliveryDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageObjectDeclarationDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageRecordDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageThumbnailRequestDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageUploadCreateDto
@@ -189,6 +190,13 @@ class ClientImageRepository private constructor(private val context: Context) {
                 height = null,
                 contentMd5 = null,
                 sha256 = null,
+                thumbnailPreparedPath = null,
+                thumbnailMediaType = null,
+                thumbnailByteSize = null,
+                thumbnailWidth = null,
+                thumbnailHeight = null,
+                thumbnailContentMd5 = null,
+                thumbnailSha256 = null,
                 serverUploadId = null,
                 imageId = null,
                 assetId = null,
@@ -220,13 +228,20 @@ class ClientImageRepository private constructor(private val context: Context) {
         if (item.state !in ClientImageTransferState.runnable) return
         try {
             val preparedFile = item.preparedPath?.let(::File)?.takeIf(File::isFile)
-            if (preparedFile == null || listOf(
+            val preparedThumbnail = item.thumbnailPreparedPath?.let(::File)?.takeIf(File::isFile)
+            if (preparedFile == null || preparedThumbnail == null || listOf(
                     item.mediaType,
                     item.byteSize,
                     item.width,
                     item.height,
                     item.contentMd5,
                     item.sha256,
+                    item.thumbnailMediaType,
+                    item.thumbnailByteSize,
+                    item.thumbnailWidth,
+                    item.thumbnailHeight,
+                    item.thumbnailContentMd5,
+                    item.thumbnailSha256,
                 ).any { it == null }
             ) {
                 dao.setItemState(itemId, ClientImageTransferState.PREPARING, null, 0, now())
@@ -245,6 +260,13 @@ class ClientImageRepository private constructor(private val context: Context) {
                     height = prepared.height,
                     contentMd5 = prepared.contentMd5,
                     sha256 = prepared.sha256,
+                    thumbnailPreparedPath = prepared.thumbnailFile.absolutePath,
+                    thumbnailMediaType = prepared.thumbnailMediaType,
+                    thumbnailByteSize = prepared.thumbnailByteSize,
+                    thumbnailWidth = prepared.thumbnailWidth,
+                    thumbnailHeight = prepared.thumbnailHeight,
+                    thumbnailContentMd5 = prepared.thumbnailContentMd5,
+                    thumbnailSha256 = prepared.thumbnailSha256,
                     now = now(),
                 )
                 item = requireNotNull(dao.item(itemId))
@@ -265,6 +287,14 @@ class ClientImageRepository private constructor(private val context: Context) {
                         clientSha256 = requireNotNull(item.sha256),
                         width = requireNotNull(item.width),
                         height = requireNotNull(item.height),
+                        thumbnail512 = ClientImageObjectDeclarationDto(
+                            mediaType = requireNotNull(item.thumbnailMediaType),
+                            byteSize = requireNotNull(item.thumbnailByteSize),
+                            contentMd5 = requireNotNull(item.thumbnailContentMd5),
+                            clientSha256 = requireNotNull(item.thumbnailSha256),
+                            width = requireNotNull(item.thumbnailWidth),
+                            height = requireNotNull(item.thumbnailHeight),
+                        ),
                     ),
                 ).bodyOrThrow("创建图片上传失败")
             } else {
@@ -302,7 +332,10 @@ class ClientImageRepository private constructor(private val context: Context) {
                 return
             }
             val target = upload.upload ?: throw IOException("服务器没有返回 COS 上传目标")
+            val thumbnailTarget = upload.thumbnailUpload
+                ?: throw IOException("服务器没有返回 COS 缩略图上传目标")
             val file = File(requireNotNull(item.preparedPath))
+            val thumbnailFile = File(requireNotNull(item.thumbnailPreparedPath))
             var lastPublished = 0L
             api().uploadImageToSignedUrl(target.url, file, target.requiredHeaders) { sent, total ->
                 if (sent == total || sent - lastPublished >= 256 * 1024) {
@@ -310,6 +343,11 @@ class ClientImageRepository private constructor(private val context: Context) {
                     scope.launch { dao.setProgress(itemId, sent, now()) }
                 }
             }
+            api().uploadImageToSignedUrl(
+                thumbnailTarget.url,
+                thumbnailFile,
+                thumbnailTarget.requiredHeaders,
+            ) { _, _ -> }
             dao.setItemState(itemId, ClientImageTransferState.VERIFYING, null, 0, now())
             val record = api().imageApi.completeUpload(
                 upload.uploadId,
@@ -510,6 +548,7 @@ class ClientImageRepository private constructor(private val context: Context) {
 
     private fun cleanupPrepared(item: ClientImageTransferItemEntity) {
         item.preparedPath?.let(::File)?.takeIf(File::isFile)?.delete()
+        item.thumbnailPreparedPath?.let(::File)?.takeIf(File::isFile)?.delete()
     }
 
     private suspend fun downloadVerifiedToTemporaryFile(record: ClientImageRecord): VerifiedDownload {

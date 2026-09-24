@@ -160,6 +160,16 @@ internal data class ClientImageUploadCreateDto(
     @SerializedName("width") val width: Int,
     @SerializedName("height") val height: Int,
     @SerializedName("metadata_sanitized") val metadataSanitized: Boolean = true,
+    @SerializedName("thumbnail_512") val thumbnail512: ClientImageObjectDeclarationDto,
+)
+
+internal data class ClientImageObjectDeclarationDto(
+    @SerializedName("media_type") val mediaType: String,
+    @SerializedName("byte_size") val byteSize: Long,
+    @SerializedName("content_md5") val contentMd5: String,
+    @SerializedName("client_sha256") val clientSha256: String,
+    @SerializedName("width") val width: Int,
+    @SerializedName("height") val height: Int,
 )
 
 internal data class ClientImageUploadTargetDto(
@@ -174,6 +184,7 @@ internal data class ClientImageUploadDto(
     @SerializedName("image_id") val imageId: String,
     @SerializedName("state") val state: String,
     @SerializedName("upload") val upload: ClientImageUploadTargetDto?,
+    @SerializedName("thumbnail_upload") val thumbnailUpload: ClientImageUploadTargetDto?,
     @SerializedName("asset_id") val assetId: String?,
 )
 
