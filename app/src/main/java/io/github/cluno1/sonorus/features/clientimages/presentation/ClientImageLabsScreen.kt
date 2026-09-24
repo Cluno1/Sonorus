@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -57,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -98,6 +101,8 @@ fun ClientImageLabsScreen(
     var tab by remember { mutableStateOf(0) }
     var wifiOnly by remember { mutableStateOf(false) }
     var confirmShare by remember { mutableStateOf(false) }
+    var editMaxSize by remember { mutableStateOf(false) }
+    var maxSizeText by remember { mutableStateOf("50") }
     var deleteCandidate by remember { mutableStateOf<ClientImageRecord?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -177,6 +182,7 @@ fun ClientImageLabsScreen(
                         batches = batches,
                         featureEnabled = capabilities?.enabled == true,
                         maxBytes = capabilities?.maxImageBytes,
+                        administrator = adminAvailable,
                         wifiOnly = wifiOnly,
                         busy = busy,
                         visibilityEnabled = visibility?.enabled == true,
@@ -195,6 +201,11 @@ fun ClientImageLabsScreen(
                         onCancel = viewModel::cancelBatch,
                         onVisibilityChange = { enabled ->
                             if (enabled) confirmShare = true else viewModel.updateVisibility(false)
+                        },
+                        onEditMaxBytes = {
+                            maxSizeText = ((capabilities?.maxImageBytes ?: DEFAULT_MAX_IMAGE_BYTES) / MIB)
+                                .toString()
+                            editMaxSize = true
                         },
                     )
                     1 -> ImageGallery(
@@ -235,6 +246,39 @@ fun ClientImageLabsScreen(
         )
     }
 
+    if (editMaxSize) {
+        val megabytes = maxSizeText.toIntOrNull()
+        AlertDialog(
+            onDismissRequest = { editMaxSize = false },
+            title = { Text("设置单张图片上限") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("修改后会立即应用到所有用户的新上传任务。")
+                    OutlinedTextField(
+                        value = maxSizeText,
+                        onValueChange = { value -> maxSizeText = value.filter(Char::isDigit).take(3) },
+                        label = { Text("大小（MB）") },
+                        supportingText = { Text("可设置 1–500 MB，默认 50 MB") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = megabytes != null && megabytes in 1..500 && !busy,
+                    onClick = {
+                        editMaxSize = false
+                        viewModel.updateMaxImageMegabytes(requireNotNull(megabytes))
+                    },
+                ) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editMaxSize = false }) { Text("取消") }
+            },
+        )
+    }
+
     preview?.let { state ->
         ImagePreviewDialog(
             record = state.record,
@@ -270,6 +314,7 @@ private fun UploadTab(
     batches: List<ClientImageTransferBatchEntity>,
     featureEnabled: Boolean,
     maxBytes: Long?,
+    administrator: Boolean,
     wifiOnly: Boolean,
     busy: Boolean,
     visibilityEnabled: Boolean,
@@ -283,6 +328,7 @@ private fun UploadTab(
     onResume: (String) -> Unit,
     onCancel: (String) -> Unit,
     onVisibilityChange: (Boolean) -> Unit,
+    onEditMaxBytes: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -412,6 +458,16 @@ private fun UploadTab(
                     checked = visibilityEnabled,
                     onCheckedChange = onVisibilityChange,
                 )
+                if (administrator) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 72.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    AdminImageLimitRow(
+                        maxBytes = maxBytes,
+                        onClick = onEditMaxBytes,
+                    )
+                }
             }
         }
         if (selected.isNotEmpty()) {
@@ -458,6 +514,44 @@ private fun UploadTab(
         }
     }
 }
+
+@Composable
+private fun AdminImageLimitRow(maxBytes: Long?, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Surface(
+            modifier = Modifier.size(42.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon = MaterialSymbolIcon("data_usage", filled = true),
+                    contentDescription = null,
+                    modifier = Modifier.size(23.dp),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("单张图片大小上限", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                "当前 ${maxBytes?.let(::formatBytes) ?: "50 MB"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onClick) { Text("设置") }
+    }
+}
+
+private const val MIB = 1024L * 1024L
+private const val DEFAULT_MAX_IMAGE_BYTES = 50L * MIB
 
 @Composable
 private fun UploadPreferenceRow(

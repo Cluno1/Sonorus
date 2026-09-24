@@ -116,6 +116,11 @@ internal interface CatalogImageApi {
         @Path("id") imageId: String,
         @Query("variant") variant: String,
     ): Response<ClientImageDeliveryDto>
+
+    @PATCH("v2/admin/shared-images/settings")
+    suspend fun updateSettings(
+        @Body body: ClientImageSettingsPatchDto,
+    ): Response<ClientImageSettingsDto>
 }
 
 internal data class ClientImageCapabilitiesDto(
@@ -262,4 +267,12 @@ internal data class ClientImageVisibilityDto(
     @SerializedName("revision") val revision: Int,
     @SerializedName("enabled_at") val enabledAt: String?,
     @SerializedName("updated_at") val updatedAt: String,
+)
+
+internal data class ClientImageSettingsPatchDto(
+    @SerializedName("max_image_bytes") val maxImageBytes: Long,
+)
+
+internal data class ClientImageSettingsDto(
+    @SerializedName("max_image_bytes") val maxImageBytes: Long,
 )

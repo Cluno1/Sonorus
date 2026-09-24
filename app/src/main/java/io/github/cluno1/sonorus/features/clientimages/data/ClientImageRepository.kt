@@ -18,6 +18,7 @@ import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageCapabili
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageDeliveryDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageObjectDeclarationDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageRecordDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageSettingsPatchDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageThumbnailRequestDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageUploadCreateDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.ClientImageVisibilityPatchDto
@@ -420,6 +421,15 @@ class ClientImageRepository private constructor(private val context: Context) {
         if (error.statusCode == 401 || error.statusCode == 403) false else throw error
     }
 
+    suspend fun updateMaxImageBytes(maxImageBytes: Long): Long {
+        require(maxImageBytes in MIN_ADMIN_IMAGE_BYTES..MAX_ADMIN_IMAGE_BYTES) {
+            "单张图片上限必须在 1–500 MB 之间"
+        }
+        return api().imageApi.updateSettings(ClientImageSettingsPatchDto(maxImageBytes))
+            .bodyOrThrow("更新图片大小上限失败")
+            .maxImageBytes
+    }
+
     suspend fun thumbnailDeliveries(
         imageIds: List<String>,
         variant: String,
@@ -648,6 +658,8 @@ class ClientImageRepository private constructor(private val context: Context) {
     }
 
     companion object {
+        private const val MIN_ADMIN_IMAGE_BYTES = 1L * 1024L * 1024L
+        private const val MAX_ADMIN_IMAGE_BYTES = 500L * 1024L * 1024L
         private const val MAX_RETRIES = 5
         private val SUPPORTED_SELECTION_TYPES = setOf("image/png", "image/jpeg", "image/webp")
         @Volatile private var instance: ClientImageRepository? = null
