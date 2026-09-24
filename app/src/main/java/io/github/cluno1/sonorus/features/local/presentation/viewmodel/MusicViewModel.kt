@@ -402,6 +402,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // Lyrics fetch job tracking to prevent race conditions
     private var lyricsFetchJob: Job? = null
     private var currentFetchingSongId: String? = null
+    private var currentLoadedLyricsSongId: String? = null
 
     private var cachedSyncedLyricsRaw: String? = null
     private var cachedParsedSyncedLyrics: List<LyricLine> = emptyList()
@@ -1728,11 +1729,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     
     private fun initializeQueueState() {
         try {
-            // Queue will be restored after MediaController is ready
-            // Just initialize with empty state for now
             if (_currentQueue.value.songs.isEmpty()) {
-                Log.d(TAG, "Initializing queue with empty state (will restore after controller is ready)")
-                _currentQueue.value = Queue(emptyList(), -1)
+                val savedIds = appSettings.savedQueue.value
+                val savedIndex = appSettings.savedQueueIndex.value
+                if (savedIds.isNotEmpty() && savedIndex >= 0 && appSettings.queuePersistenceEnabled.value) {
+                    viewModelScope.launch {
+                        try {
+                            val restoredSongs = repository.getSongsByIds(savedIds)
+                            if (restoredSongs.isNotEmpty() && _currentQueue.value.songs.isEmpty()) {
+                                val validIndex = savedIndex.coerceIn(0, restoredSongs.size - 1)
+                                _currentQueue.value = Queue(restoredSongs, validIndex)
+                                val currentSong = restoredSongs.getOrNull(validIndex)
+                                _currentSong.value = currentSong
+                                _isFavorite.value = currentSong?.let { song -> _favoriteSongs.value.contains(song.id) } ?: false
+                                Log.d(TAG, "Early pre-populated queue with ${restoredSongs.size} songs at index $validIndex")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error pre-populating queue from DB", e)
+                        }
+                    }
+                } else {
+                    _currentQueue.value = Queue(emptyList(), -1)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing queue state", e)
@@ -1746,15 +1764,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private fun restoreSavedQueue(songIds: List<String>, savedIndex: Int) {
         viewModelScope.launch {
             try {
-                // Wait for the ViewModel to be fully initialized (songs loaded from database)
-                _isInitialized.first { it }
-                
-                // Map saved song IDs to actual song objects
-                val allSongs = _songs.value
-                val songsById = allSongs.associateBy { it.id }
-                val restoredSongs = songIds.mapNotNull { songId ->
-                    songsById[songId]
+                // Fetch saved queue songs directly by IDs without waiting for full library scan
+                var restoredSongs = repository.getSongsByIds(songIds)
+                if (restoredSongs.isEmpty() && !_isInitialized.value) {
+                    _isInitialized.first { it }
+                    val allSongs = _songs.value
+                    val songsById = allSongs.associateBy { it.id }
+                    restoredSongs = songIds.mapNotNull { songId -> songsById[songId] }
                 }
+                val songsById = (_songs.value + restoredSongs).associateBy { it.id }
                 
                 // Remove songs that no longer exist from the queue
                 if (restoredSongs.size != songIds.size) {
@@ -1765,8 +1783,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 // Rehydrate original queue in queueStateHolder if saved and not already set
                 val savedOriginalIds = appSettings.savedOriginalQueue.value
                 if (savedOriginalIds.isNotEmpty() && !queueStateHolder.hasOriginalQueue()) {
-                    val restoredOriginalSongs = savedOriginalIds.mapNotNull { origId ->
-                        songsById[origId]
+                    val restoredOriginalSongs = repository.getSongsByIds(savedOriginalIds).ifEmpty {
+                        savedOriginalIds.mapNotNull { origId -> songsById[origId] }
                     }
                     if (restoredOriginalSongs.isNotEmpty()) {
                         queueStateHolder.restoreOriginalQueueState(
@@ -1798,8 +1816,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                     _favoriteSongs.value.contains(song.id) 
                                 } ?: false
 
-                                if (controller.shuffleModeEnabled) {
-                                    controller.shuffleModeEnabled = false
+                                val useExoPlayerShuffle = appSettings.shuffleUsesExoplayer.value
+                                val targetControllerShuffle = useExoPlayerShuffle && appSettings.savedShuffleState.value
+                                if (controller.shuffleModeEnabled != targetControllerShuffle) {
+                                    controller.shuffleModeEnabled = targetControllerShuffle
                                 }
 
                                 val mediaItems = restoredSongs.map { song -> song.toMediaItem() }
@@ -1815,6 +1835,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             } finally {
                                 isRestoringQueue = false
                             }
+
+                            // Sonorus extracts album colors from its current-song observer; only lyrics refresh here.
+                            if (_currentSong.value != null) fetchLyricsForCurrentSong(forceRefresh = true)
                         } ?: run {
                             Log.w(TAG, "MediaController not available yet, queue will be restored when controller is ready")
                             // Store for later restoration when controller becomes available.
@@ -1825,6 +1848,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             _isFavorite.value = _currentSong.value?.let { song ->
                                 _favoriteSongs.value.contains(song.id)
                             } ?: false
+
+                            // Sonorus extracts album colors from its current-song observer; only lyrics refresh here.
+                            if (_currentSong.value != null) fetchLyricsForCurrentSong(forceRefresh = true)
                         }
                     }
                 } else {
@@ -1856,10 +1882,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val pendingRestore = pendingQueueRestore
             val savedQueueIds = pendingRestore?.first ?: appSettings.savedQueue.value
             val savedIndex = pendingRestore?.second ?: appSettings.savedQueueIndex.value
+            val controllerItemCount = mediaController?.mediaItemCount ?: 0
             val hasActiveQueue = _currentQueue.value.songs.isNotEmpty() && _currentQueue.value.currentIndex >= 0
 
-            if (pendingRestore == null && hasActiveQueue) {
-                Log.d(TAG, "Active queue already present, skipping persisted queue restore")
+            if (pendingRestore == null && hasActiveQueue && controllerItemCount > 0) {
+                Log.d(TAG, "Active queue already present in controller, skipping persisted queue restore")
                 return
             }
             
@@ -4361,8 +4388,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 startPlaybackTracking(transitionSubject, transitionSong)
             }
 
-            if (mediaItem?.mediaId != null && mediaItem.mediaId == _currentSong.value?.id) {
-                Log.d(TAG, "Ignoring media item transition for same song: ${mediaItem.mediaId}")
+            if (
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
+                mediaItem?.mediaId != null &&
+                mediaItem.mediaId == _currentSong.value?.id
+            ) {
+                Log.d(TAG, "Ignoring playlist change transition for same song: ${mediaItem.mediaId}")
                 return
             }
 
@@ -6493,39 +6524,32 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         mediaController?.let { controller ->
             // Check if there are more songs in the queue
             if (controller.hasNextMediaItem()) {
-                // Get the next song before seeking to update UI immediately
-                val nextIndex = (controller.currentMediaItemIndex + 1) % controller.mediaItemCount
-                val nextMediaItem = controller.getMediaItemAt(nextIndex)
-                val nextSongId = nextMediaItem.mediaId
-                val nextSong = _songs.value.find { it.id == nextSongId }
+                val nextIndex = controller.nextMediaItemIndex
+                if (nextIndex != androidx.media3.common.C.INDEX_UNSET && nextIndex in 0 until controller.mediaItemCount) {
+                    val nextMediaItem = controller.getMediaItemAt(nextIndex)
+                    val nextSong = resolveSongFromMediaItem(nextMediaItem)
 
-                playbackControlStateMachine.beginLoading(
-                    mediaId = nextSongId,
-                    playWhenReady = controller.playWhenReady,
-                )
-                
-                // Update the current queue position first for immediate UI feedback
-                val currentQueue = _currentQueue.value
-                if (currentQueue.songs.isNotEmpty()) {
-                    val currentIndex = currentQueue.currentIndex
-                    val newIndex = (currentIndex + 1) % currentQueue.songs.size
-                    _currentQueue.value = currentQueue.copy(currentIndex = newIndex)
+                    playbackControlStateMachine.beginLoading(
+                        mediaId = nextMediaItem.mediaId,
+                        playWhenReady = controller.playWhenReady,
+                    )
                     
-                    // Reset progress to 0 for immediate UI feedback
-                    _progress.value = 0f
-                    
-                    Log.d(TAG, "Updated queue position from $currentIndex to $newIndex")
-                }
-                
-                // Update the current song immediately for better UX
-                if (nextSong != null) {
-                    _currentSong.value = nextSong
-                    // Update recently played
-                    updateRecentlyPlayed(nextSong)
-                    // Update favorite status
-                    _isFavorite.value = _favoriteSongs.value.contains(nextSong.id)
-                    // Fetch lyrics for the new song
-                    fetchLyricsForCurrentSong()
+                    // Update the current queue position first for immediate UI feedback
+                    val currentQueue = _currentQueue.value
+                    if (currentQueue.songs.isNotEmpty() && nextSong != null) {
+                        val newIndex = currentQueue.songs.indexOfFirst { it.id == nextSong.id }.takeIf { it >= 0 }
+                            ?: ((currentQueue.currentIndex + 1) % currentQueue.songs.size)
+                        _currentQueue.value = currentQueue.copy(currentIndex = newIndex)
+                        
+                        // Reset progress to 0 for immediate UI feedback
+                        _progress.value = 0f
+                        _currentSong.value = nextSong
+                        updateRecentlyPlayed(nextSong)
+                        _isFavorite.value = _favoriteSongs.value.contains(nextSong.id)
+                        fetchLyricsForCurrentSong(forceRefresh = true)
+                        
+                        Log.d(TAG, "Updated queue position from ${currentQueue.currentIndex} to $newIndex")
+                    }
                 }
                 
                 // Now perform the actual seek operation
@@ -6554,47 +6578,30 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 // Otherwise, skip to the actual previous song
                 if (controller.hasPreviousMediaItem()) {
-                    // Get the previous song before seeking to update UI immediately
-                    val prevIndex = if (controller.currentMediaItemIndex > 0)
-                        controller.currentMediaItemIndex - 1
-                    else
-                        controller.mediaItemCount - 1
+                    val prevIndex = controller.previousMediaItemIndex
+                    if (prevIndex != androidx.media3.common.C.INDEX_UNSET && prevIndex in 0 until controller.mediaItemCount) {
+                        val prevMediaItem = controller.getMediaItemAt(prevIndex)
+                        val prevSong = resolveSongFromMediaItem(prevMediaItem)
 
-                    val prevMediaItem = controller.getMediaItemAt(prevIndex)
-                    val prevSongId = prevMediaItem.mediaId
-                    val prevSong = _songs.value.find { it.id == prevSongId }
+                        playbackControlStateMachine.beginLoading(
+                            mediaId = prevMediaItem.mediaId,
+                            playWhenReady = controller.playWhenReady,
+                        )
 
-                    playbackControlStateMachine.beginLoading(
-                        mediaId = prevSongId,
-                        playWhenReady = controller.playWhenReady,
-                    )
+                        val currentQueue = _currentQueue.value
+                        if (currentQueue.songs.isNotEmpty() && prevSong != null) {
+                            val newIndex = currentQueue.songs.indexOfFirst { it.id == prevSong.id }.takeIf { it >= 0 }
+                                ?: (if (currentQueue.currentIndex > 0) currentQueue.currentIndex - 1 else currentQueue.songs.size - 1)
+                            _currentQueue.value = currentQueue.copy(currentIndex = newIndex)
 
-                    // Update the current queue position first for immediate UI feedback
-                    val currentQueue = _currentQueue.value
-                    if (currentQueue.songs.isNotEmpty()) {
-                        val currentIndex = currentQueue.currentIndex
-                        val newIndex = if (currentIndex > 0)
-                            currentIndex - 1
-                        else
-                            currentQueue.songs.size - 1
+                            _progress.value = 0f
+                            _currentSong.value = prevSong
+                            updateRecentlyPlayed(prevSong)
+                            _isFavorite.value = _favoriteSongs.value.contains(prevSong.id)
+                            fetchLyricsForCurrentSong(forceRefresh = true)
 
-                        _currentQueue.value = currentQueue.copy(currentIndex = newIndex)
-
-                        // Reset progress to 0 for immediate UI feedback
-                        _progress.value = 0f
-
-                        Log.d(TAG, "Updated queue position from $currentIndex to $newIndex")
-                    }
-
-                    // Update the current song immediately for better UX
-                    if (prevSong != null) {
-                        _currentSong.value = prevSong
-                        // Update recently played
-                        updateRecentlyPlayed(prevSong)
-                        // Update favorite status
-                        _isFavorite.value = _favoriteSongs.value.contains(prevSong.id)
-                        // Fetch lyrics for the new song
-                        fetchLyricsForCurrentSong()
+                            Log.d(TAG, "Updated queue position from ${currentQueue.currentIndex} to $newIndex")
+                        }
                     }
 
                     // Now perform the actual seek operation
@@ -6768,7 +6775,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (useExoPlayerShuffle && !queueStateHolder.hasOriginalQueue()) {
                     controller.shuffleModeEnabled = false
                     _isShuffleEnabled.value = false
-                    queueStateHolder.clearOriginalQueue()
                     syncQueueWithMediaController()
                     saveQueueToPersistence()
                     return@executeCommand
@@ -6782,36 +6788,35 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     return@executeCommand
                 }
 
-                val baseOriginalQueue = queueStateHolder.getFilteredOriginalQueue(currentSongs)
-                val originalQueue = buildRestoredQueueWithAdditions(baseOriginalQueue, currentSongs)
+                val currentMediaId = controller.currentMediaItem?.mediaId ?: _currentSong.value?.id
+                val currentIndex = currentMediaId
+                    ?.let { mediaId -> currentSongs.indexOfFirst { it.id == mediaId }.takeIf { it >= 0 } }
+                    ?: controller.currentMediaItemIndex.coerceIn(0, (currentSongs.size - 1).coerceAtLeast(0))
+
+                val originalOrder = queueStateHolder.getFilteredOriginalQueue(currentSongs)
                 val wasPlaying = controller.isPlaying
                 val currentPosition = controller.currentPosition
-                val currentSongId = currentSong?.id ?: controller.currentMediaItem?.mediaId
-                val originalIndex = originalQueue.indexOfFirst { it.id == currentSongId }.takeIf { it >= 0 }
 
-                if (originalQueue.isEmpty() || originalIndex == null) {
-                    queueStateHolder.clearOriginalQueue()
-                    controller.shuffleModeEnabled = false
-                    _isShuffleEnabled.value = false
-                    syncQueueWithMediaController()
-                    saveQueueToPersistence()
-                    return@executeCommand
-                }
+                // When disabling shuffle, preserve the played segment (0 until currentIndex)
+                // and the current song, and restore only the upcoming songs to their original relative order.
+                val restoredQueue = QueueUtils.restoreQueueOrderOnShuffleDisable(
+                    currentSongs = currentSongs,
+                    currentIndex = currentIndex,
+                    originalOrder = originalOrder
+                )
 
-                // Use bulk replace for large queues to avoid UI freeze
-                if (originalQueue.size > BULK_REPLACE_THRESHOLD) {
-                    replacePlayerQueue(controller, originalQueue, currentSongId, currentPosition)
+                if (restoredQueue.size > BULK_REPLACE_THRESHOLD) {
+                    replacePlayerQueue(controller, restoredQueue, currentMediaId, currentPosition)
                 } else {
-                    val reordered = reorderQueueInPlace(controller, originalQueue)
+                    val reordered = reorderQueueInPlace(controller, restoredQueue)
                     if (!reordered) {
-                        replacePlayerQueue(controller, originalQueue, currentSongId, currentPosition)
+                        replacePlayerQueue(controller, restoredQueue, currentMediaId, currentPosition)
                     }
                 }
 
-                updateQueueState(originalQueue)
+                updateQueueState(restoredQueue)
                 controller.shuffleModeEnabled = false
                 _isShuffleEnabled.value = false
-                queueStateHolder.clearOriginalQueue()
 
                 if (wasPlaying && !controller.isPlaying) {
                     if (!canStartPlayback("toggleShuffle.disable")) return@let
@@ -8130,7 +8135,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             lyricsFetchJob?.cancel()
             currentFetchingSongId = null
+            currentLoadedLyricsSongId = null
             _currentLyrics.value = null
+            _isLoadingLyrics.value = false
         }
     }
     
@@ -8408,7 +8415,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         if (!forceRefresh && retryCount == 0 && currentFetchingSongId == song.id) {
-            if (lyricsFetchJob?.isActive == true || _currentLyrics.value != null) {
+            if (lyricsFetchJob?.isActive == true || (_currentLyrics.value != null && currentLoadedLyricsSongId == song.id)) {
                 Log.d(TAG, "Lyrics fetch already in progress or completed for: ${song.title}")
                 return
             }
@@ -8422,10 +8429,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // This prevents showing stale lyrics from previous song
         if (retryCount == 0) {
             _currentLyrics.value = null
+            currentLoadedLyricsSongId = null
+            _isLoadingLyrics.value = true
         }
         
         // Check if lyrics are enabled
         if (!showLyrics.value) {
+            _isLoadingLyrics.value = false
             return
         }
         
@@ -8434,7 +8444,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         // Create a new job for this lyrics fetch
         lyricsFetchJob = viewModelScope.launch {
-            _isLoadingLyrics.value = true
             try {
                 // Store the song ID to validate it hasn't changed
                 val fetchingSongId = song.id
@@ -8450,6 +8459,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 
                 // Verify the song hasn't changed before updating lyrics
                 if (currentSong.value?.id == fetchingSongId && isActive) {
+                    currentLoadedLyricsSongId = fetchingSongId
                     _currentLyrics.value = lyricsData
                     if (lyricsData?.hasLyrics() == true) {
                         Log.d(TAG, "Successfully fetched lyrics for: ${song.artist} - ${song.title}")
@@ -8491,11 +8501,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     // All retries failed - only show error if song hasn't changed
                     if (currentSong.value?.id == song.id && isActive) {
                         Log.w(TAG, "Failed to fetch lyrics after ${retryCount + 1} attempts")
+                        currentLoadedLyricsSongId = song.id
                         _currentLyrics.value = LyricsData("Unable to load lyrics. Tap to retry.", null)
                     }
                 }
             } finally {
-                if (isActive) {
+                if (currentSong.value?.id == song.id && isActive) {
                     _isLoadingLyrics.value = false
                 }
             }

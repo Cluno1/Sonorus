@@ -113,4 +113,50 @@ object QueueUtils {
 
         return buildAnchoredShuffleQueue(originalQueue, currentIndex)
     }
+
+    /**
+     * Restores the upcoming portion of a shuffled queue to the relative order specified by
+     * [originalOrder], while keeping all already played songs (indices before [currentIndex])
+     * and the currently playing song in their exact positions.
+     *
+     * Any songs added to [currentSongs] that were not present in [originalOrder] are preserved
+     * at the end of the upcoming segment.
+     */
+    fun <T> restoreQueueOrderOnShuffleDisable(
+        currentSongs: List<T>,
+        currentIndex: Int,
+        originalOrder: List<T>,
+        idSelector: (T) -> String
+    ): List<T> {
+        if (currentSongs.isEmpty()) return emptyList()
+
+        val safeIndex = currentIndex.coerceIn(0, currentSongs.size - 1)
+        val played = if (safeIndex > 0) currentSongs.subList(0, safeIndex) else emptyList()
+        val current = currentSongs[safeIndex]
+        val upcoming = if (safeIndex + 1 < currentSongs.size) {
+            currentSongs.subList(safeIndex + 1, currentSongs.size)
+        } else {
+            emptyList()
+        }
+
+        val upcomingIds = upcoming.map(idSelector).toSet()
+        val restoredUpcoming = originalOrder.filter { idSelector(it) in upcomingIds } +
+            upcoming.filter { song -> originalOrder.none { idSelector(it) == idSelector(song) } }
+
+        return buildList(currentSongs.size) {
+            addAll(played)
+            add(current)
+            addAll(restoredUpcoming)
+        }
+    }
+
+    /**
+     * Overload for [Song] queues.
+     */
+    fun restoreQueueOrderOnShuffleDisable(
+        currentSongs: List<Song>,
+        currentIndex: Int,
+        originalOrder: List<Song>
+    ): List<Song> = restoreQueueOrderOnShuffleDisable(currentSongs, currentIndex, originalOrder) { it.id }
 }
+

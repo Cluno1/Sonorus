@@ -2322,6 +2322,7 @@ fun MaterialPlayerScreen(
                                                             key1 = lyricsText,
                                                             key2 = likelySyncedLyrics
                                                         ) {
+                                                            value = if (likelySyncedLyrics) null else emptyList()
                                                             value = if (!likelySyncedLyrics) {
                                                                 emptyList()
                                                             } else {

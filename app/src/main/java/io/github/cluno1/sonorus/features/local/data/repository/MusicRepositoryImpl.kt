@@ -6656,6 +6656,17 @@ class MusicRepository(context: Context) {
      * Returns the number of songs stored in the Room database.
      */
     suspend fun getRoomSongCount(): Int = songDao.getCount()
+
+    /**
+     * Retrieves a list of songs matching the provided IDs directly from the Room database.
+     * Preserves the order of the input songIds list.
+     */
+    suspend fun getSongsByIds(songIds: List<String>): List<Song> = withContext(Dispatchers.IO) {
+        if (songIds.isEmpty()) return@withContext emptyList()
+        val entities = songDao.getSongsByIds(songIds)
+        val entitiesById = entities.associateBy { it.id }
+        songIds.mapNotNull { id -> entitiesById[id]?.toSong() }
+    }
     
     /**
      * Clears only the lyrics cache
