@@ -115,81 +115,6 @@ import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlayb
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LanSubsonicPlayer(
-    song: Song?,
-    isPlaying: Boolean,
-    progress: () -> Float,
-    queuePosition: Int,
-    queueTotal: Int,
-    onBack: () -> Unit,
-    onPlayPause: () -> Unit,
-    onSkipPrevious: () -> Unit,
-    onSkipNext: () -> Unit,
-    onSeek: (Float) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_lan_music)) },
-                navigationIcon = {
-                    TextButton(onClick = onBack) { Text(stringResource(R.string.lan_player_back)) }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                song?.title.orEmpty(),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                song?.artist.orEmpty(),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            Text(
-                stringResource(R.string.lan_player_read_only),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 16.dp),
-            )
-            Slider(
-                value = progress().coerceIn(0f, 1f),
-                onValueChange = onSeek,
-                modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(onClick = onSkipPrevious, enabled = queuePosition > 1) {
-                    Text(stringResource(R.string.lan_player_previous))
-                }
-                Button(onClick = onPlayPause) {
-                    Text(stringResource(if (isPlaying) R.string.lan_player_pause else R.string.lan_player_play))
-                }
-                Button(onClick = onSkipNext, enabled = queuePosition < queueTotal) {
-                    Text(stringResource(R.string.lan_player_next))
-                }
-            }
-            Text(
-                text = stringResource(R.string.lan_player_queue_position, queuePosition, queueTotal),
-                modifier = Modifier.padding(top = 16.dp),
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun ManagedCatalogPlayer(
     song: Song?,
     isPlaying: Boolean,
@@ -335,27 +260,11 @@ fun PlayerScreen(
     expansionFraction: Float = 1f,
     snackbarHostState: SnackbarHostState? = null,
 ) {
-    if (LanSubsonicPlaybackPolicy.isLanSong(
-            enabled = ProductCapabilities.lanSubsonicOnly,
-            mediaId = song?.id,
-            uri = song?.uri?.toString(),
-        )
-    ) {
-        LanSubsonicPlayer(
-            song = song,
-            isPlaying = isPlaying,
-            progress = progress,
-            queuePosition = queuePosition,
-            queueTotal = queueTotal,
-            onBack = onBack,
-            onPlayPause = onPlayPause,
-            onSkipPrevious = onSkipPrevious,
-            onSkipNext = onSkipNext,
-            onSeek = onSeek,
-            modifier = modifier,
-        )
-        return
-    }
+    val readOnlyLan = LanSubsonicPlaybackPolicy.isLanSong(
+        enabled = ProductCapabilities.lanSubsonicOnly,
+        mediaId = song?.id,
+        uri = song?.uri?.toString(),
+    )
 
     // issue 9: catalog MP3 走 Rhythm 原生播放器（Expressive/Material），不再进自研的
     // ManagedCatalogPlayer。`song` 已是 catalog 投影的 Song，直接落入下方原生播放逻辑，
@@ -384,12 +293,12 @@ fun PlayerScreen(
     var canvasArtwork by remember(song?.id) { mutableStateOf<CanvasArtwork?>(null) }
     var canvasLoading by remember(song?.id) { mutableStateOf(false) }
 
-    LaunchedEffect(song?.id, appleCanvasEnabled, appleCanvasNetworkMode) {
+    LaunchedEffect(song?.id, appleCanvasEnabled, appleCanvasNetworkMode, readOnlyLan) {
         // Reset immediately so stale canvas from previous track is gone
         canvasArtwork = null
         canvasLoading = false
 
-        if (song != null && appleCanvasEnabled) {
+        if (song != null && appleCanvasEnabled && !readOnlyLan) {
             val hasNetwork = if (appleCanvasNetworkMode == CanvasNetworkMode.WIFI_ONLY) {
                 NetworkUtils.isWifiConnected(context)
             } else {
@@ -580,15 +489,15 @@ fun PlayerScreen(
             queueTotal = queueTotal,
             isShuffleEnabled = isShuffleEnabled,
             repeatMode = repeatMode,
-            showLyricsView = showLyricsView,
-            showLyrics = showLyrics,
-            lyrics = lyrics,
-            isLoadingLyrics = isLoadingLyrics,
+            showLyricsView = showLyricsView && !readOnlyLan,
+            showLyrics = showLyrics && !readOnlyLan,
+            lyrics = lyrics.takeUnless { readOnlyLan },
+            isLoadingLyrics = isLoadingLyrics && !readOnlyLan,
             onlineOnlyLyrics = onlineOnlyLyrics,
             onLyricsSeek = onLyricsSeek,
-            onRetryLyrics = onRetryLyrics,
-            onShowLyricsEditor = { showLyricsEditorDialog = true },
-            onPickLyricsFile = onPickLyricsFile,
+            onRetryLyrics = { if (!readOnlyLan) onRetryLyrics() },
+            onShowLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
+            onPickLyricsFile = { if (!readOnlyLan) onPickLyricsFile() },
             onManualLyricsSearch = song?.takeIf {
                 DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
             }?.let { targetSong ->
@@ -622,9 +531,9 @@ fun PlayerScreen(
             onOpenScore = onCatalogOpenScore,
             onToggleShuffle = onToggleShuffle,
             onToggleRepeat = onToggleRepeat,
-            onToggleLyrics = { showLyricsView = !showLyricsView },
+            onToggleLyrics = { if (!readOnlyLan) showLyricsView = !showLyricsView },
             onSongInfoClick = { showSongInfoSheet = true },
-            onOpenFullScreenLyrics = { showFullScreenLyrics = true },
+            onOpenFullScreenLyrics = { if (!readOnlyLan) showFullScreenLyrics = true },
             onShowAlbumBottomSheet = {
                 song?.let { currentSong ->
                     val album = resolveAlbumForSong(currentSong)
@@ -649,7 +558,7 @@ fun PlayerScreen(
                 }
             },
             onShowArtist = {
-                song?.let { currentSong ->
+                if (!readOnlyLan) song?.let { currentSong ->
                     val artistNames = splitArtistNames(currentSong.artist)
 
                     if (artistNames.size <= 1) {
@@ -689,7 +598,7 @@ fun PlayerScreen(
             onSleepTimer = { showSleepTimerBottomSheet = true },
             onAddToPlaylist = { showAddToPlaylistSheetInternal = true },
             onShareFile = {
-                song?.let { currentSong ->
+                if (!readOnlyLan) song?.let { currentSong ->
                     try {
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "audio/*"
@@ -854,7 +763,7 @@ fun PlayerScreen(
                         android.util.Log.w("PlayerScreen", "Metadata update failed for song: ${song.title}", e)
                     }
                 },
-                onShowLyricsEditor = { showLyricsEditorDialog = true },
+                onShowLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
                 onOpenManualMetadata = song.takeIf {
                     DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
                 }?.let { targetSong ->
@@ -882,10 +791,10 @@ fun PlayerScreen(
                 equalizerEnabled = equalizerEnabled,
                 sleepTimerActive = sleepTimerActive,
                 sleepTimerRemainingSeconds = sleepTimerRemainingSeconds,
-                lyrics = lyrics,
+                lyrics = lyrics.takeUnless { readOnlyLan },
                 overflowButtonIds = overflowBottomButtonIds,
                 isFavorite = isFavorite,
-                onToggleLyrics = { showLyricsView = !showLyricsView },
+                onToggleLyrics = { if (!readOnlyLan) showLyricsView = !showLyricsView },
                 onToggleFavorite = onToggleFavorite,
                 onOpenScore = onCatalogOpenScore,
                 onDevice = { showDeviceOutputSheet = true },
@@ -906,7 +815,7 @@ fun PlayerScreen(
                     }
                 },
                 onSleepTimer = { showSleepTimerBottomSheet = true },
-                onLyricsEditor = { showLyricsEditorDialog = true },
+                onLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
                 onAlbum = {
                     song?.let { currentSong ->
                         val album = resolveAlbumForSong(currentSong)
@@ -931,7 +840,7 @@ fun PlayerScreen(
                     }
                 },
                 onArtist = {
-                    song?.let { currentSong ->
+                    if (!readOnlyLan) song?.let { currentSong ->
                         val artistNames = splitArtistNames(currentSong.artist)
 
                         if (artistNames.size <= 1) {
@@ -1073,14 +982,14 @@ fun PlayerScreen(
             isShuffleEnabled = isShuffleEnabled,
             repeatMode = repeatMode,
             isFavorite = isFavorite,
-            showLyrics = showLyrics,
+            showLyrics = showLyrics && !readOnlyLan,
             onlineOnlyLyrics = onlineOnlyLyrics,
-            lyrics = lyrics,
-            isLoadingLyrics = isLoadingLyrics,
-            onRetryLyrics = onRetryLyrics,
-            onEditLyrics = onEditLyrics,
-            onPickLyricsFile = onPickLyricsFile,
-            onSaveLyrics = onSaveLyrics,
+            lyrics = lyrics.takeUnless { readOnlyLan },
+            isLoadingLyrics = isLoadingLyrics && !readOnlyLan,
+            onRetryLyrics = { if (!readOnlyLan) onRetryLyrics() },
+            onEditLyrics = { value -> if (!readOnlyLan) onEditLyrics(value) },
+            onPickLyricsFile = { if (!readOnlyLan) onPickLyricsFile() },
+            onSaveLyrics = { value, format -> if (!readOnlyLan) onSaveLyrics(value, format) },
             playlists = playlists,
             queue = queue,
             onSongClick = onSongClick,
@@ -1109,7 +1018,7 @@ fun PlayerScreen(
             musicViewModel = musicViewModel,
             navController = navController,
             isStreamingMode = isStreamingMode,
-            onOpenFullScreenLyrics = { showFullScreenLyrics = true },
+            onOpenFullScreenLyrics = { if (!readOnlyLan) showFullScreenLyrics = true },
             canvasArtwork = if (showFullScreenLyrics) null else canvasArtwork,
             canvasLoading = if (showFullScreenLyrics) false else canvasLoading,
             swipeToDismissEnabled = swipeToDismissEnabled,
@@ -1119,7 +1028,7 @@ fun PlayerScreen(
     }
 
     AnimatedVisibility(
-        visible = showFullScreenLyrics,
+        visible = showFullScreenLyrics && !readOnlyLan,
         enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         modifier = Modifier.fillMaxSize()
@@ -1133,14 +1042,14 @@ fun PlayerScreen(
             song = song,
             isPlaying = isPlaying,
             currentTimeMs = currentTimeMs,
-            lyrics = lyrics,
-            isLoadingLyrics = isLoadingLyrics,
+            lyrics = lyrics.takeUnless { readOnlyLan },
+            isLoadingLyrics = isLoadingLyrics && !readOnlyLan,
             onPlayPause = onPlayPause,
             onSkipNext = onSkipNext,
             onSkipPrevious = onSkipPrevious,
             onSeek = onSeek,
             onLyricsSeek = onLyricsSeek,
-            onRetryLyrics = onRetryLyrics,
+            onRetryLyrics = { if (!readOnlyLan) onRetryLyrics() },
             onManualLyricsSearch = song?.takeIf {
                 DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
             }?.let { targetSong ->
@@ -1152,7 +1061,7 @@ fun PlayerScreen(
                 }
             },
             onClose = { showFullScreenLyrics = false },
-            onShowLyricsEditor = { showLyricsEditorDialog = true },
+            onShowLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
             onNavigateToLyricsSettings = {
                 try {
                     navController.navigate(Screen.TunerLyrics.route) {
@@ -1176,7 +1085,7 @@ fun PlayerScreen(
         )
     }
 
-    if (showLyricsEditorDialog) {
+    if (showLyricsEditorDialog && !readOnlyLan) {
         val editorDurationMs by musicViewModel.duration.collectAsState()
         val editorTotalMs = song?.duration?.takeIf { it > 0L }
             ?: editorDurationMs.takeIf { it > 0L }

@@ -1150,6 +1150,7 @@ private fun LocalNavigationContent(
 
     val appMode by appSettings.appMode.collectAsState()
     val isStreamingMode = appMode == "STREAMING"
+    val isLanStreamingMode = isStreamingMode && ProductCapabilities.lanSubsonicOnly
     val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsState()
     val streamingMusicViewModel: StreamingMusicViewModel = viewModel()
     val streamingSessions by streamingMusicViewModel.serviceSessions.collectAsState()
@@ -1456,7 +1457,13 @@ private fun LocalNavigationContent(
                 val showPlayerSheet = currentSong != null && (showMiniPlayer || currentRoute == Screen.Player.route)
                 if (showPlayerSheet) {
                     val bottomBarHeightPx = with(LocalDensity.current) { MusicDimensions.bottomNavigationHeight.roundToPx() }
-                    val playerIsFavorite = if (isStreamingMode) {
+                    val currentIsLan = LanSubsonicPlaybackPolicy.isLanSong(
+                        enabled = ProductCapabilities.lanSubsonicOnly,
+                        mediaId = currentSong.id,
+                        uri = currentSong.uri.toString(),
+                    )
+                    val playerUsesRemoteCuration = isStreamingMode && !isLanStreamingMode
+                    val playerIsFavorite = if (playerUsesRemoteCuration) {
                         streamingCurrentSong?.let { streamingLikedSongIds.contains(it.id) } ?: false
                     } else {
                         isFavorite
@@ -1558,7 +1565,7 @@ private fun LocalNavigationContent(
                                 }
                             }
                         },
-                        onToggleFavorite = if (isStreamingMode) {
+                        onToggleFavorite = if (playerUsesRemoteCuration) {
                             {
                                 val s = streamingCurrentSong
                                 if (s != null) {
@@ -1587,20 +1594,18 @@ private fun LocalNavigationContent(
                                 val targetSong = currentSong
                                 val wasFavorite = playerIsFavorite
                                 onToggleFavorite()
-                                if (targetSong != null) {
-                                    coroutineScope.launch {
-                                        snackbarHostState.currentSnackbarData?.dismiss()
-                                        val result = snackbarHostState.showSnackbar(
-                                            message = context.getString(
-                                                if (wasFavorite) R.string.player_favorite_removed_message
-                                                else R.string.player_favorite_added_message
-                                            ),
-                                            actionLabel = context.getString(R.string.action_undo),
-                                            duration = androidx.compose.material3.SnackbarDuration.Short,
-                                        )
-                                        if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                                            viewModel.toggleFavorite(targetSong)
-                                        }
+                                coroutineScope.launch {
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = context.getString(
+                                            if (wasFavorite) R.string.player_favorite_removed_message
+                                            else R.string.player_favorite_added_message
+                                        ),
+                                        actionLabel = context.getString(R.string.action_undo),
+                                        duration = androidx.compose.material3.SnackbarDuration.Short,
+                                    )
+                                    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                                        viewModel.toggleFavorite(targetSong)
                                     }
                                 }
                             }
@@ -1608,18 +1613,14 @@ private fun LocalNavigationContent(
                         onToggleShuffle = onToggleShuffle,
                         onToggleRepeat = onToggleRepeat,
                         onAddToPlaylist = {
-                            if (currentSong.isCatalogLibrarySong()) {
-                                Toast.makeText(context, "远程歌曲暂不写入本地歌单", Toast.LENGTH_SHORT).show()
-                            } else {
-                                showAddToPlaylistSheet.value = true
-                            }
+                            showAddToPlaylistSheet.value = true
                         },
-                        showLyrics = showLyrics,
+                        showLyrics = showLyrics && !currentIsLan,
                         onlineOnlyLyrics = showOnlineOnlyLyrics,
-                        lyrics = lyrics,
-                        isLoadingLyrics = isLoadingLyrics,
+                        lyrics = lyrics.takeUnless { currentIsLan },
+                        isLoadingLyrics = isLoadingLyrics && !currentIsLan,
                         onRetryLyrics = {
-                            viewModel.retryFetchLyrics()
+                            if (!currentIsLan) viewModel.retryFetchLyrics()
                         },
                         volume = viewModel.volume.collectAsState().value,
                         isMuted = viewModel.isMuted.collectAsState().value,
@@ -1690,13 +1691,20 @@ private fun LocalNavigationContent(
                         },
                         isMediaLoading = viewModel.isBuffering.collectAsState().value,
                         isSeeking = viewModel.isSeeking.collectAsState().value,
-                        songs = viewModel.filteredSongs.collectAsState().value,
-                        albums = viewModel.albums.collectAsState().value,
-                        artists = viewModel.artists.collectAsState().value,
-                        onPlayAlbumSongs = { songs -> viewModel.playSongs(songs) },
-                        onShuffleAlbumSongs = { songs -> viewModel.playShuffled(songs) },
+                        songs = if (currentIsLan) streamingMappedSongs else songs,
+                        albums = if (currentIsLan) streamingMappedAlbums else albums,
+                        artists = if (currentIsLan) streamingMappedArtists else artists,
+                        onPlayAlbumSongs = { songs ->
+                            if (currentIsLan) playStreamingMappedQueue(songs, 0, false)
+                            else viewModel.playSongs(songs)
+                        },
+                        onShuffleAlbumSongs = { songs ->
+                            if (currentIsLan) playStreamingMappedQueue(songs, 0, true)
+                            else viewModel.playShuffled(songs)
+                        },
                         onPlayArtistSongs = { songs -> viewModel.playSongs(songs) },
                         onShuffleArtistSongs = { songs -> viewModel.playShuffled(songs) },
+                        isStreamingMode = currentIsLan,
                         appSettings = appSettings,
                         musicViewModel = viewModel,
                         navController = navController,
@@ -2542,22 +2550,29 @@ private fun LocalNavigationContent(
                             localViewModel = viewModel,
                             streamingViewModel = streamingViewModel,
                             catalogSource = UniversalSearchCatalogSource(
-                                songs = nativeSongs,
-                                albums = nativeAlbums,
-                                scoreWorks = catalogState.scoreWorks,
-                                serverUrl = catalogState.serverUrl,
-                                isLoading = catalogState.loading,
+                                songs = if (isLanStreamingMode) streamingMappedSongs else nativeSongs,
+                                albums = if (isLanStreamingMode) streamingMappedAlbums else nativeAlbums,
+                                scoreWorks = if (isLanStreamingMode) emptyList() else catalogState.scoreWorks,
+                                serverUrl = if (isLanStreamingMode) null else catalogState.serverUrl,
+                                isLoading = if (isLanStreamingMode) streamingIsLoading else catalogState.loading,
+                                requiredAppModeForLocalItems = if (isLanStreamingMode) "STREAMING" else null,
                             ),
-                            onLocalSongClick = { song ->
-                                val index = nativeSongs.indexOfFirst { it.id == song.id }
-                                if (index >= 0) {
-                                    playCatalogQueue(nativeSongs, index, false)
+                            onLocalSongClick = { song, contextSongs ->
+                                val index = contextSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+                                if (isLanStreamingMode) {
+                                    playStreamingMappedQueue(contextSongs, index, false)
                                 } else {
-                                    playNativeSong(song)
+                                    playCatalogQueue(contextSongs, index, false)
                                 }
                             },
                             onLocalAlbumClick = { album ->
-                                navController.navigate(Screen.AlbumDetail.createRoute(album.id, album.title))
+                                if (isLanStreamingMode) {
+                                    navController.navigate(StreamingRoutes.album(album.id, album.title)) {
+                                        launchSingleTop = true
+                                    }
+                                } else {
+                                    navController.navigate(Screen.AlbumDetail.createRoute(album.id, album.title))
+                                }
                             },
                             onCatalogScoreWorkClick = { work ->
                                 val option = work.currentScoreOption()
@@ -3698,7 +3713,11 @@ private fun LocalNavigationContent(
                     LibraryScreen(
                         songs = if (isStreamingMode) streamingMappedSongs else nativeSongs,
                         albums = if (isStreamingMode) streamingMappedAlbums else nativeAlbums,
-                        playlists = if (isStreamingMode) streamingMappedPlaylists else playlists,
+                        playlists = when {
+                            isLanStreamingMode -> playlists
+                            isStreamingMode -> streamingMappedPlaylists
+                            else -> playlists
+                        },
                         artists = if (isStreamingMode) streamingMappedArtists else artists,
                         currentSong = currentSong,
                         isPlaying = isPlaying,
@@ -3721,7 +3740,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         onPlaylistClick = { playlist ->
-                            if (isStreamingMode) {
+                            if (isStreamingMode && !isLanStreamingMode) {
                                 navController.navigate(StreamingRoutes.playlist(playlist.id)) {
                                     launchSingleTop = true
                                 }
@@ -3790,10 +3809,8 @@ private fun LocalNavigationContent(
                             viewModel.sortLibrary()
                         },
                         onAddSongToPlaylist = { song, playlistId ->
-                            if (isStreamingMode) {
+                            if (isStreamingMode && !isLanStreamingMode) {
                                 streamingSongById[song.id]?.let { onStreamingAddSongToPlaylist(it) }
-                            } else if (song.isCatalogLibrarySong()) {
-                                Toast.makeText(context, "远程歌曲暂不写入本地歌单", Toast.LENGTH_SHORT).show()
                             } else {
                                 viewModel.addSongToPlaylist(song, playlistId) { message ->
                                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -3801,7 +3818,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         onCreatePlaylist = { name ->
-                            if (isStreamingMode) {
+                            if (isStreamingMode && !isLanStreamingMode) {
                                 streamingMusicViewModel.createPlaylist(name)
                             } else {
                                 viewModel.createPlaylist(name)
@@ -4043,15 +4060,18 @@ private fun LocalNavigationContent(
                                 }
                             },
                             onPlayAll = {
-                                onPlayPlaylist(playlist)
+                                playCatalogQueue(playlist.songs, 0, false)
                             },
                             onShufflePlay = {
-                                // Play shuffled playlist songs using the proper shuffled playlist playback
-                                onPlayPlaylistShuffled(playlist)
+                                playCatalogQueue(playlist.songs, 0, true)
                             },
-                            onSongClick = onPlaySong,
+                            onSongClick = { song ->
+                                val index = playlist.songs.indexOfFirst { it.id == song.id }
+                                playCatalogQueue(playlist.songs, index.coerceAtLeast(0), false)
+                            },
                             onPlaySongFromPlaylist = { song, playlistSongs ->
-                                viewModel.playSongFromContext(song, playlistSongs, playlist.name)
+                                val index = playlistSongs.indexOfFirst { it.id == song.id }
+                                playCatalogQueue(playlistSongs, index.coerceAtLeast(0), false)
                             },
                             onBack = {
                                 navigateBackOrToLanding()
@@ -4080,10 +4100,22 @@ private fun LocalNavigationContent(
                                 viewModel.updatePlaylistSongs(playlistId, newSongList)
                             },
                             onPlayNext = { song ->
-                                viewModel.playNext(song)
+                                if (song.isCatalogLibrarySong()) {
+                                    catalogQueueEntryForSong(song)?.let { entry ->
+                                        viewModel.addUnifiedSongToQueue(song, entry, playNext = true)
+                                    }
+                                } else {
+                                    viewModel.playNext(song)
+                                }
                             },
                             onAddToQueue = { song ->
-                                viewModel.addSongToQueue(song)
+                                if (song.isCatalogLibrarySong()) {
+                                    catalogQueueEntryForSong(song)?.let { entry ->
+                                        viewModel.addUnifiedSongToQueue(song, entry, playNext = false)
+                                    }
+                                } else {
+                                    viewModel.addSongToQueue(song)
+                                }
                             },
                             onGoToAlbum = { song ->
                                 val album = allAlbums.findAlbumForSong(song)

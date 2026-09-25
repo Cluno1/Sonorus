@@ -12,6 +12,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongSnapshotEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.SongEntity
 
 @Dao
@@ -40,6 +41,9 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_songs")
     suspend fun deleteAllPlaylistSongs()
 
+    @Query("DELETE FROM playlist_song_snapshots")
+    suspend fun deleteAllPlaylistSongSnapshots()
+
     // Playlist songs relationships
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistSong(playlistSong: PlaylistSongEntity)
@@ -47,11 +51,17 @@ interface PlaylistDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylistSongs(playlistSongs: List<PlaylistSongEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlaylistSongSnapshots(snapshots: List<PlaylistSongSnapshotEntity>)
+
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId AND songId = :songId")
     suspend fun deletePlaylistSong(playlistId: String, songId: String)
 
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId")
     suspend fun deleteSongsFromPlaylist(playlistId: String)
+
+    @Query("DELETE FROM playlist_song_snapshots WHERE playlistId = :playlistId")
+    suspend fun deleteSnapshotsFromPlaylist(playlistId: String)
 
     @Query("DELETE FROM playlist_songs WHERE songId = :songId")
     suspend fun deleteSongFromAllPlaylists(songId: String)
@@ -68,6 +78,9 @@ interface PlaylistDao {
     // Get all song IDs inside a playlist
     @Query("SELECT songId FROM playlist_songs WHERE playlistId = :playlistId ORDER BY orderIndex ASC")
     suspend fun getSongIdsForPlaylist(playlistId: String): List<String>
+
+    @Query("SELECT * FROM playlist_song_snapshots WHERE playlistId = :playlistId")
+    suspend fun getSongSnapshotsForPlaylist(playlistId: String): List<PlaylistSongSnapshotEntity>
 
     @Transaction
     suspend fun updatePlaylistSongs(playlistId: String, playlistSongs: List<PlaylistSongEntity>) {

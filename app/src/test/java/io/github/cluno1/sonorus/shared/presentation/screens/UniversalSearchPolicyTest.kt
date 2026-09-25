@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.shared.presentation.screens
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,6 +38,23 @@ class UniversalSearchPolicyTest {
                 songId = "rhythm-catalog:rendition:11111111-1111-4111-8111-111111111111",
             ),
         )
+    }
+
+    @Test
+    fun lanSongsNeverExposeDeviceMutationActions() {
+        assertFalse(
+            shouldShowLegacySongOptions(
+                mode = "LOCAL",
+                songId = "SUBSONIC::track-42",
+            ),
+        )
+    }
+
+    @Test
+    fun projectedLanResultsStayInStreamingMode() {
+        assertEquals("STREAMING", effectiveUniversalSearchItemMode("LOCAL", "STREAMING"))
+        assertEquals("LOCAL", effectiveUniversalSearchItemMode("LOCAL", null))
+        assertEquals("STREAMING", effectiveUniversalSearchItemMode("STREAMING", "LOCAL"))
     }
 
     @Test

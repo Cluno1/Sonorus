@@ -133,6 +133,10 @@ import kotlinx.coroutines.sync.withLock
 import io.github.cluno1.sonorus.features.local.data.database.RhythmDatabase
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.toPlaylistSnapshotEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.toUnifiedPlaylistSong
+import io.github.cluno1.sonorus.features.local.data.model.UnifiedPlaylistPolicy
+import io.github.cluno1.sonorus.features.local.data.model.UnifiedPlaylistSource
 import java.time.Duration
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -3385,8 +3389,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     val songStableKeyBasicMap = lazy(LazyThreadSafetyMode.NONE) { _songs.value.associateBy { playlistSongStableKeyBasic(it) } }
                     dbPlaylists.map { entity ->
                         val songIds = playlistDao.getSongIdsForPlaylist(entity.id)
+                        val snapshotMap = playlistDao.getSongSnapshotsForPlaylist(entity.id)
+                            .associateBy { it.songId }
                         val playlistSongs = songIds.map { songId ->
-                            songMap[songId] ?: run {
+                            val snapshot = snapshotMap[songId]
+                            val snapshotSource = snapshot?.source?.let {
+                                runCatching { UnifiedPlaylistSource.valueOf(it) }.getOrNull()
+                            }
+                            if (snapshot != null && snapshotSource != UnifiedPlaylistSource.DEVICE_OR_LEGACY) {
+                                snapshot.toSong()
+                            } else songMap[songId] ?: run {
                                 val songEntity = repository.songDao.getSongById(songId)
                                 if (songEntity != null) {
                                     val dbSong = Song(
@@ -3418,7 +3430,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                         songStableKeyMedMap,
                                         songStableKeyLightMap,
                                         songStableKeyBasicMap
-                                    ) ?: dbSong
+                                    ) ?: snapshot?.toSong() ?: dbSong
+                                } else if (snapshot != null) {
+                                    snapshot.toSong()
                                 } else {
                                     // Stub song to preserve unresolved entries temporarily (e.g. unmounted SD card)
                                     Song(
@@ -3462,8 +3476,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         try {
                             val type = object : TypeToken<List<Playlist>>() {}.type
                             val legacyPlaylists: List<Playlist> = GsonUtils.gson.fromJson(playlistsJson, type)
+                            val migratedPlaylists = legacyPlaylists.map { playlist ->
+                                playlist.copy(songs = playlist.songs.map { it.toFavoriteSnapshot() })
+                            }
                             
-                            legacyPlaylists.forEach { playlist ->
+                            migratedPlaylists.forEach { playlist ->
                                 val playlistEntity = PlaylistEntity(
                                     id = playlist.id,
                                     name = playlist.name,
@@ -3477,76 +3494,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                     PlaylistSongEntity(playlist.id, song.id, index)
                                 }
                                 playlistDao.insertPlaylistSongs(songEntities)
+                                playlistDao.insertPlaylistSongSnapshots(
+                                    playlist.songs.map { song ->
+                                        song.toPlaylistSnapshotEntity(playlist.id)
+                                    },
+                                )
                             }
                             
                             appSettings.setPlaylists(null)
-                            Log.i(TAG, "Successfully migrated ${legacyPlaylists.size} legacy playlists to Room database")
-                            
-                            dbPlaylists = playlistDao.getAllPlaylists()
-                            val migrationSongMap = _songs.value.associateBy { it.id }
-                            dbPlaylists.map { entity ->
-                                val songIds = playlistDao.getSongIdsForPlaylist(entity.id)
-                                val playlistSongs = songIds.map { songId ->
-                                    migrationSongMap[songId] ?: run {
-                                        val songEntity = repository.songDao.getSongById(songId)
-                                        if (songEntity != null) {
-                                            Song(
-                                                id = songEntity.id,
-                                                title = songEntity.title,
-                                                artist = songEntity.artist,
-                                                album = songEntity.album,
-                                                albumId = songEntity.albumId,
-                                                duration = songEntity.duration,
-                                                uri = (songEntity.uri).toUri(),
-                                                artworkUri = songEntity.artworkUri?.let { (it).toUri() },
-                                                trackNumber = songEntity.trackNumber,
-                                                year = songEntity.year,
-                                                genre = songEntity.genre,
-                                                dateAdded = songEntity.dateAdded,
-                                                dateModified = songEntity.dateModified.takeIf { it > 0L } ?: songEntity.dateAdded,
-                                                albumArtist = songEntity.albumArtist,
-                                                bitrate = songEntity.bitrate,
-                                                sampleRate = songEntity.sampleRate,
-                                                channels = songEntity.channels,
-                                                codec = songEntity.codec,
-                                                discNumber = songEntity.discNumber,
-                                                path = songEntity.path
-                                            )
-                                        } else {
-                                            Song(
-                                                id = songId,
-                                                title = getApplication<Application>().getString(R.string.unresolved_song),
-                                                artist = getApplication<Application>().getString(R.string.unknown_artist_name),
-                                                album = getApplication<Application>().getString(R.string.unknown_album_name),
-                                                albumId = "",
-                                                duration = 0L,
-                                                uri = Uri.EMPTY,
-                                                artworkUri = null,
-                                                trackNumber = 0,
-                                                year = 0,
-                                                genre = null,
-                                                dateAdded = System.currentTimeMillis(),
-                                                dateModified = System.currentTimeMillis(),
-                                                albumArtist = null,
-                                                bitrate = null,
-                                                sampleRate = null,
-                                                channels = null,
-                                                codec = null,
-                                                discNumber = 1,
-                                                path = null
-                                            )
-                                        }
-                                    }
-                                }
-                                Playlist(
-                                    id = entity.id,
-                                    name = entity.name,
-                                    songs = playlistSongs,
-                                    dateCreated = entity.dateCreated,
-                                    dateModified = entity.dateModified,
-                                    artworkUri = entity.artworkUri?.let { (it).toUri() }
-                                )
-                            }
+                            Log.i(TAG, "Successfully migrated ${migratedPlaylists.size} legacy playlists to Room database")
+                            migratedPlaylists
                         } catch (migrationError: Exception) {
                             Log.e(TAG, "Error migrating legacy playlists to Room", migrationError)
                             emptyList()
@@ -3673,10 +3630,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var savePlaylistsJob: Job? = null
 
     private fun savePlaylists() {
-        val currentPlaylists = _playlists.value.map { playlist ->
-            playlist.copy(songs = playlist.songs.filterNot { it.id.startsWith("rhythm-catalog:") })
-        }
-        if (currentPlaylists != _playlists.value) _playlists.value = currentPlaylists
+        val currentPlaylists = _playlists.value
         savePlaylistsJob?.cancel()
         savePlaylistsJob = viewModelScope.launch(Dispatchers.IO) {
             delay(200) // Debounce rapid consecutive mutations
@@ -3686,7 +3640,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun savePlaylistsToRoom(currentPlaylists: List<Playlist> = _playlists.value) {
         val persistablePlaylists = currentPlaylists.map { playlist ->
-            playlist.copy(songs = playlist.songs.filterNot { it.id.startsWith("rhythm-catalog:") })
+            playlist.copy(songs = playlist.songs.map { it.toUnifiedPlaylistSong() })
         }
         if (!isPlaylistsLoaded) {
             Log.w(TAG, "Skipping savePlaylistsToRoom — playlists have not finished loading yet")
@@ -3709,6 +3663,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         if (!currentPlaylistIds.contains(dbPlaylist.id)) {
                             playlistDao.deletePlaylistById(dbPlaylist.id)
                             playlistDao.deleteSongsFromPlaylist(dbPlaylist.id)
+                            playlistDao.deleteSnapshotsFromPlaylist(dbPlaylist.id)
                             Log.d(TAG, "Deleted playlist ID ${dbPlaylist.id} from Room")
                         }
                     }
@@ -3724,6 +3679,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         playlistDao.insertPlaylist(entity)
                         
                         playlistDao.deleteSongsFromPlaylist(playlist.id)
+                        playlistDao.deleteSnapshotsFromPlaylist(playlist.id)
                         if (playlist.songs.isNotEmpty()) {
                             val songEntities = playlist.songs.mapIndexed { index, song ->
                                 PlaylistSongEntity(
@@ -3735,13 +3691,24 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             songEntities.chunked(500).forEach { chunk ->
                                 playlistDao.insertPlaylistSongs(chunk)
                             }
+                            playlist.songs
+                                .map { it.toPlaylistSnapshotEntity(playlist.id) }
+                                .chunked(500)
+                                .forEach { chunk ->
+                                    playlistDao.insertPlaylistSongSnapshots(chunk)
+                                }
                         }
                     }
 
                     // Persist distinct songs across all playlists in chunks to avoid redundant allocations
-                    val distinctDbSongEntities = currentPlaylists.asSequence()
+                    val distinctDbSongEntities = persistablePlaylists.asSequence()
                         .flatMap { it.songs.asSequence() }
                         .distinctBy { it.id }
+                        .filter { song ->
+                            UnifiedPlaylistPolicy.mayPersistInLibrarySongTable(
+                                UnifiedPlaylistPolicy.source(song.id),
+                            )
+                        }
                         .map { song ->
                             io.github.cluno1.sonorus.features.local.data.database.entity.SongEntity(
                                 id = song.id,
@@ -6041,8 +6008,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         if (songs.isEmpty() || !canStartPlayback("playUnifiedQueue")) return
         val serverUrl = io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore(getApplication())
             .loadServerUrl()
-            ?: return
         val catalogByMediaId = catalogEntries.associateBy { it.playback.toMediaItem().mediaId }
+        if (catalogByMediaId.isNotEmpty() && serverUrl == null) {
+            Log.w(TAG, "Rejected unified queue because the Catalog server is not configured")
+            return
+        }
         val accepted = songs.all { song ->
             val catalog = catalogByMediaId[song.id]
             if (catalog != null) {
@@ -6056,10 +6026,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     uri = item.localConfiguration?.uri?.toString(),
                     customCacheKey = item.localConfiguration?.customCacheKey,
                     mediaType = item.localConfiguration?.mimeType,
-                    trustedServerUrl = serverUrl,
+                    trustedServerUrl = serverUrl!!,
                 )
             } else {
-                CatalogPlaybackPolicy.allowsDeviceMediaStoreItem(song.id, song.uri.toString()) ||
+                LanSubsonicPlaybackPolicy.isLanSong(
+                    enabled = ProductCapabilities.lanSubsonicOnly,
+                    mediaId = song.id,
+                    uri = song.uri.toString(),
+                ) || CatalogPlaybackPolicy.allowsDeviceMediaStoreItem(song.id, song.uri.toString()) ||
                     DeviceDocumentPolicy.allowsPersistedRead(getApplication(), song.id, song.uri)
             }
         }
@@ -7076,14 +7050,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * descriptors and must be resolved again when the user plays the item from Liked.
      */
     private fun Song.toFavoriteSnapshot(): Song {
-        val stableId = id.toStableCatalogSongId()
-        if (!stableId.startsWith(CATALOG_SONG_ID_PREFIX)) return this
-        val renditionId = stableId.removePrefix(CATALOG_SONG_ID_PREFIX)
-        return copy(
-            id = stableId,
-            uri = Uri.parse(CatalogPlaybackPolicy.deferredUri(renditionId)),
-            path = null,
-        )
+        return toUnifiedPlaylistSong()
     }
     
     private fun notifyMediaServiceFavoriteChange() {
@@ -7347,7 +7314,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Returns a result with success count and playlist name
      */
     fun addSongsToPlaylist(songs: List<Song>, playlistId: String): Pair<Int, String> {
-        val localSongs = songs.filterNot { it.id.startsWith("rhythm-catalog:") }
+        val playlistCandidates = songs.map { it.toFavoriteSnapshot() }
         val filteredSongsSet: Set<String> = filteredSongs.value.map { song: Song -> song.id }.toSet()
         var successCount = 0
         var playlistName = ""
@@ -7358,7 +7325,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val existingSongIds = playlist.songs.map { it.id }.toSet()
                 
                 // Filter songs that are not filtered out and not already in playlist
-                val songsToAdd = localSongs.filter { song ->
+                val songsToAdd = playlistCandidates.filter { song ->
                     val isStreaming = song.uri.toString().startsWith("http://") || 
                                       song.uri.toString().startsWith("https://") || 
                                       song.uri.toString().startsWith("streaming://") ||

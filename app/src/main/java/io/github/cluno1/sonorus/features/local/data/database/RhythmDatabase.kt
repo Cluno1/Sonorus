@@ -20,13 +20,14 @@ import io.github.cluno1.sonorus.features.local.data.database.dao.DeviceAlbumMeta
 import io.github.cluno1.sonorus.features.local.data.database.entity.ArtistEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongSnapshotEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.SongArtistEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.SongEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.DeviceMetadataEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.DeviceAlbumMetadataEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.DeviceSongAlbumEntity
 
-@Database(entities = [SongEntity::class, ArtistEntity::class, SongArtistEntity::class, PlaylistEntity::class, PlaylistSongEntity::class, DeviceMetadataEntity::class, DeviceAlbumMetadataEntity::class, DeviceSongAlbumEntity::class], version = 12, exportSchema = false)
+@Database(entities = [SongEntity::class, ArtistEntity::class, SongArtistEntity::class, PlaylistEntity::class, PlaylistSongEntity::class, PlaylistSongSnapshotEntity::class, DeviceMetadataEntity::class, DeviceAlbumMetadataEntity::class, DeviceSongAlbumEntity::class], version = 13, exportSchema = false)
 abstract class RhythmDatabase : RoomDatabase() {
     abstract fun songDao(): SongDao
     abstract fun artistDao(): ArtistDao
@@ -222,6 +223,84 @@ abstract class RhythmDatabase : RoomDatabase() {
             }
         }
 
+        /** Keep remote playlist snapshots independent from the MediaStore-backed songs table. */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `playlist_song_snapshots` (
+                        `playlistId` TEXT NOT NULL,
+                        `songId` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `artist` TEXT NOT NULL,
+                        `album` TEXT NOT NULL,
+                        `albumId` TEXT NOT NULL,
+                        `duration` INTEGER NOT NULL,
+                        `uri` TEXT NOT NULL,
+                        `artworkUri` TEXT,
+                        `trackNumber` INTEGER NOT NULL,
+                        `year` INTEGER NOT NULL,
+                        `genre` TEXT,
+                        `dateAdded` INTEGER NOT NULL,
+                        `dateModified` INTEGER NOT NULL,
+                        `albumArtist` TEXT,
+                        `bitrate` INTEGER,
+                        `sampleRate` INTEGER,
+                        `channels` INTEGER,
+                        `codec` TEXT,
+                        `discNumber` INTEGER NOT NULL,
+                        `path` TEXT,
+                        PRIMARY KEY(`playlistId`, `songId`)
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT OR REPLACE INTO `playlist_song_snapshots` (
+                        `playlistId`, `songId`, `source`, `title`, `artist`, `album`, `albumId`,
+                        `duration`, `uri`, `artworkUri`, `trackNumber`, `year`, `genre`,
+                        `dateAdded`, `dateModified`, `albumArtist`, `bitrate`, `sampleRate`,
+                        `channels`, `codec`, `discNumber`, `path`
+                    )
+                    SELECT ps.`playlistId`,
+                        CASE
+                            WHEN s.`id` LIKE 'rhythm-catalog:rendition:%'
+                                THEN 'rhythm-catalog:rendition:' || substr(s.`id`, 26, 36)
+                            ELSE s.`id`
+                        END,
+                        CASE
+                            WHEN s.`id` LIKE 'rhythm-catalog:rendition:%' THEN 'CATALOG'
+                            WHEN s.`id` LIKE 'SUBSONIC::%' THEN 'LAN_SUBSONIC'
+                            ELSE 'DEVICE_OR_LEGACY'
+                        END,
+                        s.`title`, s.`artist`, s.`album`, s.`albumId`, s.`duration`,
+                        CASE
+                            WHEN s.`id` LIKE 'rhythm-catalog:rendition:%'
+                                THEN 'rhythm-catalog://rendition/' || substr(s.`id`, 26, 36)
+                            WHEN s.`id` LIKE 'SUBSONIC::%'
+                                THEN 'streaming://track/' || replace(s.`id`, ':', '%3A')
+                            ELSE s.`uri`
+                        END,
+                        CASE
+                            WHEN s.`id` LIKE 'SUBSONIC::%' THEN NULL
+                            WHEN s.`id` LIKE 'rhythm-catalog:rendition:%'
+                                AND s.`artworkUri` NOT LIKE 'rhythm-catalog://asset/%' THEN NULL
+                            ELSE s.`artworkUri`
+                        END,
+                        s.`trackNumber`, s.`year`, s.`genre`, s.`dateAdded`,
+                        s.`dateModified`, s.`albumArtist`, s.`bitrate`, s.`sampleRate`,
+                        s.`channels`, s.`codec`, s.`discNumber`, s.`path`
+                    FROM `playlist_songs` ps
+                    INNER JOIN `songs` s ON s.`id` = ps.`songId`
+                """.trimIndent())
+                db.execSQL("""
+                    UPDATE OR REPLACE `playlist_songs`
+                    SET `songId` = 'rhythm-catalog:rendition:' || substr(`songId`, 26, 36)
+                    WHERE `songId` LIKE 'rhythm-catalog:rendition:%'
+                """.trimIndent())
+                db.execSQL("DELETE FROM `songs` WHERE `id` LIKE 'rhythm-catalog:rendition:%'")
+                db.execSQL("DELETE FROM `songs` WHERE `id` LIKE 'SUBSONIC::%'")
+            }
+        }
+
         fun getInstance(context: Context): RhythmDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -229,7 +308,7 @@ abstract class RhythmDatabase : RoomDatabase() {
                     RhythmDatabase::class.java,
                     "rhythm_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                     .build()
                     .also { INSTANCE = it }
             }

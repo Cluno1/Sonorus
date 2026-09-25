@@ -12,7 +12,13 @@ import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.features.local.data.database.RhythmDatabase
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.PlaylistSongSnapshotEntity
 import io.github.cluno1.sonorus.features.local.data.database.entity.SongEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.toPlaylistSnapshotEntity
+import io.github.cluno1.sonorus.features.local.data.database.entity.toSong
+import io.github.cluno1.sonorus.features.local.data.database.entity.toUnifiedPlaylistSong
+import io.github.cluno1.sonorus.features.local.data.model.UnifiedPlaylistPolicy
+import io.github.cluno1.sonorus.features.local.data.model.UnifiedPlaylistSource
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.shared.data.model.AppSettings.BackupRestoreSections
 import io.github.cluno1.sonorus.shared.data.model.AppSettings.BackupValidationResult
@@ -81,9 +87,17 @@ class BackupRestoreManager(
                 val playlistEntities = database.playlistDao().getAllPlaylists()
                 val playlistModels = playlistEntities.map { entity ->
                     val songIds = database.playlistDao().getSongIdsForPlaylist(entity.id)
+                    val snapshots = database.playlistDao().getSongSnapshotsForPlaylist(entity.id)
+                        .associateBy { it.songId }
                     val songs = songIds.mapNotNull { songId ->
+                        val snapshot = snapshots[songId]
+                        val snapshotSource = snapshot?.source?.let {
+                            runCatching { UnifiedPlaylistSource.valueOf(it) }.getOrNull()
+                        }
                         val songEntity = database.songDao().getSongById(songId)
-                        if (songEntity != null) {
+                        if (snapshot != null && snapshotSource != UnifiedPlaylistSource.DEVICE_OR_LEGACY) {
+                            snapshot.toSong()
+                        } else if (songEntity != null) {
                             io.github.cluno1.sonorus.shared.data.model.Song(
                                 id = songEntity.id,
                                 title = songEntity.title,
@@ -106,6 +120,8 @@ class BackupRestoreManager(
                                 discNumber = songEntity.discNumber,
                                 path = songEntity.path
                             )
+                        } else if (snapshot != null) {
+                            snapshot.toSong()
                         } else {
                             io.github.cluno1.sonorus.shared.data.model.Song(
                                 id = songId,
@@ -282,7 +298,10 @@ class BackupRestoreManager(
                 val playlistsData = backupData["playlists_data"] as? String
                 if (playlistsData != null) {
                     val playlistListType = object : TypeToken<List<Playlist>>() {}.type
-                    val restoredPlaylists: List<Playlist> = GsonUtils.gson.fromJson(playlistsData, playlistListType) ?: emptyList()
+                    val parsedPlaylists: List<Playlist> = GsonUtils.gson.fromJson(playlistsData, playlistListType) ?: emptyList()
+                    val restoredPlaylists = parsedPlaylists.map { playlist ->
+                        playlist.copy(songs = playlist.songs.map { it.toUnifiedPlaylistSong() })
+                    }
 
                     // Restore custom artist images
                     val customArtistImages = backupData["custom_artist_images"] as? Map<*, *>
@@ -329,10 +348,12 @@ class BackupRestoreManager(
                     database.withTransaction {
                         database.playlistDao().deleteAllPlaylists()
                         database.playlistDao().deleteAllPlaylistSongs()
+                        database.playlistDao().deleteAllPlaylistSongSnapshots()
 
                         val playlistEntities = mutableListOf<PlaylistEntity>()
                         val songEntities = mutableListOf<SongEntity>()
                         val playlistSongEntities = mutableListOf<PlaylistSongEntity>()
+                        val playlistSongSnapshots = mutableListOf<PlaylistSongSnapshotEntity>()
 
                         restoredPlaylists.forEach { playlist ->
                             val entityArtworkUri = playlist.artworkUri?.toString()?.let { uriStr ->
@@ -356,30 +377,33 @@ class BackupRestoreManager(
                             )
 
                             playlist.songs.forEachIndexed { index, song ->
-                                songEntities.add(
-                                    SongEntity(
-                                        id = song.id,
-                                        title = song.title,
-                                        artist = song.artist,
-                                        album = song.album,
-                                        albumId = song.albumId,
-                                        duration = song.duration,
-                                        uri = song.uri.toString(),
-                                        artworkUri = song.artworkUri?.toString(),
-                                        trackNumber = song.trackNumber,
-                                        year = song.year,
-                                        genre = song.genre,
-                                        dateAdded = song.dateAdded,
-                                        dateModified = song.dateModified,
-                                        albumArtist = song.albumArtist,
-                                        bitrate = song.bitrate,
-                                        sampleRate = song.sampleRate,
-                                        channels = song.channels,
-                                        codec = song.codec,
-                                        discNumber = song.discNumber,
-                                        path = song.path
+                                val source = UnifiedPlaylistPolicy.source(song.id)
+                                if (UnifiedPlaylistPolicy.mayPersistInLibrarySongTable(source)) {
+                                    songEntities.add(
+                                        SongEntity(
+                                            id = song.id,
+                                            title = song.title,
+                                            artist = song.artist,
+                                            album = song.album,
+                                            albumId = song.albumId,
+                                            duration = song.duration,
+                                            uri = song.uri.toString(),
+                                            artworkUri = song.artworkUri?.toString(),
+                                            trackNumber = song.trackNumber,
+                                            year = song.year,
+                                            genre = song.genre,
+                                            dateAdded = song.dateAdded,
+                                            dateModified = song.dateModified,
+                                            albumArtist = song.albumArtist,
+                                            bitrate = song.bitrate,
+                                            sampleRate = song.sampleRate,
+                                            channels = song.channels,
+                                            codec = song.codec,
+                                            discNumber = song.discNumber,
+                                            path = song.path
+                                        )
                                     )
-                                )
+                                }
                                 playlistSongEntities.add(
                                     PlaylistSongEntity(
                                         playlistId = playlist.id,
@@ -387,12 +411,16 @@ class BackupRestoreManager(
                                         orderIndex = index
                                     )
                                 )
+                                playlistSongSnapshots.add(song.toPlaylistSnapshotEntity(playlist.id))
                             }
                         }
 
                         database.playlistDao().insertPlaylists(playlistEntities.distinctBy { it.id })
                         database.songDao().upsertAll(songEntities.distinctBy { it.id })
                         database.playlistDao().insertPlaylistSongs(playlistSongEntities.distinctBy { it.playlistId to it.songId })
+                        database.playlistDao().insertPlaylistSongSnapshots(
+                            playlistSongSnapshots.distinctBy { it.playlistId to it.songId },
+                        )
                     }
                 }
             }

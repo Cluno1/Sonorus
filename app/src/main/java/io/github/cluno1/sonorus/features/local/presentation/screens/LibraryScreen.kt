@@ -384,7 +384,7 @@ fun LibraryScreen(
     }
     
     val allowedStreamingTabs = if (readOnlyStreaming) {
-        setOf("SONGS", "ALBUMS")
+        setOf("SONGS", "PLAYLISTS", "ALBUMS")
     } else {
         setOf("SONGS", "LIKED", "PLAYLISTS", "ALBUMS", "ARTISTS", "ALBUM_ARTISTS")
     }
@@ -2145,10 +2145,10 @@ fun LibraryScreen(
                                         albums = albums,
                                         artists = artists,
                                         onSongClick = onSongClick,
-                                        onAddToPlaylist = if (readOnlyStreaming) null else ({ song ->
+                                        onAddToPlaylist = { song ->
                                             songsToAddToPlaylist = listOf(song)
                                             showAddToPlaylistSheet = true
-                                        }),
+                                        },
                                         onAddToQueue = { song ->
                                             if (isStreamingMode) onStreamingAddToQueue?.invoke(song) else onAddToQueue(song)
                                         },

@@ -111,6 +111,7 @@ data class UniversalSearchCatalogSource(
     val scoreWorks: List<CatalogLibraryScoreWork> = emptyList(),
     val serverUrl: String? = null,
     val isLoading: Boolean = false,
+    val requiredAppModeForLocalItems: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,7 +120,7 @@ fun UniversalSearchScreen(
     localViewModel: MusicViewModel = viewModel(),
     streamingViewModel: StreamingMusicViewModel = viewModel(),
     catalogSource: UniversalSearchCatalogSource? = null,
-    onLocalSongClick: (Song) -> Unit = {},
+    onLocalSongClick: (Song, List<Song>) -> Unit = { _, _ -> },
     onLocalAlbumClick: (Album) -> Unit = {},
     onCatalogScoreWorkClick: (CatalogLibraryScoreWork) -> Unit = {},
     onLocalArtistClick: (Artist) -> Unit = {},
@@ -340,10 +341,14 @@ fun UniversalSearchScreen(
     )
 
     val handleAction = { itemMode: String, action: () -> Unit ->
-        if (itemMode == appMode) {
+        val effectiveItemMode = effectiveUniversalSearchItemMode(
+            itemMode = itemMode,
+            requiredAppModeForLocalItems = catalogSource?.requiredAppModeForLocalItems,
+        )
+        if (effectiveItemMode == appMode) {
             action()
         } else {
-            targetModeForPendingAction = itemMode
+            targetModeForPendingAction = effectiveItemMode
             pendingAction = action
             showSwitchDialog = true
         }
@@ -751,7 +756,7 @@ fun UniversalSearchScreen(
                                     matchedLocalSongs.take(3).forEach { song ->
                                         add(SongSearchItem("LOCAL", song.title, "${song.artist} • ${song.album}", song.artworkUri, song) {
                                             if (query.isNotBlank()) localViewModel.addSearchQuery(query)
-                                            handleAction("LOCAL") { onLocalSongClick(song) }
+                                            handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
                                         })
                                     }
                                     matchedStreamingSongs.take(3).forEach { song ->
@@ -1006,7 +1011,7 @@ fun UniversalSearchScreen(
                                 matchedLocalSongs.take(3).forEach { song ->
                                     add(SongSearchItem("LOCAL", song.title, "${song.artist} • ${song.album}", song.artworkUri, song) {
                                         if (query.isNotBlank()) localViewModel.addSearchQuery(query)
-                                        handleAction("LOCAL") { onLocalSongClick(song) }
+                                        handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
                                     })
                                 }
                                 matchedStreamingSongs.take(3).forEach { song ->
@@ -1503,7 +1508,9 @@ fun UniversalSearchScreen(
                     selectedSongForOptions = songObj
                     showSongOptionsSheet = true
                 },
-                onLocalSongClick = { song -> handleAction("LOCAL") { onLocalSongClick(song) } },
+                onLocalSongClick = { song ->
+                    handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
+                },
                 onStreamingSongClick = { song -> handleAction("STREAMING") { onStreamingSongClick(song) } },
                 haptics = haptics
             )
