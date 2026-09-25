@@ -17,6 +17,7 @@ import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import androidx.core.content.edit
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 
 class SubsonicErrorException(val code: Int, message: String) : Exception(message)
 
@@ -245,7 +246,9 @@ class SubsonicApiClient(context: Context) {
         }
     }
 
-    suspend fun fetchLibrarySongs(limit: Int = 5_000): Result<List<ProviderSong>> {
+    suspend fun fetchLibrarySongs(
+        limit: Int = LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS,
+    ): Result<List<ProviderSong>> {
         if (!isConnected()) {
             return Result.failure(IllegalStateException("Subsonic service is not connected"))
         }

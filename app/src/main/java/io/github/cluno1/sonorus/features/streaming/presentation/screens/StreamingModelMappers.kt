@@ -9,6 +9,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
@@ -28,6 +30,8 @@ import io.github.cluno1.sonorus.shared.data.model.Song
 
 fun StreamingSong.toLibrarySong(): Song {
     val playbackUri = when {
+        ProductCapabilities.lanSubsonicOnly ->
+            LanSubsonicPlaybackPolicy.playbackUri(id).toUri()
         !streamingUrl.isNullOrBlank() -> (streamingUrl).toUri()
         !previewUrl.isNullOrBlank() -> (previewUrl).toUri()
         else -> ("streaming://track/$id").toUri()

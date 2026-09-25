@@ -196,6 +196,7 @@ object SettingsRoutes {
     const val BATTERY_SAVER = "battery_saver_settings"
     const val REPLAY_GAIN = "replay_gain_settings"
     const val CATALOG = "catalog_settings"
+    const val LAN_SUBSONIC = "lan_subsonic_settings"
     const val CHORUS_ADMIN = "chorus_admin"
     const val CLIENT_IMAGES = "client_images"
 }
@@ -411,6 +412,15 @@ fun SettingsScreen(
                         palette = SettingsPalettes.SkyBlue,
                         onClick = { onNavigateTo(SettingsRoutes.CATALOG) },
                     ))
+                    if (ProductCapabilities.lanSubsonicOnly) {
+                        add(SettingItem(
+                            MaterialSymbolIcon("lan"),
+                            context.getString(R.string.settings_lan_music),
+                            context.getString(R.string.settings_lan_music_desc),
+                            palette = SettingsPalettes.Emerald,
+                            onClick = { onNavigateTo(SettingsRoutes.LAN_SUBSONIC) },
+                        ))
+                    }
                     if (!ProductCapabilities.catalogOnly) {
                         add(SettingItem(MaterialSymbolIcon("api"), context.getString(R.string.settings_api_management), context.getString(R.string.settings_api_management_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.API_MANAGEMENT) }))
                     }
@@ -1008,7 +1018,11 @@ fun SettingsScreenWrapper(
     val appMode by appSettings.appMode.collectAsState()
 
     val effectiveRoute = currentRoute?.takeIf {
-        ProductRoutePolicy.allowsSettingsSubroute(it, ProductCapabilities.catalogOnly)
+        ProductRoutePolicy.allowsSettingsSubroute(
+            it,
+            ProductCapabilities.catalogOnly,
+            ProductCapabilities.lanSubsonicOnly,
+        )
     }
     LaunchedEffect(currentRoute) {
         if (currentRoute != null && effectiveRoute == null) currentRoute = null
@@ -1065,6 +1079,8 @@ fun SettingsScreenWrapper(
             }
         } else if (route == SettingsRoutes.CATALOG) {
             navController.navigate("catalog_settings")
+        } else if (route == SettingsRoutes.LAN_SUBSONIC && ProductCapabilities.lanSubsonicOnly) {
+            navController.navigate("streaming_service_setup/SUBSONIC") { launchSingleTop = true }
         } else if (route == SettingsRoutes.CHORUS_ADMIN) {
             if (navController.graph.findNode(Screen.ChorusAdmin.route) != null) {
                 navController.navigate(Screen.ChorusAdmin.route) { launchSingleTop = true }
@@ -1078,7 +1094,12 @@ fun SettingsScreenWrapper(
             navController.navigate(Screen.Equalizer.route)
         } else if (route == SettingsRoutes.SLEEP_TIMER) {
             showSleepTimerBottomSheet = true
-        } else if (ProductRoutePolicy.allowsSettingsSubroute(route, ProductCapabilities.catalogOnly)) {
+        } else if (ProductRoutePolicy.allowsSettingsSubroute(
+                route,
+                ProductCapabilities.catalogOnly,
+                ProductCapabilities.lanSubsonicOnly,
+            )
+        ) {
             currentRoute = route
         }
     }

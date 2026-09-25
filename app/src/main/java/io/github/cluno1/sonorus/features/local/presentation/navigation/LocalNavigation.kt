@@ -173,7 +173,9 @@ import io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.Stream
 import androidx.core.net.toUri
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
+import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceId
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingSong
 import io.github.cluno1.sonorus.shared.data.model.Album
 import io.github.cluno1.sonorus.shared.data.model.Artist
@@ -381,6 +383,8 @@ private object StreamingRoutes {
 
 private fun StreamingSong.toLocalSong(): Song? {
     val playbackUri = when {
+        ProductCapabilities.lanSubsonicOnly ->
+            runCatching { LanSubsonicPlaybackPolicy.playbackUri(id).toUri() }.getOrNull() ?: return null
         !streamingUrl.isNullOrBlank() -> (streamingUrl).toUri()
         !previewUrl.isNullOrBlank() -> (previewUrl).toUri()
         else -> ("streaming://track/$id").toUri()
@@ -408,6 +412,8 @@ private fun StreamingSong.toLocalSong(): Song? {
 
 private fun StreamingSong.toDisplaySong(): Song {
     val playbackUri = when {
+        ProductCapabilities.lanSubsonicOnly ->
+            LanSubsonicPlaybackPolicy.playbackUri(id).toUri()
         !streamingUrl.isNullOrBlank() -> (streamingUrl).toUri()
         !previewUrl.isNullOrBlank() -> (previewUrl).toUri()
         else -> ("streaming://track/$id").toUri()
@@ -611,7 +617,11 @@ fun LocalNavigation(
     LaunchedEffect(navController, appSettings) {
         val pendingRoute = appSettings.consumeInitialStreamingRoute()
         if (!pendingRoute.isNullOrBlank() &&
-            ProductRoutePolicy.allowsInitialNavigationRoute(pendingRoute, ProductCapabilities.catalogOnly)
+            ProductRoutePolicy.allowsInitialNavigationRoute(
+                pendingRoute,
+                ProductCapabilities.catalogOnly,
+                ProductCapabilities.lanSubsonicOnly,
+            )
         ) {
             val isValidLocalRoute = pendingRoute == Screen.Home.route ||
                 pendingRoute == Screen.Search.route ||
@@ -628,7 +638,9 @@ fun LocalNavigation(
                         pendingRoute.startsWith("streaming_playlist/") ||
                         pendingRoute.startsWith("streaming_service_setup/") ||
                         pendingRoute == StreamingRoutes.GoSettings
-                    ))
+                    )) ||
+                (ProductCapabilities.lanSubsonicOnly &&
+                    pendingRoute == StreamingRoutes.serviceSetup(StreamingServiceId.SUBSONIC))
 
             if (isValidLocalRoute) {
                 navController.navigate(pendingRoute) {
@@ -1149,6 +1161,7 @@ private fun LocalNavigationContent(
     val streamingSearchResults by streamingMusicViewModel.searchResults.collectAsState()
     val streamingDownloadedSongs by streamingMusicViewModel.downloadedSongs.collectAsState()
     val streamingFollowedArtists by streamingMusicViewModel.followedArtists.collectAsState()
+    val streamingAllSongs by streamingMusicViewModel.allSongs.collectAsState()
     val streamingCurrentSong by streamingMusicViewModel.currentSong.collectAsState()
     val streamingLikedSongIds = remember(streamingLikedSongs) {
         streamingLikedSongs.map { it.id }.toSet()
@@ -1181,8 +1194,13 @@ private fun LocalNavigationContent(
     val streamingServiceConnected = remember(streamingSessions, streamingServiceId) {
         streamingSessions[streamingServiceId]?.isConnected == true
     }
-    val streamingSongById = remember(streamingRecommendations, streamingLikedSongs, streamingDownloadedSongs) {
-        (streamingRecommendations + streamingLikedSongs + streamingDownloadedSongs)
+    val streamingSongById = remember(
+        streamingAllSongs,
+        streamingRecommendations,
+        streamingLikedSongs,
+        streamingDownloadedSongs,
+    ) {
+        (streamingAllSongs + streamingRecommendations + streamingLikedSongs + streamingDownloadedSongs)
             .distinctBy { it.id }
             .associateBy { it.id }
     }
@@ -1193,11 +1211,23 @@ private fun LocalNavigationContent(
                 streamingMusicViewModel.playQueue(originals, startIndex, shuffle)
             }
         }
-    val streamingMappedSongs = remember(streamingRecommendations, streamingLikedSongs) {
-        (streamingRecommendations + streamingLikedSongs).distinctBy { it.id }.map { it.toLibrarySong() }
+    val streamingMappedSongs = remember(streamingAllSongs, streamingRecommendations, streamingLikedSongs) {
+        val source = if (ProductCapabilities.lanSubsonicOnly) {
+            streamingAllSongs
+        } else {
+            streamingRecommendations + streamingLikedSongs
+        }
+        source.distinctBy { it.id }.map { it.toLibrarySong() }
     }
-    val streamingMappedAlbums = remember(streamingNewReleases) {
-        streamingNewReleases.map { it.toLibraryAlbum(emptyList()) }
+    val streamingMappedAlbums = remember(streamingSavedAlbums, streamingNewReleases, streamingMappedSongs) {
+        val source = if (ProductCapabilities.lanSubsonicOnly) {
+            streamingSavedAlbums
+        } else {
+            streamingNewReleases
+        }
+        source.map { album ->
+            album.toLibraryAlbum(streamingMappedSongs.filter { it.albumId == album.id })
+        }
     }
     val streamingMappedArtists = remember(streamingFollowedArtists) {
         streamingFollowedArtists.map {
@@ -3028,6 +3058,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         isStreamingMode = true,
+                        allowSongOptions = !ProductCapabilities.lanSubsonicOnly,
                         favoriteSongs = streamingLikedSongIds,
                         onShowSongInfo = { song ->
                             selectedSongForInfo = song
@@ -3874,14 +3905,14 @@ private fun LocalNavigationContent(
                                 streamingMusicViewModel.addSongToQueue(original, viewModel)
                             }
                         },
-                        onStreamingToggleFavorite = if (isStreamingMode) ({ song ->
+                        onStreamingToggleFavorite = if (isStreamingMode && ProductCapabilities.richStreamingFeatures) ({ song ->
                             streamingSongById[song.id]?.let { original ->
                                 val isLiked = streamingLikedSongIds.contains(original.id)
                                 if (isLiked) streamingMusicViewModel.unlikeSong(original)
                                 else streamingMusicViewModel.likeSong(original)
                             }
                         }) else null,
-                        onStreamingSetFavorite = if (isStreamingMode) ({ song, shouldLike ->
+                        onStreamingSetFavorite = if (isStreamingMode && ProductCapabilities.richStreamingFeatures) ({ song, shouldLike ->
                             streamingSongById[song.id]?.let { original ->
                                 if (shouldLike) streamingMusicViewModel.likeSong(original)
                                 else streamingMusicViewModel.unlikeSong(original)

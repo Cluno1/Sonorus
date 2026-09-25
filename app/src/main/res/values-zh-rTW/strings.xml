@@ -2821,6 +2821,15 @@
     <string name="action_undo">復原</string>
     <string name="settings_catalog_server">音樂庫伺服器</string>
     <string name="settings_catalog_server_desc">連線音樂與樂譜服務</string>
+    <string name="settings_lan_music">區域網路音樂</string>
+    <string name="settings_lan_music_desc">連線唯讀 LX01 音樂閘道</string>
+    <string name="lan_player_read_only">區域網路唯讀播放</string>
+    <string name="lan_player_queue_position">佇列 %1$d / %2$d</string>
+    <string name="lan_player_back">返回</string>
+    <string name="lan_player_previous">上一首</string>
+    <string name="lan_player_play">播放</string>
+    <string name="lan_player_pause">暫停</string>
+    <string name="lan_player_next">下一首</string>
     <string name="catalog_manual_enrollment_intro">填寫管理員傳送的伺服器位址和一次性邀請碼。</string>
     <string name="catalog_smart_enrollment_option">或使用智慧登錄文字</string>
     <string name="catalog_enrollment_intro">貼上管理員傳送的完整智慧登錄文字。Sonorus 會安全擷取伺服器與一次性邀請碼，並為本機完成登錄。</string>

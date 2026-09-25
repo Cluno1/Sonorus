@@ -23,6 +23,7 @@ import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderSong
 import io.github.cluno1.sonorus.features.streaming.data.provider.SubsonicApiClient
 import io.github.cluno1.sonorus.features.streaming.data.provider.UserTrustManager
 import io.github.cluno1.sonorus.features.streaming.domain.model.BrowseCategory
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
@@ -61,11 +62,11 @@ class StreamingMusicRepositoryImpl(
     // Catalog-only builds still compile the legacy UI types, but must not read provider credentials
     // or allocate provider HTTP clients merely because a shared ViewModel is constructed.
     private val subsonicClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        check(ProductCapabilities.thirdPartyMusicServices) { "Subsonic is disabled in Catalog-only builds" }
+        check(ProductCapabilities.subsonicMusic) { "Subsonic is disabled in this build" }
         SubsonicApiClient(context)
     }
     private val jellyfinClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        check(ProductCapabilities.thirdPartyMusicServices) { "Jellyfin is disabled in Catalog-only builds" }
+        check(ProductCapabilities.jellyfinMusic) { "Jellyfin is disabled in this build" }
         JellyfinApiClient(context)
     }
 
@@ -102,7 +103,9 @@ class StreamingMusicRepositoryImpl(
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
-        loadDownloadedSongsIndex()
+        if (ProductCapabilities.richStreamingFeatures) {
+            loadDownloadedSongsIndex()
+        }
     }
 
     private fun loadDownloadedSongsIndex() {
@@ -153,6 +156,11 @@ class StreamingMusicRepositoryImpl(
         password: String,
         saveCredentials: Boolean = true
     ): ServiceConnectionInfo {
+        if (ProductCapabilities.lanSubsonicOnly &&
+            !serviceId.equals(StreamingServiceId.SUBSONIC, ignoreCase = true)
+        ) {
+            throw IllegalArgumentException("Only Subsonic is available in LAN playback mode")
+        }
         val normalizedService = normalizeServiceId(serviceId)
 
         val result = when (normalizedService) {
@@ -204,6 +212,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getRecommendations(limit: Int): List<StreamingSong> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             return downloadedSongsMap.values.shuffled().take(limit.coerceAtLeast(1))
         }
@@ -216,6 +225,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getNewReleases(limit: Int): List<StreamingAlbum> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             return deriveAlbumsFromSongs(downloadedSongsMap.values.toList(), limit)
         }
@@ -243,12 +253,14 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getFeaturedPlaylists(limit: Int): List<StreamingPlaylist> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         return playlistsFlow.value
             .filterIsInstance<StreamingPlaylist>()
             .take(limit.coerceAtLeast(1))
     }
 
     override suspend fun getBrowseCategories(): List<BrowseCategory> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         return listOf(
             BrowseCategory(id = "recent", name = "Recent"),
             BrowseCategory(id = "favorites", name = "Favorites"),
@@ -257,6 +269,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getCategoryPlaylists(categoryId: String, limit: Int): List<StreamingPlaylist> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         val normalizedCategory = categoryId.trim().lowercase()
         val safeLimit = limit.coerceAtLeast(1)
         val playlists = playlistsFlow.value.filterIsInstance<StreamingPlaylist>()
@@ -272,12 +285,14 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getTopCharts(limit: Int): List<StreamingSong> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         return getRecommendations(limit)
     }
 
     override fun getLikedSongs(): Flow<List<StreamingSong>> = likedSongsFlow.asStateFlow()
 
     override suspend fun likeSong(songId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val decoded = decodeSongId(songId)
         if (decoded != null && isServiceConnected(decoded.first)) {
@@ -296,6 +311,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun unlikeSong(songId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val decoded = decodeSongId(songId)
         if (decoded != null && isServiceConnected(decoded.first)) {
@@ -313,21 +329,25 @@ class StreamingMusicRepositoryImpl(
         return removed
     }
 
-    override suspend fun isSongLiked(songId: String): Boolean = likedSongIds.contains(songId)
+    override suspend fun isSongLiked(songId: String): Boolean =
+        ProductCapabilities.richStreamingFeatures && likedSongIds.contains(songId)
 
     override suspend fun followArtist(artistId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         followedArtistIds.add(artistId)
         updateFollowedArtistsFlow()
         return true
     }
 
     override suspend fun unfollowArtist(artistId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         val removed = followedArtistIds.remove(artistId)
         updateFollowedArtistsFlow()
         return removed
     }
 
-    override suspend fun isArtistFollowed(artistId: String): Boolean = followedArtistIds.contains(artistId)
+    override suspend fun isArtistFollowed(artistId: String): Boolean =
+        ProductCapabilities.richStreamingFeatures && followedArtistIds.contains(artistId)
 
     override fun getFollowedArtists(): Flow<List<StreamingArtist>> = followedArtistsFlow.asStateFlow()
 
@@ -342,6 +362,7 @@ class StreamingMusicRepositoryImpl(
     override fun getSavedAlbums(): Flow<List<StreamingAlbum>> = flowOf(savedAlbumsFlow.value)
 
     override suspend fun followPlaylist(playlistId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val playlist = getPlaylistById(playlistId) ?: return false
         followedPlaylistIds.add(playlist.id)
@@ -349,11 +370,13 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun unfollowPlaylist(playlistId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         return deletePlaylist(playlistId)
     }
 
     override suspend fun renamePlaylist(playlistId: String, newName: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val decodedPlaylist = decodePlaylistId(playlistId) ?: return false
         val serviceId = decodedPlaylist.first
@@ -380,6 +403,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun deletePlaylist(playlistId: String): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val decodedPlaylist = decodePlaylistId(playlistId) ?: return false
         val serviceId = decodedPlaylist.first
@@ -405,6 +429,7 @@ class StreamingMusicRepositoryImpl(
         description: String?,
         isPublic: Boolean
     ): StreamingPlaylist? {
+        if (!ProductCapabilities.richStreamingFeatures) return null
         if (appSettings.offlineMode.value) return null
         val serviceId = activeServiceId()
         if (!isServiceConnected(serviceId)) {
@@ -433,6 +458,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun addSongsToPlaylist(playlistId: String, songIds: List<String>): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val decodedPlaylist = decodePlaylistId(playlistId) ?: return false
         val serviceId = decodedPlaylist.first
@@ -457,6 +483,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun removeSongsFromPlaylist(playlistId: String, songIds: List<String>): Boolean {
+        if (!ProductCapabilities.richStreamingFeatures) return false
         if (appSettings.offlineMode.value) return false
         val decodedPlaylist = decodePlaylistId(playlistId) ?: return false
         val serviceId = decodedPlaylist.first
@@ -491,7 +518,15 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getStreamingUrl(songId: String): String? {
+        if (ProductCapabilities.lanSubsonicOnly &&
+            LanSubsonicPlaybackPolicy.trackIdFromMediaId(songId) == null
+        ) {
+            return null
+        }
         val (serviceId, providerId) = decodeSongId(songId) ?: return null
+        if (ProductCapabilities.lanSubsonicOnly && serviceId != StreamingServiceId.SUBSONIC) {
+            return null
+        }
         
         // 1. If downloaded, return the local downloaded file URI
         val localFile = getDownloadFile(songId)
@@ -537,6 +572,9 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun reportPlaybackStart(songId: String): Boolean {
+        if (ProductCapabilities.lanSubsonicOnly &&
+            LanSubsonicPlaybackPolicy.trackIdFromMediaId(songId) == null
+        ) return false
         val decoded = decodeSongId(songId) ?: return false
         val (serviceId, providerId) = decoded
         if (!isServiceConnected(serviceId)) return false
@@ -549,6 +587,9 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun reportPlaybackStop(songId: String, positionMs: Long): Boolean {
+        if (ProductCapabilities.lanSubsonicOnly &&
+            LanSubsonicPlaybackPolicy.trackIdFromMediaId(songId) == null
+        ) return false
         val decoded = decodeSongId(songId) ?: return false
         val (serviceId, providerId) = decoded
         if (!isServiceConnected(serviceId)) return false
@@ -575,6 +616,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getRelatedTracks(songId: String, limit: Int): List<StreamingSong> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             val song = downloadedSongsMap[songId] ?: return emptyList()
             return downloadedSongsMap.values.filter { 
@@ -594,6 +636,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getArtistTopTracks(artistId: String, limit: Int): List<StreamingSong> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         val artistName = extractArtistNameFromId(artistId)
         if (artistName.isBlank()) {
             return emptyList()
@@ -708,6 +751,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getArtistAlbums(artistId: String): List<StreamingAlbum> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         val artistName = extractArtistNameFromId(artistId)
         if (artistName.isBlank()) return emptyList()
         
@@ -768,6 +812,7 @@ class StreamingMusicRepositoryImpl(
             }
 
     override suspend fun getRelatedArtists(artistId: String, limit: Int): List<StreamingArtist> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             return emptyList()
         }
@@ -789,6 +834,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun downloadSong(songId: String): Boolean = withContext(Dispatchers.IO) {
+        if (!ProductCapabilities.richStreamingFeatures) return@withContext false
         if (isDownloaded(songId)) return@withContext true
         
         val (serviceId, providerId) = decodeSongId(songId) ?: return@withContext false
@@ -870,6 +916,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun removeDownload(songId: String): Boolean = withContext(Dispatchers.IO) {
+        if (!ProductCapabilities.richStreamingFeatures) return@withContext false
         val file = getDownloadFile(songId)
         val deletedFile = if (file.exists()) file.delete() else true
         
@@ -888,6 +935,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun isDownloaded(songId: String): Boolean = withContext(Dispatchers.IO) {
+        if (!ProductCapabilities.richStreamingFeatures) return@withContext false
         val file = getDownloadFile(songId)
         file.exists() && file.length() > 0 && downloadedSongsMap.containsKey(songId)
     }
@@ -895,6 +943,7 @@ class StreamingMusicRepositoryImpl(
     override fun getDownloadedSongs(): Flow<List<StreamingSong>> = downloadedSongsFlow.asStateFlow()
 
     override suspend fun getRandomSongs(limit: Int): List<StreamingSong> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             return downloadedSongsMap.values.shuffled().take(limit.coerceAtLeast(1))
         }
@@ -971,6 +1020,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun searchSongs(query: String): List<PlayableItem> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             val results = downloadedSongsMap.values.filter {
                 it.title.contains(query, ignoreCase = true) ||
@@ -1000,6 +1050,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun searchAlbums(query: String): List<AlbumItem> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             return deriveAlbumsFromSongs(downloadedSongsMap.values.toList(), SEARCH_LIMIT).filter {
                 it.title.contains(query, ignoreCase = true) ||
@@ -1021,6 +1072,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun searchArtists(query: String): List<ArtistItem> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             val songs = searchSongs(query).filterIsInstance<StreamingSong>()
             return buildDerivedArtistItems(activeServiceId(), songs)
@@ -1045,6 +1097,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun searchPlaylists(query: String): List<PlaylistItem> {
+        if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             return emptyList()
         }
@@ -1088,21 +1141,27 @@ class StreamingMusicRepositoryImpl(
             return emptyList()
         }
 
-        // Sync artist images from provider first so that derived catalog artists pick them up
-        syncArtistArtworkCache(serviceId)
+        if (ProductCapabilities.richStreamingFeatures) {
+            // Rich provider builds retain artist pages and artwork enrichment.
+            syncArtistArtworkCache(serviceId)
+        }
+
+        val acceptedLimit = limit.coerceIn(1, LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS)
 
         val providerSongs = when (serviceId) {
-            StreamingServiceId.SUBSONIC -> subsonicClient.fetchLibrarySongs(limit)
-            StreamingServiceId.JELLYFIN -> jellyfinClient.fetchLibrarySongs(limit)
+            StreamingServiceId.SUBSONIC -> subsonicClient.fetchLibrarySongs(acceptedLimit)
+            StreamingServiceId.JELLYFIN -> jellyfinClient.fetchLibrarySongs(acceptedLimit)
             else -> Result.success(emptyList())
         }.getOrElse { emptyList() }
 
         val mappedSongs = providerSongs.map { mapProviderSong(serviceId, it) }
-        syncLikedSongIdsFromProviderSongs(serviceId, providerSongs)
+        if (ProductCapabilities.richStreamingFeatures) {
+            syncLikedSongIdsFromProviderSongs(serviceId, providerSongs)
+        }
         replaceCatalog(mappedSongs)
-        
-        // Also sync playlists
-        syncPlaylists()
+        if (ProductCapabilities.richStreamingFeatures) {
+            syncPlaylists()
+        }
         
         return mappedSongs
     }
@@ -1120,6 +1179,10 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun syncPlaylists(): List<StreamingPlaylist> {
+        if (!ProductCapabilities.richStreamingFeatures) {
+            playlistsFlow.value = emptyList()
+            return emptyList()
+        }
         if (appSettings.offlineMode.value) {
             playlistsFlow.value = emptyList()
             return emptyList()
@@ -1202,6 +1265,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getArtistById(id: String): ArtistItem? {
+        if (!ProductCapabilities.richStreamingFeatures) return null
         artistsFlow.value.firstOrNull { it.id == id }?.let { return it }
 
         if (appSettings.offlineMode.value) {
@@ -1228,6 +1292,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getPlaylistById(id: String): PlaylistItem? {
+        if (!ProductCapabilities.richStreamingFeatures) return null
         return playlistsFlow.value.firstOrNull { it.id == id }
     }
 
@@ -1244,9 +1309,18 @@ class StreamingMusicRepositoryImpl(
         }
 
         songsFlow.value = songs
-        // Only populate albumsFlow with derived albums if no provider albums are cached
-        if (providerAlbumCache.isEmpty()) {
+        // LAN playback owns a deliberately tiny songs/albums-only product surface.
+        if (ProductCapabilities.lanSubsonicOnly || providerAlbumCache.isEmpty()) {
             albumsFlow.value = buildAlbumItems(serviceId, songs)
+        }
+        if (ProductCapabilities.lanSubsonicOnly) {
+            artistsFlow.value = emptyList()
+            playlistsFlow.value = emptyList()
+            likedSongsFlow.value = emptyList()
+            savedAlbumsFlow.value = emptyList()
+            followedArtistsFlow.value = emptyList()
+            downloadedSongsFlow.value = emptyList()
+            return
         }
         val rawArtists = buildArtistItems(serviceId, songs)
         artistsFlow.value = rawArtists
@@ -1269,6 +1343,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     private suspend fun mergeCatalog(songs: List<StreamingSong>) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         if (songs.isEmpty()) {
             return
         }
@@ -1336,10 +1411,14 @@ class StreamingMusicRepositoryImpl(
         val encodedAlbumId = providerSong.albumId
             ?.takeIf { it.isNotBlank() }
             ?.let { encodeAlbumId(serviceId, it) }
-        val streamingUrl = when (serviceId) {
-            StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerSong.providerId, desiredBitrateKbps())
-            StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerSong.providerId, desiredBitrateKbps())
-            else -> null
+        val streamingUrl = if (ProductCapabilities.lanSubsonicOnly) {
+            null
+        } else {
+            when (serviceId) {
+                StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerSong.providerId, desiredBitrateKbps())
+                StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerSong.providerId, desiredBitrateKbps())
+                else -> null
+            }
         }
 
         return StreamingSong(
@@ -1799,6 +1878,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     private fun normalizeServiceId(serviceId: String): String {
+        if (ProductCapabilities.lanSubsonicOnly) return StreamingServiceId.SUBSONIC
         val normalized = serviceId.uppercase()
         return if (StreamingServiceId.all.contains(normalized)) {
             normalized
@@ -1917,6 +1997,6 @@ class StreamingMusicRepositoryImpl(
 
     private companion object {
         private const val SEARCH_LIMIT = 100
-        private const val MAX_CACHE_SIZE = 4000
+        private const val MAX_CACHE_SIZE = LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS
     }
 }

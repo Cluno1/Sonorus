@@ -24,4 +24,24 @@ class ProductCapabilitiesTest {
             )
         )
     }
+
+    @Test
+    fun `LAN Subsonic enables streaming shell without broad third party services`() {
+        assertTrue(
+            ProductCapabilities.allowsStreamingMode(
+                thirdPartyMusicServices = false,
+                lanSubsonicOnly = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `streaming shell stays disabled when both capabilities are off`() {
+        assertFalse(
+            ProductCapabilities.allowsStreamingMode(
+                thirdPartyMusicServices = false,
+                lanSubsonicOnly = false,
+            ),
+        )
+    }
 }

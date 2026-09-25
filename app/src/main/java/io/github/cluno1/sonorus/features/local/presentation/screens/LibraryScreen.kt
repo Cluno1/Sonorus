@@ -202,6 +202,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.core.ProductCapabilities
 import io.github.cluno1.sonorus.shared.data.model.Album
 import io.github.cluno1.sonorus.shared.data.model.Artist
 import io.github.cluno1.sonorus.shared.data.model.Playlist
@@ -375,14 +376,19 @@ fun LibraryScreen(
     val hiddenTabs by appSettings.hiddenLibraryTabs.collectAsState()
     val showLibraryBottomBarAlways by appSettings.showLibraryBottomBarAlways.collectAsState()
     val gestureLibrarySwipeTabs by appSettings.gestureLibrarySwipeTabs.collectAsState()
+    val readOnlyStreaming = isStreamingMode && ProductCapabilities.lanSubsonicOnly
 
     // Show Album Artists tab by default in Go mode, hidden in local mode
-    val effectiveHiddenTabs = remember(hiddenTabs, isStreamingMode) {
-        if (isStreamingMode) hiddenTabs - "ALBUM_ARTISTS" else hiddenTabs
+    val effectiveHiddenTabs = remember(hiddenTabs, isStreamingMode, readOnlyStreaming) {
+        if (isStreamingMode && !readOnlyStreaming) hiddenTabs - "ALBUM_ARTISTS" else hiddenTabs
     }
     
-    val allowedStreamingTabs = setOf("SONGS", "LIKED", "PLAYLISTS", "ALBUMS", "ARTISTS", "ALBUM_ARTISTS")
-    val tabs = remember(tabOrder, effectiveHiddenTabs, isStreamingMode) {
+    val allowedStreamingTabs = if (readOnlyStreaming) {
+        setOf("SONGS", "ALBUMS")
+    } else {
+        setOf("SONGS", "LIKED", "PLAYLISTS", "ALBUMS", "ARTISTS", "ALBUM_ARTISTS")
+    }
+    val tabs = remember(tabOrder, effectiveHiddenTabs, isStreamingMode, readOnlyStreaming) {
         tabOrder
             .filter { !effectiveHiddenTabs.contains(it) && (!isStreamingMode || it in allowedStreamingTabs) }
             .map { tabId ->
@@ -401,7 +407,7 @@ fun LibraryScreen(
             }
     }
     
-    val visibleTabIds = remember(tabOrder, effectiveHiddenTabs, isStreamingMode) {
+    val visibleTabIds = remember(tabOrder, effectiveHiddenTabs, isStreamingMode, readOnlyStreaming) {
         tabOrder.filter {
             !effectiveHiddenTabs.contains(it) && (!isStreamingMode || it in allowedStreamingTabs)
         }
@@ -2139,17 +2145,17 @@ fun LibraryScreen(
                                         albums = albums,
                                         artists = artists,
                                         onSongClick = onSongClick,
-                                        onAddToPlaylist = { song ->
+                                        onAddToPlaylist = if (readOnlyStreaming) null else ({ song ->
                                             songsToAddToPlaylist = listOf(song)
                                             showAddToPlaylistSheet = true
-                                        },
+                                        }),
                                         onAddToQueue = { song ->
                                             if (isStreamingMode) onStreamingAddToQueue?.invoke(song) else onAddToQueue(song)
                                         },
                                         onPlayNext = { song ->
                                             if (isStreamingMode) onStreamingPlayNext?.invoke(song) else musicViewModel.playNext(song)
                                         },
-                                        onToggleFavorite = if (isStreamingMode) onStreamingToggleFavorite else { song ->
+                                        onToggleFavorite = if (readOnlyStreaming) null else if (isStreamingMode) onStreamingToggleFavorite else { song ->
                                             musicViewModel.toggleFavorite(song)
                                         },
                                         favoriteSongs = favoriteSongs,
@@ -2171,12 +2177,12 @@ fun LibraryScreen(
                                             currentSong = currentSong,
                                             isPlaying = isPlaying,
                                             haptics = haptics,
-                                            isSelectionMode = isSelectionMode,
+                                            isSelectionMode = isSelectionMode && !readOnlyStreaming,
                                             selectedSongIds = selectedSongIds,
                                             multiSelectionState = multiSelectionState,
-                                            onSongLongPress = onSongLongPress,
-                                            onSongSelectionToggle = onSongSelectionToggle,
-                                            onShowMultiSelectionSheet = { showMultiSelectionSheet = true },
+                                            onSongLongPress = if (readOnlyStreaming) ({ _ -> }) else onSongLongPress,
+                                            onSongSelectionToggle = if (readOnlyStreaming) ({ _ -> }) else onSongSelectionToggle,
+                                            onShowMultiSelectionSheet = if (readOnlyStreaming) ({}) else ({ showMultiSelectionSheet = true }),
                                             onRefreshClick = onRefreshClick,
                                             bottomPadding = adjustedSongsBottomPadding,
                                             sortOrder = sortOrder
@@ -2813,7 +2819,7 @@ fun SingleCardSongsContent(
     albums: List<Album> = emptyList(),
     artists: List<Artist> = emptyList(),
     onSongClick: (Song) -> Unit,
-    onAddToPlaylist: (Song) -> Unit,
+    onAddToPlaylist: ((Song) -> Unit)?,
     onAddToQueue: (Song) -> Unit,
     onPlayNext: (Song) -> Unit = {},
     onToggleFavorite: ((Song) -> Unit)? = null,
@@ -3018,7 +3024,9 @@ fun SingleCardSongsContent(
                                     }
                                 }
                             },
-                            onMoreClick = if (isCatalogSong) null else ({ onAddToPlaylist(song) }),
+                            onMoreClick = if (isCatalogSong) null else onAddToPlaylist?.let { action ->
+                                { action(song) }
+                            },
                             onAddToQueue = if (isCatalogSong) null else ({ onAddToQueue(song) }),
                             onPlayNext = if (isCatalogSong) null else ({ onPlayNext(song) }),
                             onToggleFavorite = onToggleFavorite?.let { fn -> { fn(song) } },

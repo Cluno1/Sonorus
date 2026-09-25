@@ -51,6 +51,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.core.ProductCapabilities
 
 import io.github.cluno1.sonorus.shared.data.model.Album
 import io.github.cluno1.sonorus.shared.data.model.Artist
@@ -219,6 +220,7 @@ fun AlbumDetailScreen(
     val density = LocalDensity.current
     val isTablet = windowScreenWidthDp() >= 600
     val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
+    val readOnlyLan = isStreamingMode && ProductCapabilities.lanSubsonicOnly
 
     val appSettings = remember { AppSettings.getInstance(context) }
     val useHoursFormat by appSettings.useHoursInTimeFormat.collectAsState()
@@ -290,6 +292,11 @@ fun AlbumDetailScreen(
     var isDescriptionLoading by remember(albumId) { mutableStateOf(false) }
 
     LaunchedEffect(albumId, albumName, album?.artist, allDisplaySongs, publicDescriptionEnabled) {
+        if (readOnlyLan) {
+            description = null
+            isDescriptionLoading = false
+            return@LaunchedEffect
+        }
         val fallbackArtist = allDisplaySongs.firstOrNull()?.artist
         val effectiveArtistName = album?.artist?.takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
             ?: fallbackArtist?.takeIf { it.isNotBlank() && !it.equals("<unknown>", ignoreCase = true) }
@@ -322,7 +329,7 @@ fun AlbumDetailScreen(
         canvasLoading = false
 
         val artistName = album?.artist
-        if (albumName.isNotBlank() && artistName != null && appleCanvasEnabled) {
+        if (!readOnlyLan && albumName.isNotBlank() && artistName != null && appleCanvasEnabled) {
             val hasNetwork = if (appleCanvasNetworkMode == CanvasNetworkMode.WIFI_ONLY) {
                 NetworkUtils.isWifiConnected(context)
             } else {

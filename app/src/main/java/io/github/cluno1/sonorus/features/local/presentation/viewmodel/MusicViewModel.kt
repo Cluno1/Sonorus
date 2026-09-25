@@ -79,6 +79,8 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLyricsSyncState
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLyricsSyncStatus
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLyricsTranslation
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogFailure
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.catalog.domain.normalizeCatalogLyricsLanguageTag
 import io.github.cluno1.sonorus.features.local.presentation.player.PlaybackControlStateMachine
 import io.github.cluno1.sonorus.features.local.presentation.player.PlaybackControlUiState
@@ -4946,6 +4948,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (mimeType != null) {
                     setMimeType(mimeType)
                 }
+                if (LanSubsonicPlaybackPolicy.isLanSong(
+                        enabled = ProductCapabilities.lanSubsonicOnly,
+                        mediaId = this@toMediaItem.id,
+                        uri = this@toMediaItem.uri.toString(),
+                    )
+                ) {
+                    LanSubsonicPlaybackPolicy.cacheKey(this@toMediaItem.id)?.let(::setCustomCacheKey)
+                }
             }
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -8326,6 +8336,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun fetchLyricsForCurrentSong(retryCount: Int = 0) {
         val song = currentSong.value ?: return
+        if (LanSubsonicPlaybackPolicy.isLanSong(
+                enabled = ProductCapabilities.lanSubsonicOnly,
+                mediaId = song.id,
+                uri = song.uri.toString(),
+            )
+        ) {
+            lyricsFetchJob?.cancel()
+            _currentLyrics.value = null
+            _isLoadingLyrics.value = false
+            return
+        }
         if (deviceLyricsCandidatesSongId != song.id) {
             _deviceLyricsCandidates.value = emptyList()
             deviceLyricsCandidatesSongId = null
@@ -8436,6 +8457,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Clear lyrics cache for current song and refetch from sources
      */
     fun clearLyricsCacheAndRefetch() {
+        val current = _currentSong.value
+        if (LanSubsonicPlaybackPolicy.isLanSong(
+                enabled = ProductCapabilities.lanSubsonicOnly,
+                mediaId = current?.id,
+                uri = current?.uri?.toString(),
+            )
+        ) {
+            lyricsFetchJob?.cancel()
+            _currentLyrics.value = null
+            _isLoadingLyrics.value = false
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val song = _currentSong.value

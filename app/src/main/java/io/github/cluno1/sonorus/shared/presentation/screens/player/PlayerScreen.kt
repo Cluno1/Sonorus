@@ -110,6 +110,83 @@ import io.github.cluno1.sonorus.network.AppleMusicCanvasProvider
 import io.github.cluno1.sonorus.network.CanvasArtwork
 import io.github.cluno1.sonorus.shared.data.model.CanvasNetworkMode
 import io.github.cluno1.sonorus.core.utils.NetworkUtils
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LanSubsonicPlayer(
+    song: Song?,
+    isPlaying: Boolean,
+    progress: () -> Float,
+    queuePosition: Int,
+    queueTotal: Int,
+    onBack: () -> Unit,
+    onPlayPause: () -> Unit,
+    onSkipPrevious: () -> Unit,
+    onSkipNext: () -> Unit,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_lan_music)) },
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.lan_player_back)) }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                song?.title.orEmpty(),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                song?.artist.orEmpty(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                stringResource(R.string.lan_player_read_only),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            Slider(
+                value = progress().coerceIn(0f, 1f),
+                onValueChange = onSeek,
+                modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(onClick = onSkipPrevious, enabled = queuePosition > 1) {
+                    Text(stringResource(R.string.lan_player_previous))
+                }
+                Button(onClick = onPlayPause) {
+                    Text(stringResource(if (isPlaying) R.string.lan_player_pause else R.string.lan_player_play))
+                }
+                Button(onClick = onSkipNext, enabled = queuePosition < queueTotal) {
+                    Text(stringResource(R.string.lan_player_next))
+                }
+            }
+            Text(
+                text = stringResource(R.string.lan_player_queue_position, queuePosition, queueTotal),
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -258,6 +335,28 @@ fun PlayerScreen(
     expansionFraction: Float = 1f,
     snackbarHostState: SnackbarHostState? = null,
 ) {
+    if (LanSubsonicPlaybackPolicy.isLanSong(
+            enabled = ProductCapabilities.lanSubsonicOnly,
+            mediaId = song?.id,
+            uri = song?.uri?.toString(),
+        )
+    ) {
+        LanSubsonicPlayer(
+            song = song,
+            isPlaying = isPlaying,
+            progress = progress,
+            queuePosition = queuePosition,
+            queueTotal = queueTotal,
+            onBack = onBack,
+            onPlayPause = onPlayPause,
+            onSkipPrevious = onSkipPrevious,
+            onSkipNext = onSkipNext,
+            onSeek = onSeek,
+            modifier = modifier,
+        )
+        return
+    }
+
     // issue 9: catalog MP3 走 Rhythm 原生播放器（Expressive/Material），不再进自研的
     // ManagedCatalogPlayer。`song` 已是 catalog 投影的 Song，直接落入下方原生播放逻辑，
     // 从而拿到原生 song 链体验（封面/歌词/队列）。乐谱入口后续增量：在原生播放页按

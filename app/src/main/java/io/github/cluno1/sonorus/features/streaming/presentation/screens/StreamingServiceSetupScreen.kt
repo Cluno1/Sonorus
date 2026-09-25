@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.core.ProductCapabilities
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceRules
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceId
@@ -77,18 +78,28 @@ fun StreamingServiceSetupScreen(
     val error by viewModel.error.collectAsState()
     val rememberStreamingPasswords by appSettings.rememberStreamingPasswords.collectAsState()
     val isBusy = isLoading
-
-    val option = remember(serviceId) {
-        StreamingServiceOptions.defaults.firstOrNull { it.id == serviceId }
+    val effectiveServiceId = if (ProductCapabilities.lanSubsonicOnly) {
+        StreamingServiceId.SUBSONIC
+    } else {
+        serviceId
     }
-    val optionName = option?.let { stringResource(id = it.nameRes) } ?: serviceId
-    val optionDescription = option?.let { stringResource(id = it.descriptionRes) }
-    val session = sessions[serviceId] ?: viewModel.getServiceSession(serviceId)
-    val requiresServerUrl = remember(serviceId) { StreamingServiceRules.requiresServerUrl(serviceId) }
 
-    var serverUrl by rememberSaveable(serviceId) { mutableStateOf(session.serverUrl) }
-    var username by rememberSaveable(serviceId) { mutableStateOf(session.username) }
-    var password by rememberSaveable(serviceId) { mutableStateOf("") }
+    val option = remember(effectiveServiceId) {
+        StreamingServiceOptions.defaults.firstOrNull { it.id == effectiveServiceId }
+    }
+    val optionName = if (ProductCapabilities.lanSubsonicOnly) {
+        stringResource(R.string.settings_lan_music)
+    } else {
+        option?.let { stringResource(id = it.nameRes) } ?: effectiveServiceId
+    }
+    val session = sessions[effectiveServiceId] ?: viewModel.getServiceSession(effectiveServiceId)
+    val requiresServerUrl = remember(effectiveServiceId) {
+        StreamingServiceRules.requiresServerUrl(effectiveServiceId)
+    }
+
+    var serverUrl by rememberSaveable(effectiveServiceId) { mutableStateOf(session.serverUrl) }
+    var username by rememberSaveable(effectiveServiceId) { mutableStateOf(session.username) }
+    var password by rememberSaveable(effectiveServiceId) { mutableStateOf("") }
     var showDiscoverySheet by remember { mutableStateOf(false) }
 
     val canSubmit = username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank())
@@ -133,7 +144,7 @@ fun StreamingServiceSetupScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val providerIconRes = when (serviceId) {
+                    val providerIconRes = when (effectiveServiceId) {
                         StreamingServiceId.SUBSONIC -> R.drawable.ic_subsonic
                         StreamingServiceId.JELLYFIN -> R.drawable.ic_jellyfin
                         else -> null
@@ -221,14 +232,14 @@ fun StreamingServiceSetupScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     label = { Text(text = stringResource(id = R.string.streaming_service_setup_server_url)) },
                                     placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_server_url_hint)) },
-                                    trailingIcon = {
+                                    trailingIcon = if (ProductCapabilities.lanSubsonicOnly) null else ({
                                         IconButton(onClick = { showDiscoverySheet = true }) {
                                             Icon(
                                                 imageVector = MaterialSymbolIcon("radar"),
                                                 contentDescription = stringResource(R.string.streaming_service_setup_auto_detect)
                                             )
                                         }
-                                    },
+                                    }),
                                     supportingText = {
                                         Text(text = stringResource(id = R.string.streaming_service_setup_server_url_supporting))
                                     },
@@ -316,7 +327,7 @@ fun StreamingServiceSetupScreen(
                         Button(
                             onClick = {
                                 viewModel.connectService(
-                                    serviceId = serviceId,
+                                    serviceId = effectiveServiceId,
                                     serverUrl = serverUrl,
                                     username = username,
                                     password = password
@@ -330,7 +341,7 @@ fun StreamingServiceSetupScreen(
 
                         if (session.isConnected) {
                             OutlinedButton(
-                                onClick = { viewModel.disconnectService(serviceId) },
+                                onClick = { viewModel.disconnectService(effectiveServiceId) },
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = !isBusy
                             ) {
@@ -356,9 +367,9 @@ fun StreamingServiceSetupScreen(
         }
     }
 
-    if (showDiscoverySheet) {
+    if (showDiscoverySheet && !ProductCapabilities.lanSubsonicOnly) {
         NearbyServerDiscoverySheet(
-            serviceId = serviceId,
+            serviceId = effectiveServiceId,
             onDismiss = { showDiscoverySheet = false },
             onServerSelected = { detectedUrl ->
                 serverUrl = detectedUrl

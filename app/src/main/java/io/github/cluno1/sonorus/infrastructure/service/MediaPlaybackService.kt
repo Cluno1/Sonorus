@@ -68,6 +68,8 @@ import io.github.cluno1.sonorus.shared.data.repository.StatsTimeRange
 import io.github.cluno1.sonorus.shared.presentation.screens.settings.rhythmGuardFormatDurationFromMinutes
 import io.github.cluno1.sonorus.activities.RhythmGuardTimeoutActivity
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.local.data.device.DeviceDocumentPolicy
 import androidx.core.net.toUri
 
@@ -1446,6 +1448,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
     
     private fun isCurrentSongFavorite(): Boolean {
         val currentMediaItem = player.currentMediaItem
+        if (isLanSubsonicMediaItem(currentMediaItem)) return false
         return if (currentMediaItem != null) {
             // Get favorite songs from settings
             val favoriteSongsJson = appSettings.favoriteSongs.value
@@ -1468,6 +1471,10 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
     
     private fun toggleCurrentSongFavorite() {
         val currentMediaItem = player.currentMediaItem
+        if (isLanSubsonicMediaItem(currentMediaItem)) {
+            Log.w(TAG, "Ignoring favorite mutation for read-only LAN Subsonic media")
+            return
+        }
         if (currentMediaItem?.mediaId?.startsWith("rhythm-catalog:") == true) {
             Log.w(TAG, "Ignoring favorite mutation for managed catalog media")
             return
@@ -1540,6 +1547,16 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                 Log.e(TAG, "Error toggling favorite", e)
             }
         }
+    }
+
+    private fun isLanSubsonicMediaItem(mediaItem: MediaItem?): Boolean {
+        val local = mediaItem?.localConfiguration ?: return false
+        return LanSubsonicPlaybackPolicy.allowsMediaSessionItem(
+            enabled = ProductCapabilities.lanSubsonicOnly,
+            mediaId = mediaItem.mediaId,
+            uri = local.uri.toString(),
+            customCacheKey = local.customCacheKey,
+        )
     }
 
     private fun updateFavoritesPlaylist(songId: String, song: Song?, isAdding: Boolean) {
@@ -2364,6 +2381,17 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                 Log.w(TAG, "Controller not ready for custom command: ${customCommand.customAction}")
                 return Futures.immediateFuture(SessionResult(SessionError.ERROR_SESSION_DISCONNECTED))
             }
+            val readOnlyLanCommand = isLanSubsonicMediaItem(player.currentMediaItem) &&
+                customCommand.customAction in setOf(
+                    "UPDATE_ACTIVE_LYRIC",
+                    "UPDATE_LYRICS_DATA",
+                    FAVORITE_ON,
+                    FAVORITE_OFF,
+                )
+            if (readOnlyLanCommand) {
+                Log.w(TAG, "Rejected non-playback command for read-only LAN Subsonic media")
+                return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
+            }
             
             return Futures.immediateFuture(
                 when (customCommand.customAction) {
@@ -2508,6 +2536,11 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                             io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore(
                                 this@MediaPlaybackService,
                             ).loadServerUrl(),
+                        ) || LanSubsonicPlaybackPolicy.allowsMediaSessionItem(
+                            enabled = ProductCapabilities.lanSubsonicOnly,
+                            mediaId = resolved.mediaId,
+                            uri = local?.uri?.toString(),
+                            customCacheKey = local?.customCacheKey,
                         ) || allowsDeviceMediaStoreItem(resolved) || allowsAuthorizedDeviceDocument(resolved)
                     ) {
                         resolved

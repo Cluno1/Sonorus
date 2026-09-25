@@ -10,6 +10,24 @@ object ProductCapabilities {
     val thirdPartyMusicServices: Boolean
         get() = !catalogOnly
 
+    val lanSubsonicOnly: Boolean
+        get() = BuildConfig.LAN_SUBSONIC_ONLY
+
+    /** Any provider-backed playback shell may be entered. */
+    val streamingMode: Boolean
+        get() = allowsStreamingMode(thirdPartyMusicServices, lanSubsonicOnly)
+
+    /** Subsonic is the only provider admitted by the private LAN build. */
+    val subsonicMusic: Boolean
+        get() = thirdPartyMusicServices || lanSubsonicOnly
+
+    val jellyfinMusic: Boolean
+        get() = thirdPartyMusicServices
+
+    /** Search, playlists, mutations, downloads, recommendations, and enrichments. */
+    val richStreamingFeatures: Boolean
+        get() = thirdPartyMusicServices
+
     val firstPartyUpdates: Boolean
         get() = BuildConfig.FIRST_PARTY_UPDATES
 
@@ -26,4 +44,9 @@ object ProductCapabilities {
         thirdPartyMusicServices: Boolean,
         devicePublicMetadata: Boolean
     ): Boolean = thirdPartyMusicServices || devicePublicMetadata
+
+    internal fun allowsStreamingMode(
+        thirdPartyMusicServices: Boolean,
+        lanSubsonicOnly: Boolean,
+    ): Boolean = thirdPartyMusicServices || lanSubsonicOnly
 }

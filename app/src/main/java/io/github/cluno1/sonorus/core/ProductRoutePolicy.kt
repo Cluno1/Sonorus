@@ -7,13 +7,28 @@ object ProductRoutePolicy {
         "api_management_settings",
     )
 
-    fun allowsInitialNavigationRoute(route: String?, catalogOnly: Boolean): Boolean {
+    fun allowsInitialNavigationRoute(
+        route: String?,
+        catalogOnly: Boolean,
+        lanSubsonicOnly: Boolean = false,
+    ): Boolean {
         if (route.isNullOrBlank()) return false
-        return !catalogOnly || !route.startsWith("streaming_", ignoreCase = true)
+        if (!catalogOnly) return true
+        if (!route.startsWith("streaming_", ignoreCase = true)) return true
+        return lanSubsonicOnly && route.equals(
+            "streaming_service_setup/SUBSONIC",
+            ignoreCase = true,
+        )
     }
 
-    fun allowsSettingsSubroute(route: String?, catalogOnly: Boolean): Boolean {
+    fun allowsSettingsSubroute(
+        route: String?,
+        catalogOnly: Boolean,
+        lanSubsonicOnly: Boolean = false,
+    ): Boolean {
         if (route.isNullOrBlank()) return false
-        return !catalogOnly || route !in catalogOnlySettingsRoutes
+        if (!catalogOnly) return true
+        if (lanSubsonicOnly && route == "lan_subsonic_settings") return true
+        return route !in catalogOnlySettingsRoutes
     }
 }

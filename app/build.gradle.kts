@@ -43,6 +43,8 @@ android {
 
         // This fork ships against the first-party Catalog API and its trusted COS assets only.
         buildConfigField("boolean", "CATALOG_ONLY", "true")
+        // Private LAN playback is intentionally narrower than the legacy GO product surface.
+        buildConfigField("boolean", "LAN_SUBSONIC_ONLY", "true")
         // Public metadata is deliberately narrower than the disabled third-party streaming stack.
         // It is used only to enrich files already present on the user's device.
         buildConfigField("boolean", "DEVICE_PUBLIC_METADATA", "true")

@@ -17,6 +17,7 @@ import io.github.cluno1.sonorus.features.streaming.data.repository.StreamingServ
 import io.github.cluno1.sonorus.features.streaming.data.repository.StreamingServiceSessionRepository
 import io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
 import io.github.cluno1.sonorus.features.streaming.domain.model.BrowseCategory
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import android.net.Uri
 import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.MusicViewModel
@@ -58,6 +60,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private var playbackHandler: ((List<StreamingSong>, Int) -> Unit)? = null
     private var seekProgressHandler: ((Float) -> Unit)? = null
     private var seekPositionHandler: ((Long) -> Unit)? = null
+    private var lanLibraryLoadJob: Job? = null
 
     
     // Authentication state
@@ -147,7 +150,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     val searchResults: StateFlow<StreamingSearchResults> = _searchResults.asStateFlow()
     
     init {
-        if (ProductCapabilities.thirdPartyMusicServices) {
+        if (ProductCapabilities.streamingMode) {
             observeSelectedService()
             // Keep an updated view of the provider catalog exposed by the repository
             viewModelScope.launch {
@@ -171,7 +174,11 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
                 val connected = checkAndSyncAuthentication(normalizedServiceId)
                 if (connected) {
-                    loadHomeContent()
+                    if (ProductCapabilities.lanSubsonicOnly) {
+                        loadLanLibrary()
+                    } else {
+                        loadHomeContent()
+                    }
                 } else {
                     // Keep the user's explicit provider selection even if disconnected.
                     // Auto-reverting to another connected provider makes provider switching
@@ -195,6 +202,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Select a streaming service.
      */
     fun selectService(service: SourceType) {
+        if (ProductCapabilities.lanSubsonicOnly && service != SourceType.SUBSONIC) return
         viewModelScope.launch {
             val serviceId = serviceIdFromSourceType(service)
             _currentService.value = service
@@ -240,6 +248,11 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             _error.value = null
 
             try {
+                if (ProductCapabilities.lanSubsonicOnly &&
+                    !serviceId.equals(StreamingServiceId.SUBSONIC, ignoreCase = true)
+                ) {
+                    throw IllegalArgumentException("Only Subsonic is available in LAN playback mode")
+                }
                 val normalizedServiceId = normalizeServiceId(serviceId)
                 validateCredentials(normalizedServiceId, serverUrl, username, password)
 
@@ -259,8 +272,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 if (appSettings.streamingService.value != normalizedServiceId) {
                     appSettings.setStreamingService(normalizedServiceId)
                 }
+                appSettings.setAppMode("STREAMING")
                 checkAndSyncAuthentication(normalizedServiceId)
-                loadHomeContent()
+                if (ProductCapabilities.lanSubsonicOnly) {
+                    loadLanLibrary()
+                } else {
+                    loadHomeContent()
+                }
                 
                 // Show success notification
                 notificationManager.notifyAuthenticationSuccess(getSourceTypeName(sourceTypeFromServiceId(normalizedServiceId)))
@@ -360,6 +378,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Load home screen content.
      */
     fun loadHomeContent() {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            loadLanLibrary()
+            return
+        }
         viewModelScope.launch {
             _isLoading.value = true
             _hasLoadedHomeContent.value = false
@@ -434,18 +456,77 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             }
         }
     }
+
+    /** Load only the read-only songs/albums surface used by the private LAN gateway. */
+    fun loadLanLibrary(force: Boolean = false) {
+        if (!ProductCapabilities.lanSubsonicOnly) return
+        if (lanLibraryLoadJob?.isActive == true) return
+        if (!force && _hasLoadedHomeContent.value && _hasLoadedLibrary.value && _allSongs.value.isNotEmpty()) {
+            return
+        }
+
+        lanLibraryLoadJob = viewModelScope.launch {
+            _isLoading.value = true
+            _hasLoadedHomeContent.value = false
+            _hasLoadedLibrary.value = false
+            _error.value = null
+
+            try {
+                if (!checkAndSyncAuthentication(StreamingServiceId.SUBSONIC)) {
+                    clearContent()
+                    return@launch
+                }
+                if (!NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value)) {
+                    clearContent()
+                    _error.value = "LAN music is not reachable on the current network"
+                    return@launch
+                }
+
+                val songs = repository.syncCatalog(
+                    limit = LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS,
+                )
+                val albums = repository.getAlbums().first()
+                    .filterIsInstance<StreamingAlbum>()
+                    .distinctBy { it.id }
+
+                _allSongs.value = songs
+                _savedAlbums.value = albums
+                _recommendations.value = emptyList()
+                _newReleases.value = emptyList()
+                _featuredPlaylists.value = emptyList()
+                _browseCategories.value = emptyList()
+                _topCharts.value = emptyList()
+                _likedSongs.value = emptyList()
+                _followedArtists.value = emptyList()
+                _savedPlaylists.value = emptyList()
+                _downloadedSongs.value = emptyList()
+            } catch (e: Exception) {
+                Log.e("StreamingMusicViewModel", "LAN Subsonic library sync failed", e)
+                _error.value = "Failed to load LAN music: ${e.message}"
+            } finally {
+                _hasLoadedHomeContent.value = true
+                _hasLoadedLibrary.value = true
+                _isLoading.value = false
+                lanLibraryLoadJob = null
+            }
+        }
+    }
     
     /**
      * Refresh home screen content.
      */
     fun refreshHome() {
-        loadHomeContent()
+        if (ProductCapabilities.lanSubsonicOnly) loadLanLibrary(force = true) else loadHomeContent()
     }
     
     /**
      * Load browse categories.
      */
     fun loadBrowseCategories() {
+        if (!ProductCapabilities.richStreamingFeatures) {
+            _browseCategories.value = emptyList()
+            return
+        }
         viewModelScope.launch {
             _isLoading.value = true
             
@@ -468,6 +549,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Load top charts.
      */
     fun loadTopCharts() {
+        if (!ProductCapabilities.richStreamingFeatures) {
+            _topCharts.value = emptyList()
+            return
+        }
         viewModelScope.launch {
             _isLoading.value = true
             
@@ -490,6 +575,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Load user's library content.
      */
     fun loadLibrary() {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            loadLanLibrary()
+            return
+        }
         viewModelScope.launch {
             _isLoading.value = true
             _hasLoadedLibrary.value = false
@@ -506,7 +595,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
                 // Pull the provider catalog first so artist/album counts come from actual songs.
                 try {
-                    repository.syncCatalog(limit = 5_000)
+                    repository.syncCatalog(limit = LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS)
                 } catch (e: Exception) {
                     Log.e("StreamingMusicViewModel", "syncCatalog failed", e)
                 }
@@ -694,6 +783,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      */
     fun playSong(song: StreamingSong) {
         val queueSource = when {
+            ProductCapabilities.lanSubsonicOnly && _allSongs.value.any { it.id == song.id } -> _allSongs.value
             _searchResults.value.songs.any { it.id == song.id } -> _searchResults.value.songs
             _recommendations.value.any { it.id == song.id } -> _recommendations.value
             _queue.value.any { it.id == song.id } -> _queue.value
@@ -718,7 +808,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Play a specific queue and start index.
      */
     fun playQueue(queue: List<StreamingSong>, startIndex: Int = 0, shuffle: Boolean = false, pinStartIndex: Boolean = false) {
-        val playableQueue = queue.filter { it.isPlayable }
+        val playableQueue = queue.filter { song ->
+            song.isPlayable && (!ProductCapabilities.lanSubsonicOnly ||
+                LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) != null)
+        }
         if (playableQueue.isEmpty()) {
             _error.value = "No playable tracks available"
             return
@@ -753,26 +846,29 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 safeStartIndex
             }
 
-            val selectedSong = queueToPlay[selectedIndex]
-            val queueWithResolvedSongs = queueToPlay.map { song ->
-                val fallbackUrl = song.streamingUrl?.takeIf { cachedUrl ->
-                    val isNetworkUrl =
-                        cachedUrl.startsWith("http://", ignoreCase = true) ||
-                            cachedUrl.startsWith("https://", ignoreCase = true)
-                    !isNetworkUrl || !song.id.contains("::")
-                }
-                val resolvedUrl = repository.getStreamingUrl(song.id)
-                    ?: fallbackUrl
+            val queueWithResolvedSongs = if (ProductCapabilities.lanSubsonicOnly) {
+                queueToPlay.map { it.copy(streamingUrl = null, previewUrl = null) }
+            } else {
+                queueToPlay.map { song ->
+                    val fallbackUrl = song.streamingUrl?.takeIf { cachedUrl ->
+                        val isNetworkUrl =
+                            cachedUrl.startsWith("http://", ignoreCase = true) ||
+                                cachedUrl.startsWith("https://", ignoreCase = true)
+                        !isNetworkUrl || !song.id.contains("::")
+                    }
+                    val resolvedUrl = repository.getStreamingUrl(song.id)
+                        ?: fallbackUrl
 
-                if (resolvedUrl.isNullOrBlank()) {
-                    song
-                } else {
-                    song.copy(streamingUrl = resolvedUrl)
+                    if (resolvedUrl.isNullOrBlank()) {
+                        song
+                    } else {
+                        song.copy(streamingUrl = resolvedUrl)
+                    }
                 }
             }
 
             val selectedResolvedSong = queueWithResolvedSongs[selectedIndex]
-            if (selectedResolvedSong.streamingUrl.isNullOrBlank()) {
+            if (!ProductCapabilities.lanSubsonicOnly && selectedResolvedSong.streamingUrl.isNullOrBlank()) {
                 _error.value = when {
                     appSettings.offlineMode.value -> "Offline mode: Song not in cache"
                     !NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value) -> "Streaming not allowed on current network"
@@ -980,6 +1076,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Like/save a song.
      */
     fun likeSong(song: StreamingSong) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.likeSong(song.id)
@@ -995,6 +1092,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Unlike/unsave a song.
      */
     fun unlikeSong(song: StreamingSong) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.unlikeSong(song.id)
@@ -1010,6 +1108,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Like a song by its ID. Looks up the song from known library content.
      */
     fun likeSongById(songId: String) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.likeSong(songId)
@@ -1025,6 +1124,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Create a new playlist.
      */
     fun createPlaylist(name: String, songsToAdd: List<StreamingSong> = emptyList(), onCreated: ((StreamingPlaylist) -> Unit)? = null) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 val newPlaylist = repository.createPlaylist(name)
@@ -1051,6 +1151,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Rename a playlist on the streaming service.
      */
     fun renamePlaylist(playlist: StreamingPlaylist, newName: String) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         if (newName.isBlank() || playlist.name == newName) return
 
         viewModelScope.launch {
@@ -1072,6 +1173,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Add a song to a playlist.
      */
     fun addSongToPlaylist(playlistId: String, song: StreamingSong) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.addSongsToPlaylist(playlistId, listOf(song.id))
@@ -1086,6 +1188,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Add multiple songs to a playlist.
      */
     fun addSongsToPlaylist(playlistId: String, songs: List<StreamingSong>) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         if (songs.isEmpty()) return
 
         viewModelScope.launch {
@@ -1102,6 +1205,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Remove a song from a playlist.
      */
     fun removeSongFromPlaylist(playlistId: String, songId: String) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.removeSongsFromPlaylist(playlistId, listOf(songId))
@@ -1116,6 +1220,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Unfollow/delete a playlist.
      */
     fun unfollowPlaylist(playlist: StreamingPlaylist) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         deletePlaylist(playlist)
     }
 
@@ -1123,6 +1228,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Delete a playlist on the streaming service.
      */
     fun deletePlaylist(playlist: StreamingPlaylist, onComplete: (Boolean) -> Unit = {}) {
+        if (!ProductCapabilities.richStreamingFeatures) {
+            onComplete(false)
+            return
+        }
         viewModelScope.launch {
             try {
                 val success = repository.deletePlaylist(playlist.id)
@@ -1144,6 +1253,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Follow an artist.
      */
     fun followArtist(artist: StreamingArtist) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.followArtist(artist.id)
@@ -1165,6 +1275,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Download a song for offline playback.
      */
     fun downloadSong(song: StreamingSong) {
+        if (!ProductCapabilities.richStreamingFeatures) return
         viewModelScope.launch {
             try {
                 repository.downloadSong(song.id)
@@ -1191,6 +1302,14 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             val currentQueue = _queue.value
             if (currentQueue.isEmpty()) {
+                return@launch
+            }
+
+            if (ProductCapabilities.lanSubsonicOnly) {
+                val currentIndex = currentQueue.indexOfFirst { it.id == _currentSong.value?.id }
+                    .takeIf { it >= 0 }
+                    ?: 0
+                playbackHandler?.invoke(currentQueue, currentIndex)
                 return@launch
             }
 
@@ -1259,6 +1378,9 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         _followedArtists.value = emptyList()
         _savedPlaylists.value = emptyList()
         _downloadedSongs.value = emptyList()
+        _allSongs.value = emptyList()
+        _hasLoadedHomeContent.value = false
+        _hasLoadedLibrary.value = false
         _queue.value = emptyList()
         _currentSong.value = null
     }
@@ -1475,6 +1597,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     }
 
     private fun normalizeServiceId(serviceId: String): String {
+        if (ProductCapabilities.lanSubsonicOnly) return StreamingServiceId.SUBSONIC
         val normalized = serviceId.uppercase()
         return if (StreamingServiceId.all.contains(normalized)) {
             normalized
@@ -1525,17 +1648,20 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     _error.value = "Connect to a streaming service first"
                     return@launch
                 }
-                val resolvedUrl = repository.getStreamingUrl(song.id)
-                    ?: song.streamingUrl
-                    ?: song.previewUrl
-
-                val updatedSong = if (resolvedUrl.isNullOrBlank()) {
-                    song
+                val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
+                    if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
+                        _error.value = "Invalid LAN music track"
+                        return@launch
+                    }
+                    song.copy(streamingUrl = null, previewUrl = null)
                 } else {
-                    song.copy(streamingUrl = resolvedUrl)
+                    val resolvedUrl = repository.getStreamingUrl(song.id)
+                        ?: song.streamingUrl
+                        ?: song.previewUrl
+                    if (resolvedUrl.isNullOrBlank()) song else song.copy(streamingUrl = resolvedUrl)
                 }
 
-                if (updatedSong.streamingUrl.isNullOrBlank()) {
+                if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
                     _error.value = "Unable to resolve stream URL for this song"
                     android.widget.Toast.makeText(getApplication(), R.string.streamingmusicviewmodel_failed_to_play_next, android.widget.Toast.LENGTH_SHORT).show()
                     return@launch
@@ -1573,17 +1699,20 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     _error.value = "Connect to a streaming service first"
                     return@launch
                 }
-                val resolvedUrl = repository.getStreamingUrl(song.id)
-                    ?: song.streamingUrl
-                    ?: song.previewUrl
-
-                val updatedSong = if (resolvedUrl.isNullOrBlank()) {
-                    song
+                val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
+                    if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
+                        _error.value = "Invalid LAN music track"
+                        return@launch
+                    }
+                    song.copy(streamingUrl = null, previewUrl = null)
                 } else {
-                    song.copy(streamingUrl = resolvedUrl)
+                    val resolvedUrl = repository.getStreamingUrl(song.id)
+                        ?: song.streamingUrl
+                        ?: song.previewUrl
+                    if (resolvedUrl.isNullOrBlank()) song else song.copy(streamingUrl = resolvedUrl)
                 }
 
-                if (updatedSong.streamingUrl.isNullOrBlank()) {
+                if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
                     _error.value = "Unable to resolve stream URL for this song"
                     android.widget.Toast.makeText(getApplication(), R.string.streamingmusicviewmodel_failed_to_add_to, android.widget.Toast.LENGTH_SHORT).show()
                     return@launch
@@ -1606,6 +1735,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
     private fun StreamingSong.toLocalSong(): Song {
         val playbackUri = when {
+            ProductCapabilities.lanSubsonicOnly ->
+                LanSubsonicPlaybackPolicy.playbackUri(id).toUri()
             !streamingUrl.isNullOrBlank() -> (streamingUrl).toUri()
             !previewUrl.isNullOrBlank() -> (previewUrl).toUri()
             else -> ("streaming://track/$id").toUri()

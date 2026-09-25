@@ -8,6 +8,7 @@ package io.github.cluno1.sonorus.features.streaming.domain.repository
 import io.github.cluno1.sonorus.core.domain.model.SourceType
 import io.github.cluno1.sonorus.core.domain.repository.MusicRepository
 import io.github.cluno1.sonorus.features.streaming.domain.model.BrowseCategory
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
@@ -64,7 +65,7 @@ interface StreamingMusicRepository : MusicRepository {
     /**
      * Sync the provider library catalog so songs, albums, and artists are derived from real track data.
      */
-    suspend fun syncCatalog(limit: Int = 5_000): List<StreamingSong>
+    suspend fun syncCatalog(limit: Int = LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS): List<StreamingSong>
     
     /**
      * Get browse categories/genres.

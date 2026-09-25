@@ -88,6 +88,8 @@ import io.github.cluno1.sonorus.shared.data.model.findAlbumForSong
 import io.github.cluno1.sonorus.core.domain.model.PlayableItem
 import io.github.cluno1.sonorus.core.domain.model.SourceType
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import java.lang.ref.WeakReference
 import io.github.cluno1.sonorus.util.AudioFormatDetector
 import io.github.cluno1.sonorus.util.LyricsParser
@@ -4544,6 +4546,14 @@ class MusicRepository(context: Context) {
         forceRefresh: Boolean = false,
         forceOnline: Boolean = false
     ): LyricsData? = withContext(Dispatchers.IO) {
+        if (LanSubsonicPlaybackPolicy.isLanSong(
+                enabled = ProductCapabilities.lanSubsonicOnly,
+                mediaId = songId,
+                uri = songUri?.toString(),
+            )
+        ) {
+            return@withContext null
+        }
         val deviceSong = songId?.let { songDao.getSongById(it)?.toSong() }
             ?.takeIf { it.uri.scheme == "content" || it.uri.scheme == "file" }
         if (deviceSong != null) {

@@ -23,6 +23,7 @@ import io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
 import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
 import io.github.cluno1.sonorus.features.catalog.data.CatalogDataSpecResolver
+import io.github.cluno1.sonorus.features.streaming.data.provider.LanSubsonicDataSpecResolver
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.ConcurrentHashMap
@@ -55,6 +56,8 @@ class PreloadController(
                     override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                         val catalogResolved = CatalogDataSpecResolver.resolve(context, dataSpec)
                         if (catalogResolved !== dataSpec) return catalogResolved
+                        val lanSubsonicResolved = LanSubsonicDataSpecResolver.resolve(context, dataSpec)
+                        if (lanSubsonicResolved !== dataSpec) return lanSubsonicResolved
                         if (
                             CatalogPlaybackPolicy.THIRD_PARTY_STREAMING_ENABLED &&
                             dataSpec.uri.scheme == "streaming"

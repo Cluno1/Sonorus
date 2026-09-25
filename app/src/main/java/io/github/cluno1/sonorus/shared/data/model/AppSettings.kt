@@ -725,7 +725,12 @@ class AppSettings private constructor(context: Context) {
 
     fun setInitialSettingsSubroute(route: String?) {
         prefs.edit {
-            if (ProductRoutePolicy.allowsSettingsSubroute(route, ProductCapabilities.catalogOnly)) {
+            if (ProductRoutePolicy.allowsSettingsSubroute(
+                    route,
+                    ProductCapabilities.catalogOnly,
+                    ProductCapabilities.lanSubsonicOnly,
+                )
+            ) {
                 putString(KEY_INITIAL_SETTINGS_SUBROUTE, route)
             } else {
                 remove(KEY_INITIAL_SETTINGS_SUBROUTE)
@@ -737,13 +742,22 @@ class AppSettings private constructor(context: Context) {
         val v = prefs.getString(KEY_INITIAL_SETTINGS_SUBROUTE, null)
         if (v != null) prefs.edit { remove(KEY_INITIAL_SETTINGS_SUBROUTE) }
         return v?.takeIf {
-            ProductRoutePolicy.allowsSettingsSubroute(it, ProductCapabilities.catalogOnly)
+            ProductRoutePolicy.allowsSettingsSubroute(
+                it,
+                ProductCapabilities.catalogOnly,
+                ProductCapabilities.lanSubsonicOnly,
+            )
         }
     }
 
     fun setInitialStreamingRoute(route: String?) {
         prefs.edit {
-            if (ProductRoutePolicy.allowsInitialNavigationRoute(route, ProductCapabilities.catalogOnly)) {
+            if (ProductRoutePolicy.allowsInitialNavigationRoute(
+                    route,
+                    ProductCapabilities.catalogOnly,
+                    ProductCapabilities.lanSubsonicOnly,
+                )
+            ) {
                 putString(KEY_INITIAL_STREAMING_ROUTE, route)
             } else {
                 remove(KEY_INITIAL_STREAMING_ROUTE)
@@ -755,7 +769,11 @@ class AppSettings private constructor(context: Context) {
         val v = prefs.getString(KEY_INITIAL_STREAMING_ROUTE, null)
         if (v != null) prefs.edit { remove(KEY_INITIAL_STREAMING_ROUTE) }
         return v?.takeIf {
-            ProductRoutePolicy.allowsInitialNavigationRoute(it, ProductCapabilities.catalogOnly)
+            ProductRoutePolicy.allowsInitialNavigationRoute(
+                it,
+                ProductCapabilities.catalogOnly,
+                ProductCapabilities.lanSubsonicOnly,
+            )
         }
     }
     
@@ -1191,11 +1209,20 @@ class AppSettings private constructor(context: Context) {
     
     // App Mode Settings (Local vs Streaming)
     private val _appMode = MutableStateFlow(
-        if (ProductCapabilities.catalogOnly) "LOCAL" else prefs.getString(KEY_APP_MODE, "LOCAL") ?: "LOCAL"
+        prefs.getString(KEY_APP_MODE, "LOCAL")
+            ?.uppercase()
+            ?.takeIf { it == "LOCAL" || (it == "STREAMING" && ProductCapabilities.streamingMode) }
+            ?: "LOCAL"
     )
     val appMode: StateFlow<String> = _appMode.asStateFlow()
     
-    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "SUBSONIC") ?: "SUBSONIC")
+    private val _streamingService = MutableStateFlow(
+        if (ProductCapabilities.lanSubsonicOnly) {
+            "SUBSONIC"
+        } else {
+            prefs.getString(KEY_STREAMING_SERVICE, "SUBSONIC") ?: "SUBSONIC"
+        }
+    )
     val streamingService: StateFlow<String> = _streamingService.asStateFlow()
     
     // Default to LOSSLESS so the server streams the original file at full quality.
@@ -2251,8 +2278,33 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
     private fun applyProductCapabilityMigration() {
         if (!ProductCapabilities.catalogOnly) return
 
+        val acceptedMode = prefs.getString(KEY_APP_MODE, "LOCAL")
+            ?.uppercase()
+            ?.takeIf { it == "LOCAL" || (it == "STREAMING" && ProductCapabilities.streamingMode) }
+            ?: "LOCAL"
+        val initialStreamingRoute = prefs.getString(KEY_INITIAL_STREAMING_ROUTE, null)
+            ?.takeIf {
+                ProductRoutePolicy.allowsInitialNavigationRoute(
+                    it,
+                    ProductCapabilities.catalogOnly,
+                    ProductCapabilities.lanSubsonicOnly,
+                )
+            }
+        val initialSettingsSubroute = prefs.getString(KEY_INITIAL_SETTINGS_SUBROUTE, null)
+            ?.takeIf {
+                ProductRoutePolicy.allowsSettingsSubroute(
+                    it,
+                    ProductCapabilities.catalogOnly,
+                    ProductCapabilities.lanSubsonicOnly,
+                )
+            }
+
         prefs.edit {
-            putString(KEY_APP_MODE, "LOCAL")
+            putString(KEY_APP_MODE, acceptedMode)
+            if (ProductCapabilities.lanSubsonicOnly) {
+                putString(KEY_STREAMING_SERVICE, "SUBSONIC")
+                putBoolean(KEY_OFFLINE_MODE, false)
+            }
             putBoolean(KEY_DEEZER_API_ENABLED, false)
             putBoolean(KEY_LRCLIB_API_ENABLED, false)
             putBoolean(KEY_BETTERLYRICS_API_ENABLED, false)
@@ -2272,12 +2324,16 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
                 putBoolean(KEY_UPDATE_NOTIFICATIONS_ENABLED, false)
                 putBoolean(KEY_UPDATE_STATUS_NOTIFICATIONS_ENABLED, false)
             }
-            remove(KEY_INITIAL_STREAMING_ROUTE)
-            remove(KEY_INITIAL_SETTINGS_SUBROUTE)
+            if (initialStreamingRoute == null) remove(KEY_INITIAL_STREAMING_ROUTE)
+            if (initialSettingsSubroute == null) remove(KEY_INITIAL_SETTINGS_SUBROUTE)
             putInt(KEY_LYRICS_SOURCE_PREFERENCE, LyricsSourcePreference.LOCAL_FIRST.ordinal)
         }
 
-        _appMode.value = "LOCAL"
+        _appMode.value = acceptedMode
+        if (ProductCapabilities.lanSubsonicOnly) {
+            _streamingService.value = "SUBSONIC"
+            _offlineMode.value = false
+        }
         _deezerApiEnabled.value = false
         _lrclibApiEnabled.value = false
         _betterLyricsApiEnabled.value = false
@@ -2946,14 +3002,20 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
     
     // App Mode setter methods
     fun setAppMode(mode: String) {
-        val acceptedMode = if (ProductCapabilities.catalogOnly) "LOCAL" else mode
+        val normalizedMode = mode.uppercase()
+        val acceptedMode = if (normalizedMode == "STREAMING" && ProductCapabilities.streamingMode) {
+            "STREAMING"
+        } else {
+            "LOCAL"
+        }
         prefs.edit { putString(KEY_APP_MODE, acceptedMode) }
         _appMode.value = acceptedMode
     }
     
     fun setStreamingService(service: String) {
-        prefs.edit { putString(KEY_STREAMING_SERVICE, service) }
-        _streamingService.value = service
+        val acceptedService = if (ProductCapabilities.lanSubsonicOnly) "SUBSONIC" else service.uppercase()
+        prefs.edit { putString(KEY_STREAMING_SERVICE, acceptedService) }
+        _streamingService.value = acceptedService
     }
     
     fun setStreamingQuality(quality: String) {

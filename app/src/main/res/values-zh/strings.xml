@@ -2837,6 +2837,15 @@
     <string name="action_undo">撤销</string>
     <string name="settings_catalog_server">音乐库服务器</string>
     <string name="settings_catalog_server_desc">连接音乐与乐谱服务</string>
+    <string name="settings_lan_music">局域网音乐</string>
+    <string name="settings_lan_music_desc">连接只读 LX01 音乐网关</string>
+    <string name="lan_player_read_only">局域网只读播放</string>
+    <string name="lan_player_queue_position">队列 %1$d / %2$d</string>
+    <string name="lan_player_back">返回</string>
+    <string name="lan_player_previous">上一首</string>
+    <string name="lan_player_play">播放</string>
+    <string name="lan_player_pause">暂停</string>
+    <string name="lan_player_next">下一首</string>
     <string name="catalog_manual_enrollment_intro">填写管理员发送的服务器地址和一次性邀请码。</string>
     <string name="catalog_smart_enrollment_option">或使用智能登记文本</string>
     <string name="catalog_enrollment_intro">粘贴管理员发来的完整智能登记文本。Sonorus 会安全提取服务器和一次性邀请码，并为本机完成登记。</string>
