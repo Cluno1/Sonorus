@@ -177,6 +177,24 @@ class ClientImageLabsViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    fun updateMaxImageMegabytes(megabytes: Int) {
+        if (megabytes !in 1..500) {
+            _messages.tryEmit("单张图片上限必须在 1–500 MB 之间")
+            return
+        }
+        viewModelScope.launch {
+            _busy.value = true
+            runCatching {
+                repository.updateMaxImageBytes(megabytes.toLong() * 1024L * 1024L)
+                repository.capabilities()
+            }.onSuccess {
+                _capabilities.value = it
+                _messages.emit("单张图片上限已设为 $megabytes MB")
+            }.onFailure { _messages.emit(it.userMessage()) }
+            _busy.value = false
+        }
+    }
+
     fun requestThumbnail(imageId: String, shared: Boolean, force: Boolean = false) {
         val key = DeliveryKey(imageId, "thumbnail_512", shared)
         if (!force && _deliveries.value.containsKey(key)) return
