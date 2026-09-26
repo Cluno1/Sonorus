@@ -20,6 +20,7 @@ import android.media.audiofx.AudioEffect
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import io.github.cluno1.sonorus.infrastructure.service.player.MissingLocalMediaClassifier
 import io.github.cluno1.sonorus.shared.data.model.AutoEQDatabase
 import io.github.cluno1.sonorus.shared.data.model.AutoEQProfile
 import io.github.cluno1.sonorus.util.AutoEQManager
@@ -4267,8 +4268,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         connectToMediaService()
     }
 
+    // Set when the service skips a missing local item; the next playlist change prunes it from the UI queue.
+    private var pendingMissingItemQueueSync = false
+
     private val playerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
+            if (error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND &&
+                MissingLocalMediaClassifier.isLocalScheme(_currentSong.value?.uri?.scheme)
+            ) {
+                // MediaPlaybackService skips and removes the missing item (and logs it); no corruption dialog.
+                pendingMissingItemQueueSync = true
+                return
+            }
             Log.e(TAG, "Player error encountered in ViewModel: ${error.message}", error)
             playbackControlStateMachine.update(
                 mediaId = mediaController?.currentMediaItem?.mediaId
@@ -4544,6 +4555,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            if (pendingMissingItemQueueSync && reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
+                pendingMissingItemQueueSync = false
+                syncQueueWithMediaController()
+                saveQueueToPersistence()
+                return
+            }
             if (appSettings.shuffleUsesExoplayer.value && mediaController?.shuffleModeEnabled == true) {
                 syncQueueWithMediaController()
             }
