@@ -6,6 +6,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy
+
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataPolicy
@@ -348,6 +350,7 @@ fun LibraryScreen(
     sortOrder: MusicViewModel.SortOrder = MusicViewModel.SortOrder.TITLE_ASC,
     onSkipNext: () -> Unit = {},
     onAddToQueue: (Song) -> Unit,
+    onPlayNext: (Song) -> Unit = {},
     initialTab: LibraryTab = LibraryTab.SONGS,
     musicViewModel: MusicViewModel,
     onExportAllPlaylists: ((PlaylistImportExportUtils.PlaylistExportFormat, Boolean, Uri?, (Result<String>) -> Unit) -> Unit)? = null,
@@ -719,7 +722,7 @@ fun LibraryScreen(
             song = displaySong,
             onDismiss = { showSongInfoSheet = false },
             appSettings = appSettings,
-            isStreamingMode = isStreamingMode || displaySong.id.startsWith("rhythm-catalog:"),
+            isStreamingMode = isStreamingMode || !UnifiedLibraryPolicy.isDevice(displaySong.id),
             onOpenManualMetadata = onOpenManualMetadata
                 ?.takeIf { DeviceMetadataPolicy.isEligible(displaySong.id, displaySong.uri.scheme) }
                 ?.let { action -> { action(displaySong) } },
@@ -1068,7 +1071,7 @@ fun LibraryScreen(
     }
     
     if (showMultiSelectionSheet && selectedSongs.isNotEmpty()) {
-        val containsCatalogSongs = selectedSongs.any { it.id.startsWith("rhythm-catalog:") }
+        val containsRemoteSongs = selectedSongs.any { !UnifiedLibraryPolicy.isDevice(it.id) }
         MultiSelectionBottomSheet(
             selectedSongs = selectedSongs,
             favoriteSongIds = favoriteSongs.toSet(),
@@ -1080,22 +1083,22 @@ fun LibraryScreen(
                 onPlayQueue(selectedSongs)
                 multiSelectionState.clearSelection()
             },
-            onAddToQueue = if (containsCatalogSongs) null else ({
+            onAddToQueue = ({
                 selectedSongs.forEach { song -> onAddToQueue(song) }
                 multiSelectionState.clearSelection()
             }),
-            onPlayNext = if (isStreamingMode || containsCatalogSongs) null else {
+            onPlayNext = if (isStreamingMode) null else {
                 {
-                    selectedSongs.reversed().forEach { song -> musicViewModel.playNext(song) }
+                    selectedSongs.reversed().forEach(onPlayNext)
                     multiSelectionState.clearSelection()
                 }
             },
-            onAddToPlaylist = if (containsCatalogSongs) null else ({
+            onAddToPlaylist = ({
                 songsToAddToPlaylist = selectedSongs
                 showMultiSelectionSheet = false
                 showAddToPlaylistSheet = true
             }),
-            onToggleLikeAll = if (containsCatalogSongs) null else if (isStreamingMode) ({ shouldLike ->
+            onToggleLikeAll = if (containsRemoteSongs) null else if (isStreamingMode) ({ shouldLike ->
                 selectedSongs.forEach { song ->
                     val isLiked = streamingFavoriteSongIds.contains(song.id)
                     if (shouldLike != isLiked) onStreamingSetFavorite?.invoke(song, shouldLike)
@@ -1108,14 +1111,14 @@ fun LibraryScreen(
                     }
                 }
             }),
-            onAddToBlacklist = if (isStreamingMode || containsCatalogSongs) null else {
+            onAddToBlacklist = if (isStreamingMode || containsRemoteSongs) null else {
                 {
                     selectedSongs.forEach { song ->
                         if (!song.id.startsWith("rhythm-catalog:")) appSettings.addToBlacklist(song.id)
                     }
                 }
             },
-            onBatchEditTags = if (isStreamingMode || containsCatalogSongs) null else {
+            onBatchEditTags = if (isStreamingMode || containsRemoteSongs) null else {
                 {
                     showMultiSelectionSheet = false
                     showBatchEditSheet = true
@@ -2153,7 +2156,7 @@ fun LibraryScreen(
                                             if (isStreamingMode) onStreamingAddToQueue?.invoke(song) else onAddToQueue(song)
                                         },
                                         onPlayNext = { song ->
-                                            if (isStreamingMode) onStreamingPlayNext?.invoke(song) else musicViewModel.playNext(song)
+                                            if (isStreamingMode) onStreamingPlayNext?.invoke(song) else onPlayNext(song)
                                         },
                                         onToggleFavorite = if (readOnlyStreaming) null else if (isStreamingMode) onStreamingToggleFavorite else { song ->
                                             musicViewModel.toggleFavorite(song)
@@ -2203,7 +2206,7 @@ fun LibraryScreen(
                                             if (isStreamingMode) onStreamingAddToQueue?.invoke(song) else onAddToQueue(song)
                                         },
                                         onPlayNext = { song ->
-                                            if (isStreamingMode) onStreamingPlayNext?.invoke(song) else musicViewModel.playNext(song)
+                                            if (isStreamingMode) onStreamingPlayNext?.invoke(song) else onPlayNext(song)
                                         },
                                         onToggleFavorite = if (isStreamingMode) onStreamingToggleFavorite else { song ->
                                             musicViewModel.toggleFavorite(song)
@@ -2322,7 +2325,7 @@ fun LibraryScreen(
                                         showAddToPlaylistSheet = true
                                     },
                                     onAddToQueue = onAddToQueue,
-                                    onPlayNext = { song -> musicViewModel.playNext(song) },
+                                    onPlayNext = onPlayNext,
                                     onToggleFavorite = { song -> musicViewModel.toggleFavorite(song) },
                                     favoriteSongs = musicViewModel.favoriteSongs.collectAsState().value,
                                     onGoToArtist = onArtistClick,
@@ -2874,6 +2877,15 @@ fun SingleCardSongsContent(
     val audioQualityCache = remember { mutableMapOf<String, AudioQualityDetector.AudioQuality>() }
     
     suspend fun getAudioQuality(song: Song): AudioQualityDetector.AudioQuality {
+        if (UnifiedLibraryPolicy.isLan(song.id)) {
+            return AudioQualityDetector.detectQuality(
+                codec = song.codec ?: "Unknown",
+                sampleRateHz = song.sampleRate ?: 0,
+                bitrateKbps = (song.bitrate ?: 0) / 1000,
+                bitDepth = 0,
+                channelCount = song.channels ?: 0,
+            )
+        }
         if (song.id.startsWith("rhythm-catalog:")) {
             return AudioQualityDetector.AudioQuality(
                 qualityType = AudioQualityDetector.QualityType.LOSSY_COMPRESSED,
@@ -3008,7 +3020,7 @@ fun SingleCardSongsContent(
                     AnimateIn(modifier = Modifier.animateItem()) {
                         val isSelected = selectedSongIds.contains(song.id)
                         val selectionIndex = multiSelectionState?.getSelectionIndex(song.id)
-                        val isCatalogSong = song.id.startsWith("rhythm-catalog:")
+                        val isRemoteSong = !UnifiedLibraryPolicy.isDevice(song.id)
                         
                         LibrarySongItemWrapper(
                             song = song,
@@ -3024,12 +3036,13 @@ fun SingleCardSongsContent(
                                     }
                                 }
                             },
-                            onMoreClick = if (isCatalogSong) null else onAddToPlaylist?.let { action ->
+                            onMoreClick = onAddToPlaylist?.let { action ->
                                 { action(song) }
                             },
-                            onAddToQueue = if (isCatalogSong) null else ({ onAddToQueue(song) }),
-                            onPlayNext = if (isCatalogSong) null else ({ onPlayNext(song) }),
-                            onToggleFavorite = onToggleFavorite?.let { fn -> { fn(song) } },
+                            onAddToQueue = { onAddToQueue(song) },
+                            onPlayNext = { onPlayNext(song) },
+                            onToggleFavorite = if (UnifiedLibraryPolicy.isLan(song.id)) null
+                                else onToggleFavorite?.let { fn -> { fn(song) } },
                             isFavorite = favoriteSongs.contains(song.id),
                             onGoToArtist = { 
                                 val artist = if (groupByAlbumArtist) {
@@ -3055,8 +3068,8 @@ fun SingleCardSongsContent(
                                 album?.let { onGoToAlbum(it) }
                             },
                             onShowSongInfo = { onShowSongInfo(song) },
-                            onAddToBlacklist = if (isCatalogSong) null else onAddToBlacklist?.let { fn -> { fn(song) } },
-                            onDeleteSong = if (isCatalogSong) null else onDeleteSong?.let { fn -> { fn(song) } },
+                            onAddToBlacklist = if (isRemoteSong) null else onAddToBlacklist?.let { fn -> { fn(song) } },
+                            onDeleteSong = if (isRemoteSong) null else onDeleteSong?.let { fn -> { fn(song) } },
                             currentSong = currentSong,
                             isPlaying = isPlaying,
                             haptics = haptics,
@@ -3929,7 +3942,7 @@ fun LibrarySongItem(
                         }
                     } else {
                         RhythmSongMenuContent(
-                            song = song.takeUnless { it.id.startsWith("rhythm-catalog:") },
+                            song = song.takeIf { UnifiedLibraryPolicy.isDevice(it.id) },
                             onPlayNext = onPlayNext?.let { action -> {
                                 HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                                 showDropdown = false
@@ -7036,7 +7049,7 @@ fun YearGroupedSongsContent(
                     AnimateIn(modifier = Modifier.animateItem()) {
                         val isSelected = selectedSongIds.contains(song.id)
                         val selectionIndex = multiSelectionState?.getSelectionIndex(song.id)
-                        val isCatalogSong = song.id.startsWith("rhythm-catalog:")
+                        val isRemoteSong = !UnifiedLibraryPolicy.isDevice(song.id)
 
                         LibrarySongItemWrapper(
                             song = song,
@@ -7052,18 +7065,18 @@ fun YearGroupedSongsContent(
                                     }
                                 }
                             },
-                            onMoreClick = if (isCatalogSong) null else ({ onAddToPlaylist(song) }),
-                            onAddToQueue = if (isCatalogSong) null else ({ onAddToQueue(song) }),
-                            onPlayNext = if (isCatalogSong) null else ({ onPlayNext(song) }),
-                            onToggleFavorite = { onToggleFavorite(song) },
+                            onMoreClick = { onAddToPlaylist(song) },
+                            onAddToQueue = { onAddToQueue(song) },
+                            onPlayNext = { onPlayNext(song) },
+                            onToggleFavorite = if (UnifiedLibraryPolicy.isLan(song.id)) null else ({ onToggleFavorite(song) }),
                             isFavorite = favoriteSongs.contains(song.id),
                             onGoToArtist = { onGoToArtist(Artist(id = "", name = song.artist)) },
                             onGoToAlbum = {
                                 albums.findAlbumForSong(song)?.let { onGoToAlbum(it) }
                             },
                             onShowSongInfo = { onShowSongInfo(song) },
-                            onAddToBlacklist = if (isCatalogSong) null else ({ onAddToBlacklist(song) }),
-                            onDeleteSong = if (isCatalogSong) null else ({ onDeleteSong(song) }),
+                            onAddToBlacklist = if (isRemoteSong) null else ({ onAddToBlacklist(song) }),
+                            onDeleteSong = if (isRemoteSong) null else ({ onDeleteSong(song) }),
                             currentSong = currentSong,
                             isPlaying = isPlaying,
                             haptics = haptics,

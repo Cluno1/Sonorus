@@ -223,13 +223,12 @@ fun UniversalSearchScreen(
     val searchHistory by localViewModel.searchHistory.collectAsState()
     val favoriteSongs by localViewModel.favoriteSongs.collectAsState()
 
-    // A catalog source replaces, rather than augments, the legacy MediaStore surface. The private
-    // catalog currently projects only Songs and Albums, so stale local Artists/Playlists must not
-    // leak back into search results.
+    // Songs and albums include DEVICE + Catalog + LAN. Keep device artists and
+    // phone-owned playlists searchable alongside that projection.
     val localSongs = catalogSource?.songs ?: legacyLocalSongs
     val fullLocalAlbums = catalogSource?.albums ?: legacyLocalAlbums
-    val localArtists = if (catalogSource != null) emptyList() else legacyLocalArtists
-    val localPlaylists = if (catalogSource != null) emptyList() else legacyLocalPlaylists
+    val localArtists = legacyLocalArtists
+    val localPlaylists = legacyLocalPlaylists
     val isLocalLoading = catalogSource?.isLoading == true
 
     val streamingQuery by streamingViewModel.searchQuery.collectAsState()

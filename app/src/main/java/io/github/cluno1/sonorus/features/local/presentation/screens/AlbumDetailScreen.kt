@@ -220,7 +220,9 @@ fun AlbumDetailScreen(
     val density = LocalDensity.current
     val isTablet = windowScreenWidthDp() >= 600
     val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
-    val readOnlyLan = isStreamingMode && ProductCapabilities.lanSubsonicOnly
+    val readOnlyLan = ProductCapabilities.lanSubsonicOnly &&
+        (io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy.isLan(albumId) ||
+            songsOverride?.any { io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy.isLan(it.id) } == true)
 
     val appSettings = remember { AppSettings.getInstance(context) }
     val useHoursFormat by appSettings.useHoursInTimeFormat.collectAsState()
@@ -1223,10 +1225,10 @@ fun AlbumDetailScreen(
                 handleArtistTap(song)
             },
             isFavorite = favoriteSongs.contains(selectedSongForOptions!!.id),
-            onToggleFavorite = {
+            onToggleFavorite = if (readOnlyLan) null else ({
                 onToggleFavorite(selectedSongForOptions!!)
                 showSongOptionsSheet = false
-            },
+            }),
             showRemoveFromPlaylist = false,
             showGoToAlbum = false,
             isStreamingMode = isStreamingMode,

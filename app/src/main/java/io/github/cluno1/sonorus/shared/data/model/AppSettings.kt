@@ -1209,10 +1209,7 @@ class AppSettings private constructor(context: Context) {
     
     // App Mode Settings (Local vs Streaming)
     private val _appMode = MutableStateFlow(
-        prefs.getString(KEY_APP_MODE, "LOCAL")
-            ?.uppercase()
-            ?.takeIf { it == "LOCAL" || (it == "STREAMING" && ProductCapabilities.streamingMode) }
-            ?: "LOCAL"
+        ProductCapabilities.acceptedAppMode(prefs.getString(KEY_APP_MODE, "LOCAL"))
     )
     val appMode: StateFlow<String> = _appMode.asStateFlow()
     
@@ -2278,10 +2275,7 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
     private fun applyProductCapabilityMigration() {
         if (!ProductCapabilities.catalogOnly) return
 
-        val acceptedMode = prefs.getString(KEY_APP_MODE, "LOCAL")
-            ?.uppercase()
-            ?.takeIf { it == "LOCAL" || (it == "STREAMING" && ProductCapabilities.streamingMode) }
-            ?: "LOCAL"
+        val acceptedMode = ProductCapabilities.acceptedAppMode(prefs.getString(KEY_APP_MODE, "LOCAL"))
         val initialStreamingRoute = prefs.getString(KEY_INITIAL_STREAMING_ROUTE, null)
             ?.takeIf {
                 ProductRoutePolicy.allowsInitialNavigationRoute(
@@ -3002,12 +2996,7 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
     
     // App Mode setter methods
     fun setAppMode(mode: String) {
-        val normalizedMode = mode.uppercase()
-        val acceptedMode = if (normalizedMode == "STREAMING" && ProductCapabilities.streamingMode) {
-            "STREAMING"
-        } else {
-            "LOCAL"
-        }
+        val acceptedMode = ProductCapabilities.acceptedAppMode(mode)
         prefs.edit { putString(KEY_APP_MODE, acceptedMode) }
         _appMode.value = acceptedMode
     }

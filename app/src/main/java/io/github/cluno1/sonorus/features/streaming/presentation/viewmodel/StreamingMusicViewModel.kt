@@ -272,7 +272,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 if (appSettings.streamingService.value != normalizedServiceId) {
                     appSettings.setStreamingService(normalizedServiceId)
                 }
-                appSettings.setAppMode("STREAMING")
+                if (!ProductCapabilities.lanSubsonicOnly) appSettings.setAppMode("STREAMING")
                 checkAndSyncAuthentication(normalizedServiceId)
                 if (ProductCapabilities.lanSubsonicOnly) {
                     loadLanLibrary()

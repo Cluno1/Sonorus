@@ -49,4 +49,15 @@ object ProductCapabilities {
         thirdPartyMusicServices: Boolean,
         lanSubsonicOnly: Boolean,
     ): Boolean = thirdPartyMusicServices || lanSubsonicOnly
+
+    /** LAN is an additional library source, not the mutually exclusive provider shell. */
+    internal fun acceptedAppMode(
+        mode: String?,
+        streamingEnabled: Boolean = streamingMode,
+        lanOnly: Boolean = lanSubsonicOnly,
+    ): String = if (mode.equals("STREAMING", ignoreCase = true) && streamingEnabled && !lanOnly) {
+        "STREAMING"
+    } else {
+        "LOCAL"
+    }
 }

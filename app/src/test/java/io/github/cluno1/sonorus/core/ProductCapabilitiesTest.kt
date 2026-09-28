@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.core
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,5 +44,19 @@ class ProductCapabilitiesTest {
                 lanSubsonicOnly = false,
             ),
         )
+    }
+
+    @Test
+    fun `existing LAN streaming preference migrates to the unified library`() {
+        assertEquals("LOCAL", ProductCapabilities.acceptedAppMode("STREAMING", true, true))
+        assertEquals("LOCAL", ProductCapabilities.acceptedAppMode("streaming", true, true))
+        assertEquals("LOCAL", ProductCapabilities.acceptedAppMode("LOCAL", true, true))
+    }
+
+    @Test
+    fun `standalone provider mode remains available to other product builds`() {
+        assertEquals("STREAMING", ProductCapabilities.acceptedAppMode("STREAMING", true, false))
+        assertEquals("LOCAL", ProductCapabilities.acceptedAppMode("STREAMING", false, false))
+        assertEquals("LOCAL", ProductCapabilities.acceptedAppMode(null, true, false))
     }
 }

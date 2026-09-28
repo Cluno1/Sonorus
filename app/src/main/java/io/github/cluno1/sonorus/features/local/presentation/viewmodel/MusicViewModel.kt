@@ -3082,8 +3082,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Uses MediaStore.createDeleteRequest on Android 11+ and RecoverableSecurityException handling on Android 10.
      */
     fun deleteSong(song: Song) {
-        if (song.id.startsWith("rhythm-catalog:")) {
-            Log.w(TAG, "Ignoring file deletion for catalog song")
+        if (!io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy.isDevice(song.id)) {
+            Log.w(TAG, "Ignoring file deletion for a remote song")
             return
         }
         viewModelScope.launch {
@@ -6976,6 +6976,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Toggle favorite status for a specific song
      */
     fun toggleFavorite(song: Song) {
+        if (io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy.isLan(song.id)) return
         val favoriteSong = song.toFavoriteSnapshot()
         val songId = favoriteSong.id
         val currentFavorites = _favoriteSongs.value.toMutableSet()
