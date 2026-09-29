@@ -14,6 +14,7 @@ data class LanSongMetadata(
     val syncedLyrics: String,
     val lyricsSource: String,
     val lyricsExternalId: String,
+    val overriddenFields: Set<String>,
 ) {
     fun lyrics(): LyricsData? = LyricsData(
         plainLyrics.takeIf(String::isNotBlank),
@@ -22,26 +23,26 @@ data class LanSongMetadata(
     ).takeIf(LyricsData::hasLyrics)
 
     fun applyTo(song: Song): Song = song.copy(
-        title = fields["title"] ?: song.title,
-        artist = fields["artist"] ?: song.artist,
-        album = fields["album"] ?: song.album,
-        albumArtist = fields["albumArtist"]?.takeIf(String::isNotBlank),
-        trackNumber = fields["trackNumber"]?.toIntOrNull() ?: song.trackNumber,
-        discNumber = fields["discNumber"]?.toIntOrNull() ?: song.discNumber,
-        year = fields["year"]?.toIntOrNull() ?: song.year,
-        genre = fields["genre"]?.takeIf(String::isNotBlank),
+        title = if ("title" in overriddenFields) fields["title"] ?: song.title else song.title,
+        artist = if ("artist" in overriddenFields) fields["artist"] ?: song.artist else song.artist,
+        album = if ("album" in overriddenFields) fields["album"] ?: song.album else song.album,
+        albumArtist = if ("albumArtist" in overriddenFields) fields["albumArtist"]?.takeIf(String::isNotBlank) else song.albumArtist,
+        trackNumber = if ("trackNumber" in overriddenFields) fields["trackNumber"]?.toIntOrNull() ?: song.trackNumber else song.trackNumber,
+        discNumber = if ("discNumber" in overriddenFields) fields["discNumber"]?.toIntOrNull() ?: song.discNumber else song.discNumber,
+        year = if ("year" in overriddenFields) fields["year"]?.toIntOrNull() ?: song.year else song.year,
+        genre = if ("genre" in overriddenFields) fields["genre"]?.takeIf(String::isNotBlank) else song.genre,
         artworkUri = artworkUrl?.let(Uri::parse),
     )
 
     fun applyTo(song: StreamingSong): StreamingSong = song.copy(
-        title = fields["title"] ?: song.title,
-        artist = fields["artist"] ?: song.artist,
-        album = fields["album"] ?: song.album,
-        albumArtist = fields["albumArtist"]?.takeIf(String::isNotBlank),
-        trackNumber = fields["trackNumber"]?.toIntOrNull(),
-        discNumber = fields["discNumber"]?.toIntOrNull(),
-        year = fields["year"]?.toIntOrNull(),
-        genre = fields["genre"]?.takeIf(String::isNotBlank),
+        title = if ("title" in overriddenFields) fields["title"] ?: song.title else song.title,
+        artist = if ("artist" in overriddenFields) fields["artist"] ?: song.artist else song.artist,
+        album = if ("album" in overriddenFields) fields["album"] ?: song.album else song.album,
+        albumArtist = if ("albumArtist" in overriddenFields) fields["albumArtist"]?.takeIf(String::isNotBlank) else song.albumArtist,
+        trackNumber = if ("trackNumber" in overriddenFields) fields["trackNumber"]?.toIntOrNull() else song.trackNumber,
+        discNumber = if ("discNumber" in overriddenFields) fields["discNumber"]?.toIntOrNull() else song.discNumber,
+        year = if ("year" in overriddenFields) fields["year"]?.toIntOrNull() else song.year,
+        genre = if ("genre" in overriddenFields) fields["genre"]?.takeIf(String::isNotBlank) else song.genre,
         artworkUri = artworkUrl,
     )
 

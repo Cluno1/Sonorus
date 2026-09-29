@@ -175,6 +175,7 @@ class SubsonicApiClient(context: Context) {
         check(song.getString("trackId") == trackId) { "Unexpected gateway song" }
         val fields = song.getJSONObject("fields")
         val lyrics = song.optJSONObject("lyrics") ?: JSONObject()
+        val overrides = song.optJSONArray("overriddenFields")
         return LanSongMetadata(
             trackId = trackId,
             fields = LanSongMetadata.editableFields.associateWith { fields.optString(it, "") },
@@ -184,6 +185,8 @@ class SubsonicApiClient(context: Context) {
             syncedLyrics = lyrics.optString("synced", ""),
             lyricsSource = lyrics.optString("source", ""),
             lyricsExternalId = lyrics.optString("externalId", ""),
+            overriddenFields = overrides?.let { array -> (0 until array.length()).map { array.getString(it) }.toSet() }
+                ?: LanSongMetadata.editableFields.toSet(),
         )
     }
 
@@ -806,7 +809,7 @@ class SubsonicApiClient(context: Context) {
             trackNumber = shared?.takeIf { it.has("trackNumber") }?.optInt("trackNumber") ?: trackNum,
             year = shared?.takeIf { it.has("year") }?.optInt("year") ?: yearVal,
             genre = (shared?.takeIf { it.has("genre") }?.optString("genre") ?: genreVal)?.takeIf(String::isNotBlank),
-            discNumber = shared?.takeIf { it.has("discNumber") }?.optInt("discNumber") ?: song.optInt("discNumber", 0),
+            discNumber = shared?.takeIf { it.has("discNumber") }?.optInt("discNumber") ?: song.optInt("discNumber", 0).takeIf { it > 0 },
             bitrate = bitrateVal,
             sampleRate = sampleRateVal,
             channels = song.optInt("channels", 0).takeIf { it > 0 },

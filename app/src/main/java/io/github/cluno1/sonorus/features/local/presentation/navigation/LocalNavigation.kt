@@ -406,7 +406,7 @@ private fun StreamingSong.toLocalSong(): Song? {
         artworkUri = artworkUri?.takeIf { it.isNotBlank() }?.let(Uri::parse),
         albumArtist = albumArtist,
         trackNumber = trackNumber ?: 0,
-        discNumber = discNumber ?: 0,
+        discNumber = discNumber ?: 1,
         year = year ?: 0,
         genre = genre,
         bitrate = bitrate,
@@ -436,7 +436,7 @@ private fun StreamingSong.toDisplaySong(): Song {
         artworkUri = artworkUri?.takeIf { it.isNotBlank() }?.let(Uri::parse),
         albumArtist = albumArtist,
         trackNumber = trackNumber ?: 0,
-        discNumber = discNumber ?: 0,
+        discNumber = discNumber ?: 1,
         year = year ?: 0,
         genre = genre,
         bitrate = bitrate,
@@ -2522,6 +2522,7 @@ private fun LocalNavigationContent(
                         onSaved = { metadata ->
                             viewModel.applyLanSongMetadata(metadata)
                             streamingMusicViewModel.applyLanMetadata(metadata)
+                            android.widget.Toast.makeText(context, R.string.lan_tags_saved, android.widget.Toast.LENGTH_SHORT).show()
                             navController.popBackStack()
                         },
                         onBack = { navController.popBackStack() },

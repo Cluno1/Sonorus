@@ -6,6 +6,7 @@
     <string name="lan_tags_candidate_desc">The selected information fills this draft. Save on the edit page to update the gateway.</string>
     <string name="lan_tags_use_candidate">Use this candidate</string>
     <string name="lan_tags_save">Save to gateway</string>
+    <string name="lan_tags_saved">Saved to gateway</string>
     <string name="lan_tags_remove_cover">Remove cover</string>
     <string name="lan_tags_lrc">Timed lyrics (LRC)</string>
     <string name="lan_tags_composer">Composer</string>

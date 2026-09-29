@@ -6,6 +6,7 @@
     <string name="lan_tags_candidate_desc">選取的資訊會填入草稿，返回編輯頁點擊儲存後才會更新閘道。</string>
     <string name="lan_tags_use_candidate">使用此候選</string>
     <string name="lan_tags_save">儲存至閘道</string>
+    <string name="lan_tags_saved">已儲存至閘道</string>
     <string name="lan_tags_remove_cover">移除封面</string>
     <string name="lan_tags_lrc">時間軸歌詞（LRC）</string>
     <string name="lan_tags_composer">作曲者</string>

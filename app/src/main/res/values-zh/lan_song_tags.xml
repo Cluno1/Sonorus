@@ -6,6 +6,7 @@
     <string name="lan_tags_candidate_desc">选中的信息会填入草稿，返回编辑页点击保存后才会更新网关。</string>
     <string name="lan_tags_use_candidate">使用此候选</string>
     <string name="lan_tags_save">保存到网关</string>
+    <string name="lan_tags_saved">已保存到网关</string>
     <string name="lan_tags_remove_cover">移除封面</string>
     <string name="lan_tags_lrc">时间轴歌词（LRC）</string>
     <string name="lan_tags_composer">作曲者</string>
