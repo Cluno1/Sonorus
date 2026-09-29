@@ -35,7 +35,11 @@ fun selectCatalogLyricsVariant(
     preferredLanguageTags: List<String>,
 ): CatalogLyricsVariant? {
     if (variants.isEmpty()) return null
-    val normalizedVariants = variants.map { it to LanguageParts.from(it.language) }
+    val normalizedVariants = variants.mapNotNull { variant ->
+        val language = runCatching { LanguageParts.from(variant.language) }.getOrNull()
+            ?: return@mapNotNull null
+        variant to language
+    }
 
     preferredLanguageTags.forEach { preferredTag ->
         val preferred = runCatching { LanguageParts.from(preferredTag) }.getOrNull()
@@ -59,9 +63,12 @@ private fun catalogLyricsVariants(
     translations: List<CatalogLyricsTranslation>?,
     formats: List<CatalogLyricLanguageFormat>?,
 ): List<CatalogLyricsVariant> = buildList {
-    val formatByLanguage = formats.orEmpty().associate {
-        normalizeCatalogLyricsLanguageTag(it.language).lowercase(Locale.ROOT) to it.format
-    }
+    val formatByLanguage = formats.orEmpty().mapNotNull { entry ->
+        val language = runCatching {
+            normalizeCatalogLyricsLanguageTag(entry.language)
+        }.getOrNull() ?: return@mapNotNull null
+        language.lowercase(Locale.ROOT) to entry.format
+    }.toMap()
     lyrics?.takeIf(String::isNotBlank)?.let { primary ->
         val language = runCatching {
             normalizeCatalogLyricsLanguageTag(lyricsLanguage ?: "und")
@@ -92,8 +99,9 @@ private data class LanguageParts(
         fun from(value: String): LanguageParts {
             val tag = normalizeCatalogLyricsLanguageTag(value)
             val locale = Locale.forLanguageTag(tag)
-            val language = locale.language.lowercase(Locale.ROOT)
-            require(language.isNotEmpty()) { "lyrics language is invalid" }
+            // Locale represents the valid BCP 47 "und" tag with an empty language.
+            // Legacy queues use it for lyrics whose language was never recorded.
+            val language = locale.language.lowercase(Locale.ROOT).ifEmpty { "und" }
             val script = locale.script.takeIf(String::isNotEmpty)
                 ?: inferredChineseScript(language, locale.country)
             return LanguageParts(tag, language, script?.lowercase(Locale.ROOT))
