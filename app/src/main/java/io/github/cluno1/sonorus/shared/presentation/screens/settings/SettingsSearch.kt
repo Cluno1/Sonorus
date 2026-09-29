@@ -835,6 +835,26 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.CATALOG,
             parentScreen = context.getString(R.string.settings_section_notifications_services),
         ))
+        if (ProductCapabilities.lanSubsonicOnly) {
+            add(SearchableSettingItem(
+                id = "lan_music",
+                title = context.getString(R.string.settings_lan_music),
+                description = context.getString(R.string.settings_lan_music_desc),
+                keywords = listOf("lan", "gateway", "subsonic", "局域网", "局域網", "网关", "閘道"),
+                icon = MaterialSymbolIcon("lan"),
+                route = SettingsRoutes.LAN_SUBSONIC,
+                parentScreen = context.getString(R.string.settings_section_notifications_services),
+            ))
+            add(SearchableSettingItem(
+                id = "lan_music_upload",
+                title = context.getString(R.string.lan_upload_title),
+                description = context.getString(R.string.lan_upload_settings_desc),
+                keywords = listOf("upload", "gateway", "music", "上传", "上傳", "网关", "閘道"),
+                icon = RhythmIcons.ArrowUpward,
+                route = SettingsRoutes.LAN_MUSIC_UPLOAD,
+                parentScreen = context.getString(R.string.settings_section_notifications_services),
+            ))
+        }
         add(SearchableSettingItem(
             id = "api_management",
             title = context.getString(R.string.settings_api_management),
@@ -2614,12 +2634,12 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "expressiveShapeMiniPlayer"
         ))
     }.filterNot { item ->
+        (!ProductCapabilities.inAppUpdates &&
+            (item.route == SettingsRoutes.UPDATES || item.id == "notifications_updates")) ||
         ProductCapabilities.catalogOnly && (
             item.route == SettingsRoutes.API_MANAGEMENT ||
-                item.route == SettingsRoutes.UPDATES ||
                 item.route == SettingsRoutes.GO_SETTINGS ||
                 item.id == "experimental_go_mode" ||
-                item.id == "notifications_updates" ||
                 item.id == "auto_fetch_artwork" ||
                 item.id == "artist_artwork_source" ||
                 item.id.startsWith("lyrics_api_")
@@ -2759,7 +2779,9 @@ fun SettingsSearchBar(
 fun SettingsSearchResults(
     results: List<SearchableSettingItem>,
     onResultClick: (SearchableSettingItem) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    toggleStates: Map<String, Boolean> = emptyMap(),
+    onToggleChange: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -2792,12 +2814,19 @@ fun SettingsSearchResults(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     val materialItems = items.map { setting ->
+                        val checked = toggleStates[setting.id]
                         Material3SettingsItem(
                             icon = setting.icon,
                             title = { Text(setting.title) },
                             description = { Text(setting.description) },
                             trailingContent = {
-                                Icon(
+                                if (checked != null) AnimatedSwitch(
+                                    checked = checked,
+                                    onCheckedChange = { value ->
+                                        HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                                        onToggleChange(setting.id, value)
+                                    },
+                                ) else Icon(
                                     imageVector = MaterialSymbolIcon("arrow_forward_ios", filled = true),
                                     contentDescription = context.getString(R.string.cd_navigate),
                                     modifier = Modifier.size(16.dp),
@@ -2806,7 +2835,8 @@ fun SettingsSearchResults(
                             },
                             onClick = {
                                 HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                onResultClick(setting)
+                                if (checked != null) onToggleChange(setting.id, !checked)
+                                else onResultClick(setting)
                             }
                         )
                     }

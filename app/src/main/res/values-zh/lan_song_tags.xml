@@ -16,4 +16,15 @@
     <string name="lan_tags_save_failed">保存失败，草稿已保留。请检查网关连接后重试。</string>
     <string name="lan_tags_invalid_fields">请检查歌曲名、数字标签和文本长度，歌词总大小须小于 512 KiB。</string>
     <string name="lan_tags_retry">重试</string>
+    <string name="lan_tags_custom_tags">自定义标签</string>
+    <string name="lan_tags_custom_tags_desc">创建或复用“助眠”等标签，标签与歌曲一起保存并共享。</string>
+    <string name="lan_tags_tag_name">标签名称</string>
+    <string name="lan_tags_add_tag">添加标签</string>
+    <string name="lan_tags_existing_tags">已有标签</string>
+    <string name="lan_tags_remove_tag">移除标签 %1$s</string>
+    <string name="lan_tags_suggestions_failed">无法加载已有标签，仍可在草稿中添加新标签。</string>
+    <string name="lan_tags_invalid_tag">最多添加 64 个标签，每个名称不超过 128 个字符，且不能含控制字符。</string>
+    <string name="lan_tags_choose_local_cover">选择本地封面</string>
+    <string name="lan_tags_cover_read_failed">无法读取此图片，请重新选择本地图片。</string>
+    <string name="lan_tags_cover_too_large">请选择不超过 8192 × 8192 像素的图片，处理后的封面须小于 6 MiB。</string>
 </resources>

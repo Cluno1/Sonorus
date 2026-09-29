@@ -154,6 +154,7 @@ private fun uploadErrorLabel(error: LanMusicUploadError): Int = when (error) {
     LanMusicUploadError.READ_FILE -> R.string.lan_upload_read_failed
     LanMusicUploadError.UNSUPPORTED_FORMAT -> R.string.lan_upload_unsupported
     LanMusicUploadError.INVALID_AUDIO -> R.string.lan_upload_invalid
+    LanMusicUploadError.INVALID_REQUEST -> R.string.lan_upload_invalid_request
     LanMusicUploadError.TOO_LARGE -> R.string.lan_upload_too_large
     LanMusicUploadError.CONNECTION_CHANGED -> R.string.lan_upload_connection_changed
     LanMusicUploadError.LIBRARY_FULL -> R.string.lan_upload_library_full

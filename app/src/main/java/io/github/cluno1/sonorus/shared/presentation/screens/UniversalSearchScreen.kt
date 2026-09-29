@@ -285,6 +285,7 @@ fun UniversalSearchScreen(
                     title = it.title,
                     artist = it.artist,
                     album = it.album,
+                    tags = it.lanUserTags.orEmpty(),
                 ) || GenreUtils.matchesGenreQuery(it.genre, normalizedQuery)
             }
         }
@@ -1776,7 +1777,8 @@ private fun StreamingSong.toLocalSong(): Song {
         trackNumber = 0,
         year = 0,
         genre = null,
-        albumArtist = this.albumArtist
+        albumArtist = this.albumArtist,
+        lanUserTags = this.lanUserTags.orEmpty(),
     )
 }
 

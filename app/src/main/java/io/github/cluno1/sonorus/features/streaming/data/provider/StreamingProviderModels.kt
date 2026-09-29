@@ -26,6 +26,7 @@ data class ProviderSong(
     val channels: Int? = null,
     val codec: String? = null,
     val discNumber: Int? = null,
+    val lanUserTags: List<String> = emptyList(),
 )
 
 /**

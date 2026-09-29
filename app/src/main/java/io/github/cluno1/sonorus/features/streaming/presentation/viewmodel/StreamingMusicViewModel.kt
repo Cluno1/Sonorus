@@ -1780,6 +1780,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             discNumber = discNumber ?: 1,
             year = year ?: 0,
             genre = genre,
+            lanUserTags = lanUserTags.orEmpty(),
         )
     }
 }

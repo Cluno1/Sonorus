@@ -135,8 +135,16 @@ class SubsonicApiClient(context: Context) {
             response.getString("gatewayId")
         }
 
-    suspend fun getLanSongMetadata(trackId: String, expectedServer: String): Result<LanSongMetadata> =
-        metadataRequest("songs/$trackId", expectedServer).mapCatching { parseLanMetadata(it, trackId) }
+    suspend fun getLanSongMetadata(trackId: String, expectedServer: String, expectedGateway: String? = null): Result<LanSongMetadata> =
+        metadataRequest("songs/$trackId", expectedServer, expectedGateway = expectedGateway)
+            .mapCatching { parseLanMetadata(it, trackId) }
+
+    suspend fun getLanTagSuggestions(query: String, expectedServer: String, expectedGateway: String): Result<List<String>> =
+        metadataRequest("tags", expectedServer, params = mapOf("query" to query, "limit" to "50"),
+            expectedGateway = expectedGateway).mapCatching { response ->
+            check(response.getString("gatewayId") == expectedGateway)
+            parseLanTags(response.optJSONArray("tags"), limit = 100)
+        }
 
     suspend fun getLanMusicUploadCapabilities(expectedServer: String): Result<LanMusicUploadCapabilities> =
         metadataRequest("capabilities", expectedServer).mapCatching { response ->
@@ -198,10 +206,15 @@ class SubsonicApiClient(context: Context) {
                             try {
                                 if (credentials != cred) throw LanMusicUploadException(LanMusicUploadError.CONNECTION_CHANGED)
                                 if (!response.isSuccessful) {
+                                    val errorCode = runCatching { JSONObject(response.body.string()).optString("code") }.getOrDefault("")
                                     val error = when (response.code) {
-                                        400 -> LanMusicUploadError.INVALID_AUDIO
+                                        400 -> when (errorCode) {
+                                            "invalid_audio" -> LanMusicUploadError.INVALID_AUDIO
+                                            "invalid_request" -> LanMusicUploadError.INVALID_REQUEST
+                                            else -> LanMusicUploadError.REQUEST_FAILED
+                                        }
                                         401, 403 -> LanMusicUploadError.CONNECTION_CHANGED
-                                        409 -> if (JSONObject(response.body.string()).optString("code") == "gateway_changed")
+                                        409 -> if (errorCode == "gateway_changed")
                                             LanMusicUploadError.CONNECTION_CHANGED else LanMusicUploadError.LIBRARY_FULL
                                         404 -> LanMusicUploadError.UNAVAILABLE
                                         413 -> LanMusicUploadError.TOO_LARGE
@@ -237,6 +250,7 @@ class SubsonicApiClient(context: Context) {
         expectedServer: String,
         metadata: JSONObject,
         artwork: ByteArray?,
+        expectedGateway: String? = null,
     ): Result<LanSongMetadata> {
         val json = metadata.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
         val body = if (artwork == null) json else MultipartBody.Builder()
@@ -244,7 +258,7 @@ class SubsonicApiClient(context: Context) {
             .addFormDataPart("metadata", null, json)
             .addFormDataPart("artwork", "cover.jpg", artwork.toRequestBody("image/jpeg".toMediaType()))
             .build()
-        return metadataRequest("songs/$trackId", expectedServer, body)
+        return metadataRequest("songs/$trackId", expectedServer, body, expectedGateway = expectedGateway)
             .mapCatching { parseLanMetadata(it, trackId) }
     }
 
@@ -252,22 +266,27 @@ class SubsonicApiClient(context: Context) {
         resource: String,
         expectedServer: String,
         body: RequestBody? = null,
+        params: Map<String, String> = emptyMap(),
+        expectedGateway: String? = null,
     ): Result<JSONObject> {
         val cred = credentials ?: return Result.failure(IllegalStateException("Gateway is disconnected"))
         if (cred.serverUrl != expectedServer || expectedServer.isBlank()) {
             return Result.failure(IllegalStateException("Gateway connection changed; reopen the editor"))
         }
-        if (resource != "capabilities" &&
-            LanSubsonicPlaybackPolicy.trackIdFromMediaId("SUBSONIC::${resource.removePrefix("songs/")}") == null
-        ) return Result.failure(IllegalArgumentException("Invalid track id"))
+        val allowed = resource == "capabilities" || (resource == "tags" && body == null) ||
+            (resource.startsWith("songs/") &&
+                LanSubsonicPlaybackPolicy.trackIdFromMediaId("SUBSONIC::${resource.removePrefix("songs/")}") != null)
+        if (!allowed) return Result.failure(IllegalArgumentException("Invalid metadata resource"))
         return withContext(Dispatchers.IO) {
             try {
                 val base = cred.serverUrl.toHttpUrlOrNull() ?: error("Invalid gateway URL")
                 val authenticated = buildApiUrl(cred, "ping", emptyMap()).toHttpUrlOrNull()!!
                 val url = authenticated.newBuilder()
                     .encodedPath("${base.encodedPath.trimEnd('/')}/sonorus/v1/metadata/$resource")
+                    .apply { params.forEach { (key, value) -> addQueryParameter(key, value) } }
                     .build()
                 val request = Request.Builder().url(url).header("Accept", "application/json")
+                    .apply { expectedGateway?.let { header("X-Sonorus-Gateway-Id", it) } }
                     .apply { if (body == null) get() else patch(body) }.build()
                 okHttpClient.newCall(request).execute().use { response ->
                     check(credentials == cred) { "Gateway connection changed; reopen the editor" }
@@ -302,8 +321,16 @@ class SubsonicApiClient(context: Context) {
             lyricsExternalId = lyrics.optString("externalId", ""),
             overriddenFields = overrides?.let { array -> (0 until array.length()).map { array.getString(it) }.toSet() }
                 ?: LanSongMetadata.editableFields.toSet(),
+            tags = parseLanTags(song.optJSONArray("tags")),
         )
     }
+
+    private fun parseLanTags(array: org.json.JSONArray?, limit: Int = 64): List<String> =
+        array?.let { values ->
+            (0 until minOf(values.length(), limit)).mapNotNull { index ->
+                values.optString(index).takeIf { it.isNotBlank() && it != "null" && it.length <= 128 }
+            }.distinct()
+        }.orEmpty()
 
     suspend fun searchSongs(query: String, limit: Int = 30): Result<List<ProviderSong>> {
         if (!isConnected()) {
@@ -928,7 +955,8 @@ class SubsonicApiClient(context: Context) {
             bitrate = bitrateVal,
             sampleRate = sampleRateVal,
             channels = song.optInt("channels", 0).takeIf { it > 0 },
-            codec = codecVal
+            codec = codecVal,
+            lanUserTags = parseLanTags(song.optJSONObject("sonorusMetadata")?.optJSONArray("tags")),
         )
     }
 

@@ -30,4 +30,6 @@
     <string name="lan_upload_busy">网关正在接收其他音乐，请稍后重试。</string>
     <string name="lan_upload_storage_failed">网关保存音乐失败，请检查磁盘空间后重试。</string>
     <string name="lan_upload_request_failed">上传失败，请检查网络和网关连接后重试。</string>
+    <string name="lan_upload_settings_desc">选择本地音乐，上传到网关共享曲库。</string>
+    <string name="lan_upload_invalid_request">网关拒绝了上传参数，请重新选择文件后重试。</string>
 </resources>

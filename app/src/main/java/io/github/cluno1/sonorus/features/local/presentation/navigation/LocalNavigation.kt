@@ -413,7 +413,8 @@ private fun StreamingSong.toLocalSong(): Song? {
         bitrate = bitrate,
         sampleRate = sampleRate,
         channels = channels,
-        codec = codec
+        codec = codec,
+        lanUserTags = lanUserTags.orEmpty(),
     )
 }
 
@@ -443,7 +444,8 @@ private fun StreamingSong.toDisplaySong(): Song {
         bitrate = bitrate,
         sampleRate = sampleRate,
         channels = channels,
-        codec = codec
+        codec = codec,
+        lanUserTags = lanUserTags.orEmpty(),
     )
 }
 
@@ -3936,9 +3938,6 @@ private fun LocalNavigationContent(
                                     .DeviceManualMetadataKind.LYRICS,
                             )
                         },
-                        onUploadLanMusic = if (ProductCapabilities.lanSubsonicOnly) ({
-                            navController.navigate(Screen.LanMusicUpload.route) { launchSingleTop = true }
-                        }) else null,
                         isStreamingMode = isStreamingMode,
                         streamingServiceName = streamingServiceName,
                         streamingServiceConnected = streamingServiceConnected,

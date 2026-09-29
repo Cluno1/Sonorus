@@ -197,6 +197,7 @@ object SettingsRoutes {
     const val REPLAY_GAIN = "replay_gain_settings"
     const val CATALOG = "catalog_settings"
     const val LAN_SUBSONIC = "lan_subsonic_settings"
+    const val LAN_MUSIC_UPLOAD = "lan_music_upload"
     const val CHORUS_ADMIN = "chorus_admin"
     const val CLIENT_IMAGES = "client_images"
 }
@@ -420,6 +421,13 @@ fun SettingsScreen(
                             palette = SettingsPalettes.Emerald,
                             onClick = { onNavigateTo(SettingsRoutes.LAN_SUBSONIC) },
                         ))
+                        add(SettingItem(
+                            RhythmIcons.ArrowUpward,
+                            context.getString(R.string.lan_upload_title),
+                            context.getString(R.string.lan_upload_settings_desc),
+                            palette = SettingsPalettes.Emerald,
+                            onClick = { onNavigateTo(SettingsRoutes.LAN_MUSIC_UPLOAD) },
+                        ))
                     }
                     if (!ProductCapabilities.catalogOnly) {
                         add(SettingItem(MaterialSymbolIcon("api"), context.getString(R.string.settings_api_management), context.getString(R.string.settings_api_management_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.API_MANAGEMENT) }))
@@ -491,10 +499,24 @@ fun SettingsScreen(
             SettingsSearchResults(
                 results = searchResults,
                 onResultClick = { result ->
-                    if (result.route != null) {
-                        onNavigateTo(result.route)
+                    when (result.id) {
+                        "language" -> showLanguageSwitcher = true
+                        "default_screen" -> showDefaultScreenDialog = true
+                        else -> result.route?.let(onNavigateTo)
                     }
                     searchQuery = "" // Clear search when item clicked
+                },
+                toggleStates = mapOf(
+                    "haptic_feedback" to hapticFeedbackEnabled,
+                    "settings_suggestions" to showSettingsSuggestions,
+                    "auto_focus_search" to showKeyboardOnSearchOpen,
+                ),
+                onToggleChange = { id, checked ->
+                    when (id) {
+                        "haptic_feedback" -> appSettings.setHapticFeedbackEnabled(checked)
+                        "settings_suggestions" -> appSettings.setShowSettingsSuggestions(checked)
+                        "auto_focus_search" -> appSettings.setShowKeyboardOnSearchOpen(checked)
+                    }
                 },
                 modifier = modifier
                     .fillMaxSize()
@@ -1081,6 +1103,13 @@ fun SettingsScreenWrapper(
             navController.navigate("catalog_settings")
         } else if (route == SettingsRoutes.LAN_SUBSONIC && ProductCapabilities.lanSubsonicOnly) {
             navController.navigate("streaming_service_setup/SUBSONIC") { launchSingleTop = true }
+        } else if (route == SettingsRoutes.LAN_MUSIC_UPLOAD && ProductCapabilities.lanSubsonicOnly) {
+            if (navController.graph.findNode(Screen.LanMusicUpload.route) != null) {
+                navController.navigate(Screen.LanMusicUpload.route) { launchSingleTop = true }
+            } else {
+                appSettings.setInitialStreamingRoute(Screen.LanMusicUpload.route)
+                if (!navController.popBackStack()) safeNavigateToMain(navController)
+            }
         } else if (route == SettingsRoutes.CHORUS_ADMIN) {
             if (navController.graph.findNode(Screen.ChorusAdmin.route) != null) {
                 navController.navigate(Screen.ChorusAdmin.route) { launchSingleTop = true }

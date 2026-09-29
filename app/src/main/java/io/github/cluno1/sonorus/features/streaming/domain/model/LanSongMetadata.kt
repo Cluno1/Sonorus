@@ -15,6 +15,7 @@ data class LanSongMetadata(
     val lyricsSource: String,
     val lyricsExternalId: String,
     val overriddenFields: Set<String>,
+    val tags: List<String> = emptyList(),
 ) {
     fun lyrics(): LyricsData? = LyricsData(
         plainLyrics.takeIf(String::isNotBlank),
@@ -32,6 +33,7 @@ data class LanSongMetadata(
         year = if ("year" in overriddenFields) fields["year"]?.toIntOrNull() ?: song.year else song.year,
         genre = if ("genre" in overriddenFields) fields["genre"]?.takeIf(String::isNotBlank) else song.genre,
         artworkUri = artworkUrl?.let(Uri::parse),
+        lanUserTags = tags,
     )
 
     fun applyTo(song: StreamingSong): StreamingSong = song.copy(
@@ -44,6 +46,7 @@ data class LanSongMetadata(
         year = if ("year" in overriddenFields) fields["year"]?.toIntOrNull() else song.year,
         genre = if ("genre" in overriddenFields) fields["genre"]?.takeIf(String::isNotBlank) else song.genre,
         artworkUri = artworkUrl,
+        lanUserTags = tags,
     )
 
     companion object {

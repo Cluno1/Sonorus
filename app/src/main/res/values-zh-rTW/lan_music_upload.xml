@@ -30,4 +30,6 @@
     <string name="lan_upload_busy">閘道正在接收其他音樂，請稍後重試。</string>
     <string name="lan_upload_storage_failed">閘道儲存音樂失敗，請檢查磁碟空間後重試。</string>
     <string name="lan_upload_request_failed">上傳失敗，請檢查網路和閘道連線後重試。</string>
+    <string name="lan_upload_settings_desc">選擇本地音樂，上傳到閘道共享曲庫。</string>
+    <string name="lan_upload_invalid_request">閘道拒絕了上傳參數，請重新選擇檔案後重試。</string>
 </resources>

@@ -2,6 +2,9 @@
 package io.github.cluno1.sonorus.features.streaming.presentation.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,8 +27,11 @@ import io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.LanSon
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.shared.presentation.components.common.CollapsibleHeaderScreen
+import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
+import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LanSongTagsScreen(
     song: Song?,
@@ -37,6 +43,9 @@ fun LanSongTagsScreen(
     val state by viewModel.state.collectAsState()
     val searchState by viewModel.searchState.collectAsState()
     var onlineSearch by rememberSaveable { mutableStateOf(false) }
+    val artworkPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri?.let(viewModel::chooseLocalArtwork)
+    }
     LaunchedEffect(song?.id) { song?.let(viewModel::load) }
     LaunchedEffect(state.saved) { state.saved?.let(onSaved) }
     BackHandler(enabled = state.saving) { }
@@ -96,8 +105,56 @@ fun LanSongTagsScreen(
                 )
             }
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.lan_tags_custom_tags), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.lan_tags_custom_tags_desc), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.tags.forEach { name ->
+                            InputChip(
+                                selected = true, onClick = { viewModel.removeTag(name) }, enabled = !state.saving,
+                                label = { Text(name) }, trailingIcon = {
+                                    Icon(imageVector = MaterialSymbolIcon("close"),
+                                        contentDescription = stringResource(R.string.lan_tags_remove_tag, name),
+                                        modifier = Modifier.size(18.dp))
+                                },
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = state.tagQuery, onValueChange = viewModel::setTagQuery,
+                        label = { Text(stringResource(R.string.lan_tags_tag_name)) }, singleLine = true,
+                        enabled = !state.saving, modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedButton(onClick = { viewModel.addTag() }, enabled = !state.saving && state.tagQuery.isNotBlank()) {
+                        Text(stringResource(R.string.lan_tags_add_tag))
+                    }
+                    if (state.loadingTagSuggestions) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    } else if (state.tagSuggestionsFailed) {
+                        Text(stringResource(R.string.lan_tags_suggestions_failed), color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = viewModel::refreshTagSuggestions, enabled = !state.saving) {
+                            Text(stringResource(R.string.lan_tags_retry))
+                        }
+                    } else if (state.tagSuggestions.isNotEmpty()) {
+                        Text(stringResource(R.string.lan_tags_existing_tags), style = MaterialTheme.typography.labelLarge)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            state.tagSuggestions.filterNot { it in state.tags }.forEach { name ->
+                                SuggestionChip(onClick = { viewModel.addTag(name) }, label = { Text(name) }, enabled = !state.saving)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
                 Text(stringResource(R.string.device_manual_metadata_artwork), style = MaterialTheme.typography.titleMedium)
-                val preview = if (state.removeArtwork) null else state.selectedArtwork?.imageUrl ?: state.artworkUrl
+                OutlinedButton(
+                    onClick = { artworkPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    enabled = !state.saving && !state.preparingArtwork,
+                ) { Text(stringResource(R.string.lan_tags_choose_local_cover)) }
+                if (state.preparingArtwork) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                val preview: Any? = if (state.removeArtwork) null else
+                    state.localArtworkBytes ?: state.selectedArtwork?.imageUrl ?: state.artworkUrl
                 if (preview != null) {
                     AsyncImage(model = preview, contentDescription = stringResource(R.string.device_manual_metadata_artwork_preview),
                         contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().height(220.dp))
@@ -118,12 +175,18 @@ fun LanSongTagsScreen(
             }
             state.error?.let { error ->
                 item {
-                    Text(stringResource(if (error == LanSongTagsError.INVALID_FIELDS) R.string.lan_tags_invalid_fields else R.string.lan_tags_save_failed),
+                    Text(stringResource(when (error) {
+                        LanSongTagsError.INVALID_FIELDS -> R.string.lan_tags_invalid_fields
+                        LanSongTagsError.ARTWORK_READ_FAILED -> R.string.lan_tags_cover_read_failed
+                        LanSongTagsError.ARTWORK_TOO_LARGE -> R.string.lan_tags_cover_too_large
+                        LanSongTagsError.INVALID_TAG -> R.string.lan_tags_invalid_tag
+                        else -> R.string.lan_tags_save_failed
+                    }),
                         color = MaterialTheme.colorScheme.error)
                 }
             }
             item {
-                Button(onClick = viewModel::save, enabled = !state.saving, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = viewModel::save, enabled = !state.saving && !state.preparingArtwork, modifier = Modifier.fillMaxWidth()) {
                     if (state.saving) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     else Text(stringResource(R.string.lan_tags_save))
                 }

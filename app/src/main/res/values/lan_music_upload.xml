@@ -30,4 +30,6 @@
     <string name="lan_upload_busy">The gateway is receiving other music. Try again shortly.</string>
     <string name="lan_upload_storage_failed">The gateway could not save the music. Check its disk space and try again.</string>
     <string name="lan_upload_request_failed">Upload failed. Check your network and gateway connection, then retry.</string>
+    <string name="lan_upload_settings_desc">Choose local music and add it to the shared gateway library.</string>
+    <string name="lan_upload_invalid_request">The gateway rejected the upload parameters. Choose the file again and retry.</string>
 </resources>

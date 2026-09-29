@@ -12,12 +12,14 @@ internal fun matchesUniversalSongQuery(
     title: String,
     artist: String,
     album: String,
+    tags: Iterable<String> = emptyList(),
 ): Boolean {
     val normalized = normalizedUniversalSearchQuery(query)
     if (normalized.isEmpty()) return false
     return title.lowercase(Locale.ROOT).contains(normalized) ||
         artist.lowercase(Locale.ROOT).contains(normalized) ||
-        album.lowercase(Locale.ROOT).contains(normalized)
+        album.lowercase(Locale.ROOT).contains(normalized) ||
+        tags.any { it.lowercase(Locale.ROOT).contains(normalized) }
 }
 
 internal fun matchesUniversalAlbumQuery(

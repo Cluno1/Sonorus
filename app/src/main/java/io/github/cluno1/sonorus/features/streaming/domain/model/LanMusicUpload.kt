@@ -12,7 +12,7 @@ data class LanMusicUploadCapabilities(
 data class LanMusicUploadResult(val trackId: String, val duplicate: Boolean)
 
 enum class LanMusicUploadError {
-    UNAVAILABLE, READ_FILE, UNSUPPORTED_FORMAT, INVALID_AUDIO, TOO_LARGE,
+    UNAVAILABLE, READ_FILE, UNSUPPORTED_FORMAT, INVALID_AUDIO, INVALID_REQUEST, TOO_LARGE,
     CONNECTION_CHANGED, LIBRARY_FULL, BUSY, STORAGE, REQUEST_FAILED,
 }
 

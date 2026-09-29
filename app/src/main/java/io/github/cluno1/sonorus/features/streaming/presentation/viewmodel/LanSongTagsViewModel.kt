@@ -2,6 +2,7 @@
 package io.github.cluno1.sonorus.features.streaming.presentation.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.cluno1.sonorus.features.local.data.device.*
@@ -18,12 +19,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import org.json.JSONArray
+import java.text.Normalizer
+import java.util.Locale
 
-enum class LanSongTagsError { LOAD_FAILED, INVALID_FIELDS, SAVE_FAILED }
+enum class LanSongTagsError { LOAD_FAILED, INVALID_FIELDS, SAVE_FAILED, ARTWORK_READ_FAILED, ARTWORK_TOO_LARGE, INVALID_TAG }
 
 data class LanSongTagsUiState(
     val song: Song? = null,
@@ -34,7 +39,14 @@ data class LanSongTagsUiState(
     val lyricsExternalId: String = "",
     val artworkUrl: String? = null,
     val selectedArtwork: DeviceArtworkCandidate? = null,
+    val localArtworkBytes: ByteArray? = null,
+    val preparingArtwork: Boolean = false,
     val removeArtwork: Boolean = false,
+    val tags: List<String> = emptyList(),
+    val tagQuery: String = "",
+    val tagSuggestions: List<String> = emptyList(),
+    val loadingTagSuggestions: Boolean = false,
+    val tagSuggestionsFailed: Boolean = false,
     val loading: Boolean = true,
     val saving: Boolean = false,
     val error: LanSongTagsError? = null,
@@ -54,6 +66,8 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
     private var expectedGateway = ""
     private var searchJob: Job? = null
     private var loadJob: Job? = null
+    private var artworkJob: Job? = null
+    private var tagSuggestionsJob: Job? = null
 
     fun load(song: Song) {
         if (_state.value.song?.id == song.id && original != null) return
@@ -65,14 +79,15 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 val trackId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) ?: error("Invalid LAN song")
                 expectedGateway = client.getLanMetadataCapabilities(expectedServer).getOrThrow()
-                val metadata = client.getLanSongMetadata(trackId, expectedServer).getOrThrow()
+                val metadata = client.getLanSongMetadata(trackId, expectedServer, expectedGateway).getOrThrow()
                 original = metadata
                 _state.value = LanSongTagsUiState(
                     song = metadata.applyTo(song), fields = metadata.fields,
                     plainLyrics = metadata.plainLyrics, syncedLyrics = metadata.syncedLyrics,
                     lyricsSource = metadata.lyricsSource, lyricsExternalId = metadata.lyricsExternalId,
-                    artworkUrl = metadata.artworkUrl, loading = false,
+                    artworkUrl = metadata.artworkUrl, tags = metadata.tags, loading = false,
                 )
+                refreshTagSuggestions()
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {
                 _state.value = _state.value.copy(loading = false, error = LanSongTagsError.LOAD_FAILED)
@@ -96,7 +111,74 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
 
     fun removeArtwork() {
         if (_state.value.saving) return
-        _state.value = _state.value.copy(selectedArtwork = null, removeArtwork = true, error = null)
+        artworkJob?.cancel()
+        _state.value = _state.value.copy(selectedArtwork = null, localArtworkBytes = null,
+            preparingArtwork = false, removeArtwork = true, error = null)
+    }
+
+    fun chooseLocalArtwork(uri: Uri) {
+        if (_state.value.saving || _state.value.loading) return
+        artworkJob?.cancel()
+        _state.value = _state.value.copy(preparingArtwork = true, error = null)
+        artworkJob = viewModelScope.launch {
+            try {
+                val bytes = publicMetadata.gatewayArtworkBytes(uri)
+                _state.value = _state.value.copy(localArtworkBytes = bytes, selectedArtwork = null,
+                    removeArtwork = false, preparingArtwork = false)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(preparingArtwork = false,
+                    error = if (e is GatewayArtworkTooLargeException) LanSongTagsError.ARTWORK_TOO_LARGE
+                        else LanSongTagsError.ARTWORK_READ_FAILED)
+            }
+        }
+    }
+
+    fun setTagQuery(value: String) {
+        if (_state.value.saving) return
+        _state.value = _state.value.copy(tagQuery = value, error = null)
+        refreshTagSuggestions()
+    }
+
+    fun addTag(value: String = _state.value.tagQuery) {
+        if (_state.value.saving) return
+        val name = Normalizer.normalize(value.trim(), Normalizer.Form.NFC)
+        if (name.isBlank()) return
+        val draft = _state.value
+        val duplicate = draft.tags.any { it.lowercase(Locale.ROOT) == name.lowercase(Locale.ROOT) }
+        if (name.length > 128 || name.any { it.code < 32 } || (!duplicate && draft.tags.size >= 64)) {
+            _state.value = draft.copy(error = LanSongTagsError.INVALID_TAG)
+            return
+        }
+        _state.value = draft.copy(tags = if (duplicate) draft.tags else draft.tags + name, tagQuery = "", error = null)
+        refreshTagSuggestions()
+    }
+
+    fun removeTag(name: String) {
+        if (_state.value.saving) return
+        _state.value = _state.value.copy(tags = _state.value.tags.filterNot { it == name }, error = null)
+    }
+
+    fun refreshTagSuggestions() {
+        tagSuggestionsJob?.cancel()
+        if (_state.value.loading || expectedGateway.isBlank()) return
+        val query = _state.value.tagQuery.trim()
+        if (query.length > 128) {
+            _state.value = _state.value.copy(loadingTagSuggestions = false, tagSuggestions = emptyList())
+            return
+        }
+        _state.value = _state.value.copy(loadingTagSuggestions = true, tagSuggestionsFailed = false)
+        tagSuggestionsJob = viewModelScope.launch {
+            try {
+                delay(250)
+                val suggestions = client.getLanTagSuggestions(query, expectedServer, expectedGateway).getOrThrow()
+                _state.value = _state.value.copy(tagSuggestions = suggestions, loadingTagSuggestions = false)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(tagSuggestions = emptyList(), loadingTagSuggestions = false,
+                    tagSuggestionsFailed = true)
+            }
+        }
     }
 
     fun querySong(): Song? = _state.value.song?.copy(
@@ -182,7 +264,10 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     fun chooseArtwork(candidate: DeviceArtworkCandidate) {
-        _state.value = _state.value.copy(selectedArtwork = candidate, removeArtwork = false, error = null)
+        if (_state.value.saving) return
+        artworkJob?.cancel()
+        _state.value = _state.value.copy(selectedArtwork = candidate, localArtworkBytes = null,
+            preparingArtwork = false, removeArtwork = false, error = null)
         _searchState.value = _searchState.value.copy(applied = true)
     }
 
@@ -204,7 +289,7 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
     fun save() {
         val baseline = original ?: return
         val draft = _state.value
-        if (draft.loading || draft.saving) return
+        if (draft.loading || draft.saving || draft.preparingArtwork) return
         val payload = try {
             val fields = JSONObject()
             draft.fields.forEach { (name, raw) ->
@@ -228,6 +313,7 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
                     put("lyrics", lyrics)
                 }
                 if (draft.removeArtwork) put("removeArtwork", true)
+                if (draft.tags.toSet() != baseline.tags.toSet()) put("tags", JSONArray(draft.tags))
             }
         } catch (e: Exception) {
             _state.value = draft.copy(error = LanSongTagsError.INVALID_FIELDS)
@@ -237,8 +323,8 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             try {
                 check(client.getLanMetadataCapabilities(expectedServer).getOrThrow() == expectedGateway)
-                val artwork = draft.selectedArtwork?.let { publicMetadata.gatewayArtworkBytes(it) }
-                val saved = client.saveLanSongMetadata(baseline.trackId, expectedServer, payload, artwork).getOrThrow()
+                val artwork = draft.localArtworkBytes ?: draft.selectedArtwork?.let { publicMetadata.gatewayArtworkBytes(it) }
+                val saved = client.saveLanSongMetadata(baseline.trackId, expectedServer, payload, artwork, expectedGateway).getOrThrow()
                 _state.value = _state.value.copy(saving = false, saved = saved)
             } catch (e: CancellationException) { throw e
             } catch (e: Exception) {

@@ -1462,6 +1462,7 @@ class StreamingMusicRepositoryImpl(
             channels = providerSong.channels,
             codec = providerSong.codec,
             discNumber = providerSong.discNumber,
+            lanUserTags = providerSong.lanUserTags,
         )
     }
 

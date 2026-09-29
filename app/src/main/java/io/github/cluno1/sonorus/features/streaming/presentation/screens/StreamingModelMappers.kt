@@ -53,7 +53,8 @@ fun StreamingSong.toLibrarySong(): Song {
         bitrate = bitrate,
         sampleRate = sampleRate,
         channels = channels,
-        codec = codec
+        codec = codec,
+        lanUserTags = lanUserTags.orEmpty(),
     )
 }
 

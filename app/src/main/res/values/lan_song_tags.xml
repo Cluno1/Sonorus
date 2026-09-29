@@ -16,4 +16,15 @@
     <string name="lan_tags_save_failed">Unable to save. Your draft is kept; check the gateway connection and try again.</string>
     <string name="lan_tags_invalid_fields">Check the title, numeric tags and text lengths. Lyrics must be smaller than 512 KiB.</string>
     <string name="lan_tags_retry">Retry</string>
+    <string name="lan_tags_custom_tags">Custom tags</string>
+    <string name="lan_tags_custom_tags_desc">Create or reuse tags such as Sleep. Tags are shared and saved with this song.</string>
+    <string name="lan_tags_tag_name">Tag name</string>
+    <string name="lan_tags_add_tag">Add tag</string>
+    <string name="lan_tags_existing_tags">Existing tags</string>
+    <string name="lan_tags_remove_tag">Remove tag %1$s</string>
+    <string name="lan_tags_suggestions_failed">Unable to load existing tags. You can still add a tag to this draft.</string>
+    <string name="lan_tags_invalid_tag">Use up to 64 tags, each no longer than 128 characters and without control characters.</string>
+    <string name="lan_tags_choose_local_cover">Choose local cover</string>
+    <string name="lan_tags_cover_read_failed">Unable to read this image. Choose another local image.</string>
+    <string name="lan_tags_cover_too_large">Choose an image no larger than 8192 × 8192 pixels. The prepared cover must be smaller than 6 MiB.</string>
 </resources>

@@ -31,9 +31,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.Request
 import java.io.File
+import java.io.InputStream
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+
+class GatewayArtworkTooLargeException : java.io.IOException("Cover image exceeds the gateway limit")
 
 data class DeviceLyricsCandidate(
     val externalId: String,
@@ -1123,6 +1126,14 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
 
     private enum class ArtworkProvider { DEEZER, COVER_ART_ARCHIVE, ITUNES }
 
+    /** Reads only the URI granted by the system picker; the result stays in the editor draft. */
+    suspend fun gatewayArtworkBytes(uri: Uri): ByteArray = withContext(Dispatchers.IO) {
+        check(allowLanQueries && uri.scheme == "content")
+        normalizedGatewayArtworkBytes {
+            context.contentResolver.openInputStream(uri) ?: error("Unable to open cover image")
+        }
+    }
+
     /** Reuses the public-provider URL and image checks, without writing device song metadata. */
     suspend fun gatewayArtworkBytes(candidate: DeviceArtworkCandidate): ByteArray = withContext(Dispatchers.IO) {
         check(allowLanQueries && NetworkClient.isDevicePublicMetadataEnabled())
@@ -1135,21 +1146,54 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
         val cached = downloadArtwork(candidate.imageUrl, "lan-${java.util.UUID.randomUUID()}.jpg", provider)
             ?: error("Unable to download cover image")
         try {
-            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            android.graphics.BitmapFactory.decodeFile(cached.file.absolutePath, bounds)
-            check(bounds.outWidth in 1..8192 && bounds.outHeight in 1..8192) { "Invalid cover image dimensions" }
-            var sampleSize = 1
-            while (bounds.outWidth / sampleSize > 2048 || bounds.outHeight / sampleSize > 2048) sampleSize *= 2
-            val bitmap = android.graphics.BitmapFactory.decodeFile(
-                cached.file.absolutePath,
-                android.graphics.BitmapFactory.Options().apply { inSampleSize = sampleSize },
-            ) ?: error("Unable to read cover image")
-            try {
-                val output = java.io.ByteArrayOutputStream()
-                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, output))
-                output.toByteArray().also { check(it.size <= 6 * 1024 * 1024) { "Cover image exceeds 6 MiB" } }
-            } finally { bitmap.recycle() }
+            normalizedGatewayArtworkBytes { cached.file.inputStream() }
         } finally { cached.file.delete() }
+    }
+
+    private fun normalizedGatewayArtworkBytes(open: () -> InputStream): ByteArray {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        open().use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+        check(bounds.outWidth > 0 && bounds.outHeight > 0) { "Unable to read cover image" }
+        if (bounds.outWidth > 8192 || bounds.outHeight > 8192) throw GatewayArtworkTooLargeException()
+        var sampleSize = 1
+        while (bounds.outWidth / sampleSize > 2048 || bounds.outHeight / sampleSize > 2048) sampleSize *= 2
+        val orientation = runCatching {
+            open().use {
+                androidx.exifinterface.media.ExifInterface(it).getAttributeInt(
+                    androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION,
+                    androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL,
+                )
+            }
+        }.getOrDefault(androidx.exifinterface.media.ExifInterface.ORIENTATION_NORMAL)
+        val bitmap = open().use {
+            android.graphics.BitmapFactory.decodeStream(it, null,
+                android.graphics.BitmapFactory.Options().apply { inSampleSize = sampleSize })
+        } ?: error("Unable to decode cover image")
+        var oriented = bitmap
+        try {
+            val matrix = android.graphics.Matrix().apply {
+                when (orientation) {
+                    2 -> setScale(-1f, 1f)
+                    3 -> setRotate(180f)
+                    4 -> setScale(1f, -1f)
+                    5 -> { setRotate(90f); postScale(-1f, 1f) }
+                    6 -> setRotate(90f)
+                    7 -> { setRotate(270f); postScale(-1f, 1f) }
+                    8 -> setRotate(270f)
+                }
+            }
+            if (!matrix.isIdentity) oriented = android.graphics.Bitmap.createBitmap(
+                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true,
+            )
+            val output = java.io.ByteArrayOutputStream()
+            check(oriented.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, output))
+            return output.toByteArray().also {
+                if (it.size > 6 * 1024 * 1024) throw GatewayArtworkTooLargeException()
+            }
+        } finally {
+            if (oriented !== bitmap) oriented.recycle()
+            bitmap.recycle()
+        }
     }
 
     private fun downloadArtwork(url: String, name: String, provider: ArtworkProvider): CachedArtworkFile? = runCatching {

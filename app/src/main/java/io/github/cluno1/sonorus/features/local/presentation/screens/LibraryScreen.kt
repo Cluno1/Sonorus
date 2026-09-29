@@ -358,7 +358,6 @@ fun LibraryScreen(
     onRestartApp: (() -> Unit)? = null,
     onNavigateToArtist: (Artist) -> Unit = {},
     onOpenManualMetadata: ((Song) -> Unit)? = null,
-    onUploadLanMusic: (() -> Unit)? = null,
     isStreamingMode: Boolean = false,
     streamingServiceName: String = "",
     streamingServiceConnected: Boolean = true,
@@ -2077,17 +2076,6 @@ fun LibraryScreen(
                                                 } else null,
                                                 shape = RoundedCornerShape(12.dp)
                                             )
-                                        }
-                                    }
-                                    if (onUploadLanMusic != null) {
-                                        TextButton(
-                                            onClick = onUploadLanMusic,
-                                            enabled = streamingServiceConnected,
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            Icon(imageVector = RhythmIcons.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(stringResource(R.string.lan_upload_title))
                                         }
                                     }
                                 } else if (currentTabId == "EXPLORER" && explorerPath != null) {
