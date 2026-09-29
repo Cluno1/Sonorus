@@ -6,7 +6,6 @@
 package io.github.cluno1.sonorus.infrastructure.service.player
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -20,13 +19,11 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.DataSpec
 import io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
-import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
 import io.github.cluno1.sonorus.features.catalog.data.CatalogDataSpecResolver
 import io.github.cluno1.sonorus.features.streaming.data.provider.LanSubsonicDataSpecResolver
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import kotlinx.coroutines.runBlocking
-import java.util.concurrent.ConcurrentHashMap
 import androidx.core.net.toUri
 
 @OptIn(UnstableApi::class)
@@ -36,10 +33,14 @@ class PreloadController(
 ) {
     companion object {
         private const val TAG = "PreloadController"
+        private const val MAX_PRELOAD_ITEMS = 10
     }
 
     private var preloadManager: DefaultPreloadManager? = null
     private val targetPreloadStatusControl = PlaylistTargetPreloadStatusControl()
+    private var queueItems: List<MediaItem> = emptyList()
+    private val registeredItems = mutableMapOf<MediaItem, Int>()
+    private var preloadPlayingIndex: Int = C.INDEX_UNSET
 
     init {
         initialize()
@@ -47,7 +48,7 @@ class PreloadController(
 
     fun initialize() {
         try {
-            val limit = appSettings.preloadLimit.value
+            val limit = appSettings.preloadLimit.value.coerceIn(0, MAX_PRELOAD_ITEMS)
             targetPreloadStatusControl.preloadLimit = limit
 
             val resolvingDataSourceFactory = ResolvingDataSource.Factory(
@@ -92,27 +93,65 @@ class PreloadController(
 
     fun setPlayingIndex(index: Int) {
         targetPreloadStatusControl.currentPlayingIndex = index
-        preloadManager?.setCurrentPlayingIndex(index)
-        preloadManager?.invalidate()
+        synchronizePreloadWindow()
     }
 
-    fun addOrUpdateQueue(mediaItems: List<MediaItem>) {
+    fun addOrUpdateQueue(mediaItems: List<MediaItem>, playingIndex: Int) {
+        queueItems = mediaItems
+        targetPreloadStatusControl.currentPlayingIndex = playingIndex
+        synchronizePreloadWindow()
+    }
+
+    private fun synchronizePreloadWindow() {
         val manager = preloadManager ?: return
-        
-        // Add items to preload manager with their list index as ranking data
-        mediaItems.forEachIndexed { index, mediaItem ->
-            manager.add(mediaItem, index)
+        val playingIndex = targetPreloadStatusControl.currentPlayingIndex
+            .takeIf { it in queueItems.indices } ?: C.INDEX_UNSET
+        val limit = appSettings.preloadLimit.value.coerceIn(0, MAX_PRELOAD_ITEMS)
+        targetPreloadStatusControl.preloadLimit = limit
+        targetPreloadStatusControl.currentPlayingIndex = playingIndex
+
+        // Media3 skips NOT_PRELOADED sources synchronously. Registering a full library
+        // makes that skip chain recursive, so keep only the upcoming preload window.
+        val desiredItems = linkedMapOf<MediaItem, Int>()
+        if (playingIndex != C.INDEX_UNSET) {
+            val endIndex = (playingIndex + 1 + limit).coerceAtMost(queueItems.size)
+            for (index in playingIndex + 1 until endIndex) {
+                desiredItems.putIfAbsent(queueItems[index], index)
+            }
         }
-        manager.invalidate()
+        if (desiredItems == registeredItems && playingIndex == preloadPlayingIndex) return
+
+        val staleItems = registeredItems.filter { (item, index) -> desiredItems[item] != index }.keys
+        staleItems.forEach { item ->
+            manager.remove(item)
+            registeredItems.remove(item)
+        }
+        desiredItems.forEach { (item, index) ->
+            if (registeredItems[item] != index) {
+                manager.add(item, index)
+                registeredItems[item] = index
+            }
+        }
+
+        val indexChanged = playingIndex != preloadPlayingIndex
+        preloadPlayingIndex = playingIndex
+        // In Media3 1.11, changing the playing index already invalidates the manager.
+        manager.setCurrentPlayingIndex(playingIndex)
+        if (!indexChanged) manager.invalidate()
     }
 
     fun remove(mediaItem: MediaItem) {
+        registeredItems.remove(mediaItem)
         preloadManager?.remove(mediaItem)
     }
 
     fun release() {
         preloadManager?.release()
         preloadManager = null
+        queueItems = emptyList()
+        registeredItems.clear()
+        preloadPlayingIndex = C.INDEX_UNSET
+        targetPreloadStatusControl.currentPlayingIndex = C.INDEX_UNSET
     }
 
     private class PlaylistTargetPreloadStatusControl : TargetPreloadStatusControl<Int, DefaultPreloadManager.PreloadStatus> {

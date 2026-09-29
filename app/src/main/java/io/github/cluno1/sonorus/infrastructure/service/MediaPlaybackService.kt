@@ -996,7 +996,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                     for (i in 0 until player.mediaItemCount) {
                         mediaItems.add(player.getMediaItemAt(i))
                     }
-                    preloadController.addOrUpdateQueue(mediaItems)
+                    preloadController.addOrUpdateQueue(mediaItems, player.currentMediaItemIndex)
                 }
             }
 
