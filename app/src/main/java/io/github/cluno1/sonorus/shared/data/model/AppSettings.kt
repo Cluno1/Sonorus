@@ -56,8 +56,11 @@ internal fun resolveAvailableExpressiveBottomButtons(
     active: List<String>,
     fallback: List<String>,
     scoreAvailable: Boolean,
+    tagEditingAvailable: Boolean = false,
 ): List<String> {
-    fun List<String>.available() = filter { it != "SCORE" || scoreAvailable }.distinct()
+    fun List<String>.available() = filter {
+        (it != "SCORE" || scoreAvailable) && (it != "EDIT_TAGS" || tagEditingAvailable)
+    }.distinct()
 
     return active.available().ifEmpty { fallback.available() }
 }
@@ -72,6 +75,7 @@ internal fun resolveExpressiveBottomButtonLayout(
     fallback: List<String>,
     scoreAvailable: Boolean,
     maxVisible: Int = 6,
+    tagEditingAvailable: Boolean = false,
 ): ExpressiveBottomButtonLayout {
     require(maxVisible >= 1) { "At least one visible bottom-button slot is required" }
 
@@ -79,6 +83,7 @@ internal fun resolveExpressiveBottomButtonLayout(
         active = active,
         fallback = fallback,
         scoreAvailable = scoreAvailable,
+        tagEditingAvailable = tagEditingAvailable,
     )
     if (available.size <= maxVisible) {
         return ExpressiveBottomButtonLayout(visible = available, overflow = emptyList())
@@ -1081,10 +1086,10 @@ class AppSettings private constructor(context: Context) {
     val hiddenPlayerChips: StateFlow<Set<String>> = _hiddenPlayerChips.asStateFlow()
 
     // Expressive Player Bottom Buttons
-    val defaultExpressiveBottomButtonsNormal = listOf("SCORE", "DEVICE", "QUEUE", "MORE")
-    val defaultExpressiveBottomButtonsMerge = listOf("LYRICS", "FAVORITE", "SCORE", "DEVICE", "QUEUE", "MORE")
+    val defaultExpressiveBottomButtonsNormal = listOf("EDIT_TAGS", "SCORE", "DEVICE", "QUEUE", "MORE")
+    val defaultExpressiveBottomButtonsMerge = listOf("LYRICS", "EDIT_TAGS", "FAVORITE", "SCORE", "DEVICE", "QUEUE", "MORE")
     val allExpressiveBottomButtons = listOf(
-        "LYRICS", "FAVORITE", "SCORE", "DEVICE", "QUEUE", "MORE",
+        "LYRICS", "EDIT_TAGS", "FAVORITE", "SCORE", "DEVICE", "QUEUE", "MORE",
         "EQUALIZER", "SPEED", "SLEEP_TIMER",
         "ADD_TO_PLAYLIST", "ALBUM", "ARTIST", "SONG_INFO", "SHARE"
     )
@@ -1097,6 +1102,7 @@ class AppSettings private constructor(context: Context) {
             ?.filter { it in allExpressiveBottomButtons }
             ?.takeIf { it.isNotEmpty() }
             ?.let { migrateLegacyExpressiveBottomButtonOrder(it, mergeMode = false) }
+            ?.let { if ("EDIT_TAGS" in it) it else listOf("EDIT_TAGS") + it }
             ?: defaultExpressiveBottomButtonsNormal
     )
     val expressiveBottomButtonsNormal: StateFlow<List<String>> = _expressiveBottomButtonsNormal.asStateFlow()
@@ -1119,6 +1125,11 @@ class AppSettings private constructor(context: Context) {
             ?.filter { it in allExpressiveBottomButtons }
             ?.takeIf { it.isNotEmpty() }
             ?.let { migrateLegacyExpressiveBottomButtonOrder(it, mergeMode = true) }
+            ?.let { order ->
+                if ("EDIT_TAGS" in order) order else order.toMutableList().apply {
+                    add((indexOf("LYRICS") + 1).coerceAtLeast(0), "EDIT_TAGS")
+                }
+            }
             ?: defaultExpressiveBottomButtonsMerge
     )
     val expressiveBottomButtonsMerge: StateFlow<List<String>> = _expressiveBottomButtonsMerge.asStateFlow()

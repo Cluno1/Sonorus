@@ -62,6 +62,22 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private var seekPositionHandler: ((Long) -> Unit)? = null
     private var lanLibraryLoadJob: Job? = null
 
+    fun applyLanMetadata(metadata: io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata) {
+        val id = LanSubsonicPlaybackPolicy.mediaId(metadata.trackId)
+        fun update(song: StreamingSong) = if (song.id == id) metadata.applyTo(song) else song
+        providerRepository?.applyLanMetadata(metadata)
+        _allSongs.value = _allSongs.value.map(::update)
+        _currentSong.value = _currentSong.value?.let(::update)
+        _queue.value = _queue.value.map(::update)
+        _recommendations.value = _recommendations.value.map(::update)
+        _topCharts.value = _topCharts.value.map(::update)
+        _likedSongs.value = _likedSongs.value.map(::update)
+        _downloadedSongs.value = _downloadedSongs.value.map(::update)
+        _savedAlbums.value = _savedAlbums.value.map { it.copy(tracks = it.tracks.map(::update)) }
+        _savedPlaylists.value = _savedPlaylists.value.map { it.copy(tracks = it.getTracks().map(::update)) }
+        _searchResults.value = _searchResults.value.copy(songs = _searchResults.value.songs.map(::update))
+    }
+
     
     // Authentication state
     private val _isAuthenticated = MutableStateFlow(false)
@@ -1751,7 +1767,11 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             duration = duration,
             uri = playbackUri,
             artworkUri = artworkUri?.takeIf { it.isNotBlank() }?.let(Uri::parse),
-            albumArtist = albumArtist
+            albumArtist = albumArtist,
+            trackNumber = trackNumber ?: 0,
+            discNumber = discNumber ?: 0,
+            year = year ?: 0,
+            genre = genre,
         )
     }
 }

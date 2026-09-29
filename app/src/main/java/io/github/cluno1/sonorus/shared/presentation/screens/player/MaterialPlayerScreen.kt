@@ -304,6 +304,7 @@ fun MaterialPlayerScreen(
     onShuffleArtistSongs: (List<Song>) -> Unit = {},
     isStreamingMode: Boolean = false,
     onOpenFullScreenLyrics: () -> Unit = {},
+    onEditTags: (() -> Unit)? = null,
     swipeToDismissEnabled: Boolean = true,
     expansionFraction: Float = 1f
 ) {
@@ -3922,6 +3923,24 @@ fun MaterialPlayerScreen(
                                                 modifier = Modifier.size(if (isCompactHeight) 20.dp else 22.dp)
                                             )
                                         }
+                                    }
+                                }
+                            }
+
+                            onEditTags?.let { editTags ->
+                                Surface(
+                                    onClick = editTags, shape = RoundedCornerShape(28.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier.weight(1f).height(if (isCompactHeight) 48.dp else 56.dp),
+                                ) {
+                                    Column(modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center) {
+                                        Icon(imageVector = MaterialSymbolIcon("edit_note", filled = true),
+                                            contentDescription = stringResource(R.string.lan_tags_edit),
+                                            modifier = Modifier.size(20.dp))
+                                        if (!isCompactWidth) Text(stringResource(R.string.lan_tags_edit),
+                                            style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }

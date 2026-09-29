@@ -10,7 +10,7 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-/** Strict identity boundary for the private, read-only LAN Subsonic player. */
+/** Stable playback identity for the private LAN Subsonic player and shared tag editor. */
 object LanSubsonicPlaybackPolicy {
     const val MAX_LIBRARY_SONGS = 20_000
     const val MEDIA_ID_PREFIX = "SUBSONIC::"

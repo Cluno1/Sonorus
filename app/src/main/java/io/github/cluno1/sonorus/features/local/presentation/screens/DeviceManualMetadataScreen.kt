@@ -98,6 +98,7 @@ fun DeviceManualMetadataScreen(
     onClear: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    draftOnly: Boolean = false,
 ) {
     val publicMetadataEnabled by appSettings.devicePublicMetadataEnabled.collectAsState()
     var kind by rememberSaveable(song?.id, initialKind) { mutableStateOf(initialKind) }
@@ -143,7 +144,7 @@ fun DeviceManualMetadataScreen(
     }
 
     CollapsibleHeaderScreen(
-        title = stringResource(R.string.device_manual_metadata_title),
+        title = stringResource(if (draftOnly) R.string.lan_tags_online else R.string.device_manual_metadata_title),
         showBackButton = true,
         onBackClick = onBack,
     ) { contentModifier ->
@@ -221,7 +222,7 @@ fun DeviceManualMetadataScreen(
                             )
                         },
                     )
-                    FilterChip(
+                    if (!draftOnly) FilterChip(
                         selected = kind == DeviceManualMetadataKind.ARTIST_ARTWORK,
                         onClick = { kind = DeviceManualMetadataKind.ARTIST_ARTWORK },
                         label = { Text(stringResource(R.string.device_manual_metadata_artist_artwork)) },
@@ -372,7 +373,7 @@ fun DeviceManualMetadataScreen(
                                     it.provider == DevicePublicMetadataProvider.ITUNES
                                 },
                             )
-                            ProviderChip(
+                            if (!draftOnly) ProviderChip(
                                 selected = wikipediaSelected,
                                 onClick = { wikipediaSelected = !wikipediaSelected },
                                 title = "Wikipedia",
@@ -494,7 +495,7 @@ fun DeviceManualMetadataScreen(
                     if (kind == DeviceManualMetadataKind.DETAILS && itunesSelected) {
                         add(DevicePublicMetadataProvider.ITUNES)
                     }
-                    if (kind == DeviceManualMetadataKind.DETAILS && wikipediaSelected) {
+                    if (kind == DeviceManualMetadataKind.DETAILS && wikipediaSelected && !draftOnly) {
                         add(DevicePublicMetadataProvider.WIKIPEDIA)
                     }
                 }
@@ -662,7 +663,7 @@ fun DeviceManualMetadataScreen(
                         }
                     }
                     Text(
-                        text = stringResource(R.string.device_manual_metadata_details_app_only_desc),
+                        text = stringResource(if (draftOnly) R.string.lan_tags_candidate_desc else R.string.device_manual_metadata_details_app_only_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -677,7 +678,7 @@ fun DeviceManualMetadataScreen(
                     },
                     enabled = !state.isApplying && selectedDetailFields.isNotEmpty(),
                 ) {
-                    Text(stringResource(R.string.device_manual_metadata_use_details_app_only))
+                    Text(stringResource(if (draftOnly) R.string.lan_tags_use_candidate else R.string.device_manual_metadata_use_details_app_only))
                 }
             },
             dismissButton = {
@@ -717,7 +718,7 @@ fun DeviceManualMetadataScreen(
                     },
                     enabled = !state.isApplying,
                 ) {
-                    Text(stringResource(R.string.device_manual_metadata_use_lyrics))
+                    Text(stringResource(if (draftOnly) R.string.lan_tags_use_candidate else R.string.device_manual_metadata_use_lyrics))
                 }
             },
             dismissButton = {
@@ -759,7 +760,7 @@ fun DeviceManualMetadataScreen(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.device_manual_metadata_artwork_save_desc),
+                        text = stringResource(if (draftOnly) R.string.lan_tags_candidate_desc else R.string.device_manual_metadata_artwork_save_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -781,9 +782,9 @@ fun DeviceManualMetadataScreen(
                         },
                         enabled = !state.isApplying,
                     ) {
-                        Text(stringResource(R.string.device_manual_metadata_artwork_app_only))
+                        Text(stringResource(if (draftOnly) R.string.lan_tags_use_candidate else R.string.device_manual_metadata_artwork_app_only))
                     }
-                    TextButton(
+                    if (!draftOnly) TextButton(
                         onClick = {
                             selectedArtwork = null
                             pendingFolderArtwork = candidate

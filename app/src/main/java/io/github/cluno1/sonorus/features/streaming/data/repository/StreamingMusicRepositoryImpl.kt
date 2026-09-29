@@ -70,6 +70,24 @@ class StreamingMusicRepositoryImpl(
         JellyfinApiClient(context)
     }
 
+    // Reuse the active session, including sessions whose password is not saved on the phone.
+    fun lanMetadataClient(): SubsonicApiClient = subsonicClient
+
+    fun applyLanMetadata(metadata: io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata) {
+        val id = LanSubsonicPlaybackPolicy.mediaId(metadata.trackId)
+        fun update(song: StreamingSong) = if (song.id == id) metadata.applyTo(song) else song
+        songCache[id]?.let { songCache[id] = update(it) }
+        songsFlow.value = songsFlow.value.map { if (it is StreamingSong) update(it) else it }
+        likedSongsFlow.value = likedSongsFlow.value.map(::update)
+        downloadedSongsMap[id]?.let { downloadedSongsMap[id] = update(it) }
+        downloadedSongsFlow.value = downloadedSongsFlow.value.map(::update)
+        providerAlbumCache.replaceAll { _, album -> album.copy(tracks = album.tracks.map(::update)) }
+        providerAlbumsFlow.value = providerAlbumsFlow.value.map { it.copy(tracks = it.tracks.map(::update)) }
+        playlistsFlow.value = playlistsFlow.value.map { playlist ->
+            if (playlist is StreamingPlaylist) playlist.copy(tracks = playlist.getTracks().map(::update)) else playlist
+        }
+    }
+
     private val songsFlow = MutableStateFlow<List<PlayableItem>>(emptyList())
     private val albumsFlow = MutableStateFlow<List<AlbumItem>>(emptyList())
     private val providerAlbumsFlow = MutableStateFlow<List<StreamingAlbum>>(emptyList())  // Keep provider albums separate
@@ -1442,7 +1460,8 @@ class StreamingMusicRepositoryImpl(
             bitrate = providerSong.bitrate,
             sampleRate = providerSong.sampleRate,
             channels = providerSong.channels,
-            codec = providerSong.codec
+            codec = providerSong.codec,
+            discNumber = providerSong.discNumber,
         )
     }
 

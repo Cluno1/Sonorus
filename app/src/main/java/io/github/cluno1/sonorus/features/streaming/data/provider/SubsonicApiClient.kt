@@ -12,12 +12,17 @@ import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import androidx.core.content.edit
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
 
 class SubsonicErrorException(val code: Int, message: String) : Exception(message)
 
@@ -101,6 +106,85 @@ class SubsonicApiClient(context: Context) {
 
     suspend fun ping(): Result<Boolean> {
         return requestAndParse("ping").map { true }
+    }
+
+    suspend fun getLanMetadataCapabilities(expectedServer: String): Result<String> =
+        metadataRequest("capabilities", expectedServer).mapCatching { response ->
+            check(response.optBoolean("editable")) { "Gateway tag editing is unavailable" }
+            response.getString("gatewayId")
+        }
+
+    suspend fun getLanSongMetadata(trackId: String, expectedServer: String): Result<LanSongMetadata> =
+        metadataRequest("songs/$trackId", expectedServer).mapCatching { parseLanMetadata(it, trackId) }
+
+    suspend fun saveLanSongMetadata(
+        trackId: String,
+        expectedServer: String,
+        metadata: JSONObject,
+        artwork: ByteArray?,
+    ): Result<LanSongMetadata> {
+        val json = metadata.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        val body = if (artwork == null) json else MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("metadata", null, json)
+            .addFormDataPart("artwork", "cover.jpg", artwork.toRequestBody("image/jpeg".toMediaType()))
+            .build()
+        return metadataRequest("songs/$trackId", expectedServer, body)
+            .mapCatching { parseLanMetadata(it, trackId) }
+    }
+
+    private suspend fun metadataRequest(
+        resource: String,
+        expectedServer: String,
+        body: RequestBody? = null,
+    ): Result<JSONObject> {
+        val cred = credentials ?: return Result.failure(IllegalStateException("Gateway is disconnected"))
+        if (cred.serverUrl != expectedServer || expectedServer.isBlank()) {
+            return Result.failure(IllegalStateException("Gateway connection changed; reopen the editor"))
+        }
+        if (resource != "capabilities" &&
+            LanSubsonicPlaybackPolicy.trackIdFromMediaId("SUBSONIC::${resource.removePrefix("songs/")}") == null
+        ) return Result.failure(IllegalArgumentException("Invalid track id"))
+        return withContext(Dispatchers.IO) {
+            try {
+                val base = cred.serverUrl.toHttpUrlOrNull() ?: error("Invalid gateway URL")
+                val authenticated = buildApiUrl(cred, "ping", emptyMap()).toHttpUrlOrNull()!!
+                val url = authenticated.newBuilder()
+                    .encodedPath("${base.encodedPath.trimEnd('/')}/sonorus/v1/metadata/$resource")
+                    .build()
+                val request = Request.Builder().url(url).header("Accept", "application/json")
+                    .apply { if (body == null) get() else patch(body) }.build()
+                okHttpClient.newCall(request).execute().use { response ->
+                    check(credentials == cred) { "Gateway connection changed; reopen the editor" }
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(IllegalStateException("Gateway HTTP ${response.code}"))
+                    }
+                    Result.success(JSONObject(response.body.string()))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Authenticated URLs must not be included in logs or user-facing errors.
+                Result.failure(IllegalStateException("Gateway metadata request failed"))
+            }
+        }
+    }
+
+    private fun parseLanMetadata(response: JSONObject, trackId: String): LanSongMetadata {
+        val song = response.getJSONObject("song")
+        check(song.getString("trackId") == trackId) { "Unexpected gateway song" }
+        val fields = song.getJSONObject("fields")
+        val lyrics = song.optJSONObject("lyrics") ?: JSONObject()
+        return LanSongMetadata(
+            trackId = trackId,
+            fields = LanSongMetadata.editableFields.associateWith { fields.optString(it, "") },
+            artworkUrl = song.optString("coverArt").takeIf { it.isNotBlank() && it != "null" }
+                ?.let { buildCoverArtUrl(it) },
+            plainLyrics = lyrics.optString("plain", ""),
+            syncedLyrics = lyrics.optString("synced", ""),
+            lyricsSource = lyrics.optString("source", ""),
+            lyricsExternalId = lyrics.optString("externalId", ""),
+        )
     }
 
     suspend fun searchSongs(query: String, limit: Int = 30): Result<List<ProviderSong>> {
@@ -696,6 +780,7 @@ class SubsonicApiClient(context: Context) {
         if (id.isBlank()) return null
 
         val coverArtId = song.optString("coverArt").takeIf { it.isNotBlank() }
+        val shared = song.optJSONObject("sonorusMetadata")?.optJSONObject("fields")
         
         val rawTrack = song.optString("track", "")
         val trackNum = song.optInt("track", 0).takeIf { it > 0 }
@@ -712,15 +797,16 @@ class SubsonicApiClient(context: Context) {
             providerId = id,
             title = song.optString("title", song.optString("name", "Unknown title")),
             artist = song.optString("artist", "Unknown artist"),
-            album = song.optString("album", "Unknown album"),
+            album = shared?.takeIf { it.has("album") }?.optString("album") ?: song.optString("album", "Unknown album"),
             durationMs = song.optLong("duration", 0L) * 1000L,
             artworkUrl = coverArtId?.let { buildCoverArtUrl(it, 500) },
             albumId = song.optString("albumId", "").takeIf { it.isNotBlank() },
-            albumArtist = song.optString("albumArtist", "").takeIf { it.isNotBlank() },
+            albumArtist = (shared?.takeIf { it.has("albumArtist") }?.optString("albumArtist") ?: song.optString("albumArtist", "")).takeIf { it.isNotBlank() },
             isFavorite = song.has("starred") && !song.isNull("starred"),
-            trackNumber = trackNum,
-            year = yearVal,
-            genre = genreVal,
+            trackNumber = shared?.takeIf { it.has("trackNumber") }?.optInt("trackNumber") ?: trackNum,
+            year = shared?.takeIf { it.has("year") }?.optInt("year") ?: yearVal,
+            genre = (shared?.takeIf { it.has("genre") }?.optString("genre") ?: genreVal)?.takeIf(String::isNotBlank),
+            discNumber = shared?.takeIf { it.has("discNumber") }?.optInt("discNumber") ?: song.optInt("discNumber", 0),
             bitrate = bitrateVal,
             sampleRate = sampleRateVal,
             channels = song.optInt("channels", 0).takeIf { it > 0 },

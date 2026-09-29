@@ -323,6 +323,7 @@ fun ExpressivePlayerScreen(
     isCatalogItem: Boolean = false,
     isCatalogScoreAvailable: Boolean = false,
     onOpenScore: () -> Unit = {},
+    onEditTags: (() -> Unit)? = null,
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
     onToggleLyrics: () -> Unit,
@@ -1652,6 +1653,7 @@ fun ExpressivePlayerScreen(
                                 isCatalogItem,
                                 isCatalogScoreAvailable,
                                 playerMergeControlsToBottom,
+                                onEditTags != null,
                             ) {
                                 resolveExpressiveBottomButtonLayout(
                                     active = activeButtons,
@@ -1661,6 +1663,7 @@ fun ExpressivePlayerScreen(
                                         appSettings.defaultExpressiveBottomButtonsNormal
                                     },
                                     scoreAvailable = isCatalogItem && isCatalogScoreAvailable,
+                                    tagEditingAvailable = onEditTags != null,
                                 )
                             }
                             val displayedButtons = buttonLayout.visible
@@ -1711,6 +1714,19 @@ fun ExpressivePlayerScreen(
                                                     ),
                                                     containerColor = if (isFavorite) primaryColor.copy(alpha = 0.35f) else controlsContainerColor,
                                                     contentColor = if (isFavorite) primaryColor else defaultContentColor
+                                                )
+                                            }
+                                            "EDIT_TAGS" -> {
+                                                RhythmDetailActionButton(
+                                                    onClick = { onEditTags?.invoke() },
+                                                    weight = 1f, height = 44.dp,
+                                                    isFirst = isFirst, isLast = isLast,
+                                                    type = RhythmButtonType.Tonal,
+                                                    icon = MaterialSymbolIcon("edit_note", filled = true),
+                                                    iconSize = 20.dp, text = null,
+                                                    contentDescription = stringResource(R.string.lan_tags_edit),
+                                                    containerColor = controlsContainerColor,
+                                                    contentColor = defaultContentColor,
                                                 )
                                             }
                                             "SCORE" -> {
@@ -2029,6 +2045,19 @@ fun ExpressivePlayerScreen(
                                                     ),
                                                     containerColor = if (isFavorite) primaryColor.copy(alpha = 0.35f) else controlsContainerColor,
                                                     contentColor = if (isFavorite) primaryColor else defaultContentColor
+                                                )
+                                            }
+                                            "EDIT_TAGS" -> {
+                                                RhythmDetailActionButton(
+                                                    onClick = { onEditTags?.invoke() },
+                                                    weight = 0.6f, height = 44.dp,
+                                                    isFirst = isFirst, isLast = isLast,
+                                                    type = RhythmButtonType.Tonal,
+                                                    icon = MaterialSymbolIcon("edit_note", filled = true),
+                                                    iconSize = 20.dp,
+                                                    contentDescription = stringResource(R.string.lan_tags_edit),
+                                                    containerColor = controlsContainerColor,
+                                                    contentColor = defaultContentColor,
                                                 )
                                             }
                                             "SCORE" -> {

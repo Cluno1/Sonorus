@@ -172,6 +172,10 @@ fun ExpressiveBottomButtonsOrderBottomSheet(
 
     fun getButtonDescriptor(buttonId: String): ButtonDescriptor {
         return when (buttonId) {
+            "EDIT_TAGS" -> ButtonDescriptor(
+                title = context.getString(R.string.lan_tags_edit),
+                icon = MaterialSymbolIcon("edit_note", filled = true),
+            )
             "DEVICE" -> ButtonDescriptor(
                 title = context.getString(R.string.expressiveplayerscreen_device),
                 icon = RhythmIcons.SpeakerFilled

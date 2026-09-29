@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_tags_edit">Edit tags</string>
+    <string name="lan_tags_shared_desc">Saved changes are shared with everyone using this gateway.</string>
+    <string name="lan_tags_online">Find tags, cover and lyrics online</string>
+    <string name="lan_tags_candidate_desc">The selected information fills this draft. Save on the edit page to update the gateway.</string>
+    <string name="lan_tags_use_candidate">Use this candidate</string>
+    <string name="lan_tags_save">Save to gateway</string>
+    <string name="lan_tags_remove_cover">Remove cover</string>
+    <string name="lan_tags_lrc">Timed lyrics (LRC)</string>
+    <string name="lan_tags_composer">Composer</string>
+    <string name="lan_tags_language">Language</string>
+    <string name="lan_tags_version">Version</string>
+    <string name="lan_tags_load_failed">Unable to load tags. Check the gateway connection and that tag editing is available.</string>
+    <string name="lan_tags_save_failed">Unable to save. Your draft is kept; check the gateway connection and try again.</string>
+    <string name="lan_tags_invalid_fields">Check the title, numeric tags and text lengths. Lyrics must be smaller than 512 KiB.</string>
+    <string name="lan_tags_retry">Retry</string>
+</resources>

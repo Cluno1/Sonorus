@@ -72,7 +72,7 @@ private fun <T> Result<T>.throwIfCancelled(): Result<T> = onFailure { error ->
     if (error is CancellationException) throw error
 }
 
-class DeviceMetadataRepository(private val context: Context) {
+class DeviceMetadataRepository(private val context: Context, private val allowLanQueries: Boolean = false) {
     private val dao = RhythmDatabase.getInstance(context).deviceMetadataDao()
     private val albumDao = RhythmDatabase.getInstance(context).deviceAlbumMetadataDao()
     private val songDao = RhythmDatabase.getInstance(context).songDao()
@@ -138,7 +138,7 @@ class DeviceMetadataRepository(private val context: Context) {
     ): DeviceProviderSearchResult<DeviceLyricsCandidate> = withContext(Dispatchers.IO) {
         fun result(candidates: List<DeviceLyricsCandidate> = emptyList(), failed: Boolean = false) =
             DeviceProviderSearchResult(DevicePublicMetadataProvider.LRCLIB, candidates, failed)
-        if (!song.isDeviceSong()) return@withContext result()
+        if (!song.isPublicQueryTarget()) return@withContext result()
         if (!NetworkClient.isDevicePublicMetadataEnabled()) return@withContext result()
         val service = NetworkClient.lrclibApiService ?: return@withContext result(failed = true)
         val request = query.normalized()
@@ -205,7 +205,7 @@ class DeviceMetadataRepository(private val context: Context) {
     ): DeviceProviderSearchResult<DeviceArtworkCandidate> = withContext(Dispatchers.IO) {
         fun result(candidates: List<DeviceArtworkCandidate> = emptyList(), failed: Boolean = false) =
             DeviceProviderSearchResult(provider, candidates, failed)
-        if (!song.isDeviceSong()) return@withContext result()
+        if (!song.isPublicQueryTarget()) return@withContext result()
         if (!NetworkClient.isDevicePublicMetadataEnabled()) return@withContext result()
         val request = query.normalized()
         if (request.title.isBlank()) return@withContext result()
@@ -352,7 +352,7 @@ class DeviceMetadataRepository(private val context: Context) {
     ): DeviceProviderSearchResult<DeviceDetailsCandidate> = withContext(Dispatchers.IO) {
         fun result(candidates: List<DeviceDetailsCandidate> = emptyList(), failed: Boolean = false) =
             DeviceProviderSearchResult(provider, candidates, failed)
-        if (!song.isDeviceSong()) return@withContext result()
+        if (!song.isPublicQueryTarget()) return@withContext result()
         if (!NetworkClient.isDevicePublicMetadataEnabled()) return@withContext result()
         val request = query.normalized()
         if (request.title.isBlank()) return@withContext result()
@@ -1123,6 +1123,35 @@ class DeviceMetadataRepository(private val context: Context) {
 
     private enum class ArtworkProvider { DEEZER, COVER_ART_ARCHIVE, ITUNES }
 
+    /** Reuses the public-provider URL and image checks, without writing device song metadata. */
+    suspend fun gatewayArtworkBytes(candidate: DeviceArtworkCandidate): ByteArray = withContext(Dispatchers.IO) {
+        check(allowLanQueries && NetworkClient.isDevicePublicMetadataEnabled())
+        val provider = when (candidate.provider) {
+            DevicePublicMetadataProvider.DEEZER -> ArtworkProvider.DEEZER
+            DevicePublicMetadataProvider.MUSICBRAINZ_CAA -> ArtworkProvider.COVER_ART_ARCHIVE
+            DevicePublicMetadataProvider.ITUNES -> ArtworkProvider.ITUNES
+            else -> error("Unsupported artwork provider")
+        }
+        val cached = downloadArtwork(candidate.imageUrl, "lan-${java.util.UUID.randomUUID()}.jpg", provider)
+            ?: error("Unable to download cover image")
+        try {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeFile(cached.file.absolutePath, bounds)
+            check(bounds.outWidth in 1..8192 && bounds.outHeight in 1..8192) { "Invalid cover image dimensions" }
+            var sampleSize = 1
+            while (bounds.outWidth / sampleSize > 2048 || bounds.outHeight / sampleSize > 2048) sampleSize *= 2
+            val bitmap = android.graphics.BitmapFactory.decodeFile(
+                cached.file.absolutePath,
+                android.graphics.BitmapFactory.Options().apply { inSampleSize = sampleSize },
+            ) ?: error("Unable to read cover image")
+            try {
+                val output = java.io.ByteArrayOutputStream()
+                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, output))
+                output.toByteArray().also { check(it.size <= 6 * 1024 * 1024) { "Cover image exceeds 6 MiB" } }
+            } finally { bitmap.recycle() }
+        } finally { cached.file.delete() }
+    }
+
     private fun downloadArtwork(url: String, name: String, provider: ArtworkProvider): CachedArtworkFile? = runCatching {
         val safe = when (provider) {
             ArtworkProvider.DEEZER -> DeviceMetadataPolicy.safeDeezerArtworkUrl(url)
@@ -1264,6 +1293,10 @@ class DeviceMetadataRepository(private val context: Context) {
     }
     private fun String.isUnknown() = isBlank() || equals("unknown", true) || equals("<unknown>", true) || startsWith("unknown ", true)
     private fun Song.isDeviceSong() = DeviceMetadataPolicy.isEligible(id, uri.scheme)
+    private fun Song.isPublicQueryTarget() = isDeviceSong() || (allowLanQueries &&
+        io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy.isLanSong(
+            io.github.cluno1.sonorus.core.ProductCapabilities.lanSubsonicOnly, id, uri.toString(),
+        ))
 
     companion object {
         const val MIN_AUTO_CONFIDENCE = 0.72

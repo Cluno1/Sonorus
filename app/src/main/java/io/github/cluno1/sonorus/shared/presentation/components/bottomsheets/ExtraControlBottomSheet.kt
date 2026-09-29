@@ -126,6 +126,7 @@ fun ExtraControlBottomSheet(
     onToggleLyrics: () -> Unit = {},
     onToggleFavorite: () -> Unit = {},
     onOpenScore: () -> Unit = {},
+    onEditTags: (() -> Unit)? = null,
     onDevice: () -> Unit = {},
     onQueue: () -> Unit = {},
     onAddToPlaylist: () -> Unit,
@@ -189,6 +190,10 @@ fun ExtraControlBottomSheet(
     )
 
     fun overflowAction(buttonId: String): ControlAction? = when (buttonId) {
+        "EDIT_TAGS" -> onEditTags?.let { action -> controlAction(
+            icon = MaterialSymbolIcon("edit_note", filled = true),
+            label = context.getString(R.string.lan_tags_edit), action = action,
+        ) }
         "LYRICS" -> controlAction(
             icon = MaterialSymbolIcon("lyrics", filled = true),
             label = context.getString(R.string.expressiveplayerscreen_lyrics),

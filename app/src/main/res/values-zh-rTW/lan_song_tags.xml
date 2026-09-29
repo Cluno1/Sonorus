@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_tags_edit">編輯標籤</string>
+    <string name="lan_tags_shared_desc">儲存後，所有連接此閘道的使用者都會看到修改後的資訊。</string>
+    <string name="lan_tags_online">線上取得標籤、封面和歌詞</string>
+    <string name="lan_tags_candidate_desc">選取的資訊會填入草稿，返回編輯頁點擊儲存後才會更新閘道。</string>
+    <string name="lan_tags_use_candidate">使用此候選</string>
+    <string name="lan_tags_save">儲存至閘道</string>
+    <string name="lan_tags_remove_cover">移除封面</string>
+    <string name="lan_tags_lrc">時間軸歌詞（LRC）</string>
+    <string name="lan_tags_composer">作曲者</string>
+    <string name="lan_tags_language">語言</string>
+    <string name="lan_tags_version">版本</string>
+    <string name="lan_tags_load_failed">無法讀取標籤，請檢查閘道連線及閘道是否已支援標籤編輯。</string>
+    <string name="lan_tags_save_failed">儲存失敗，草稿已保留。請檢查閘道連線後重試。</string>
+    <string name="lan_tags_invalid_fields">請檢查歌曲名、數字標籤和文字長度，歌詞總大小須小於 512 KiB。</string>
+    <string name="lan_tags_retry">重試</string>
+</resources>

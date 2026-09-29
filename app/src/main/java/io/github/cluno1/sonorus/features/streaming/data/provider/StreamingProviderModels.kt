@@ -24,7 +24,8 @@ data class ProviderSong(
     val bitrate: Int? = null,
     val sampleRate: Int? = null,
     val channels: Int? = null,
-    val codec: String? = null
+    val codec: String? = null,
+    val discNumber: Int? = null,
 )
 
 /**

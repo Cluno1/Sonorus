@@ -8302,6 +8302,45 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Fetches lyrics for the current song if settings allow, with automatic retry logic
      * Now properly handles race conditions and song changes
      */
+    private var lanLyricsGeneration = 0L
+
+    fun applyLanSongMetadata(metadata: io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata) {
+        val id = LanSubsonicPlaybackPolicy.mediaId(metadata.trackId)
+        fun update(song: Song) = if (song.id == id) metadata.applyTo(song) else song
+        _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map(::update))
+        if (_currentSong.value?.id == id) {
+            lanLyricsGeneration++
+            lyricsFetchJob?.cancel()
+            _currentSong.value = _currentSong.value?.let(::update)
+            _currentLyrics.value = metadata.lyrics()
+            _isLoadingLyrics.value = false
+        }
+        val playlists = _playlists.value.map { playlist -> playlist.copy(songs = playlist.songs.map(::update)) }
+        if (playlists != _playlists.value) {
+            _playlists.value = playlists
+            savePlaylists()
+        }
+        val provider = io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
+            .provideStreamingMusicRepository(getApplication()) as? io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl
+        provider?.applyLanMetadata(metadata)
+        mediaController?.let { controller ->
+            for (index in 0 until controller.mediaItemCount) {
+                val item = controller.getMediaItemAt(index)
+                if (item.mediaId != id) continue
+                val changed = _currentQueue.value.songs.firstOrNull { it.id == id } ?: _currentSong.value?.takeIf { it.id == id }
+                if (changed != null) {
+                    // Keep URI, cache key, index and playback position. Only media metadata changes.
+                    val mediaMetadata = item.mediaMetadata.buildUpon()
+                        .setTitle(changed.title).setArtist(changed.artist).setAlbumTitle(changed.album)
+                        .setAlbumArtist(changed.albumArtist).setArtworkUri(changed.artworkUri)
+                        .setTrackNumber(changed.trackNumber).setDiscNumber(changed.discNumber)
+                        .setReleaseYear(changed.year).setGenre(changed.genre).build()
+                    controller.replaceMediaItem(index, item.buildUpon().setMediaMetadata(mediaMetadata).build())
+                }
+            }
+        }
+    }
+
     private fun fetchLyricsForCurrentSong(retryCount: Int = 0) {
         val song = currentSong.value ?: return
         if (LanSubsonicPlaybackPolicy.isLanSong(
@@ -8310,9 +8349,37 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 uri = song.uri.toString(),
             )
         ) {
+            val generation = ++lanLyricsGeneration
             lyricsFetchJob?.cancel()
             _currentLyrics.value = null
             _isLoadingLyrics.value = false
+            if (!showLyrics.value) return
+            val client = (io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
+                .provideStreamingMusicRepository(getApplication()) as io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl)
+                .lanMetadataClient()
+            val expectedServer = client.getServerUrl()
+            val trackId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) ?: return
+            lyricsFetchJob = viewModelScope.launch {
+                _isLoadingLyrics.value = true
+                try {
+                    val metadata = client.getLanSongMetadata(trackId, expectedServer).getOrNull()
+                    if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id && client.getServerUrl() == expectedServer) {
+                        // Read the shared lyrics and tags, including edits made by another user.
+                        if (metadata != null) {
+                            _currentLyrics.value = metadata.lyrics()
+                            _currentSong.value = metadata.applyTo(_currentSong.value ?: song)
+                            _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map {
+                                if (it.id == song.id) metadata.applyTo(it) else it
+                            })
+                            (io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
+                                .provideStreamingMusicRepository(getApplication()) as? io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl)
+                                ?.applyLanMetadata(metadata)
+                        }
+                    }
+                } finally {
+                    if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) _isLoadingLyrics.value = false
+                }
+            }
             return
         }
         if (deviceLyricsCandidatesSongId != song.id) {
@@ -8432,9 +8499,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 uri = current?.uri?.toString(),
             )
         ) {
-            lyricsFetchJob?.cancel()
-            _currentLyrics.value = null
-            _isLoadingLyrics.value = false
+            fetchLyricsForCurrentSong()
             return
         }
         viewModelScope.launch(Dispatchers.IO) {

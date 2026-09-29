@@ -253,6 +253,9 @@ sealed class Screen(val route: String) {
         fun createRoute(tab: LibraryTab = LibraryTab.SONGS): String = "library?tab=${tab.name.lowercase()}"
     }
     object Player : Screen("player")
+    object LanSongTags : Screen("lan_song_tags/{songId}") {
+        fun createRoute(songId: String): String = "lan_song_tags/${Uri.encode(songId)}"
+    }
     object Settings : Screen("settings")
     object CatalogSettings : Screen("catalog_settings")
     object ChorusAdmin : Screen("chorus_admin")
@@ -403,6 +406,7 @@ private fun StreamingSong.toLocalSong(): Song? {
         artworkUri = artworkUri?.takeIf { it.isNotBlank() }?.let(Uri::parse),
         albumArtist = albumArtist,
         trackNumber = trackNumber ?: 0,
+        discNumber = discNumber ?: 0,
         year = year ?: 0,
         genre = genre,
         bitrate = bitrate,
@@ -432,6 +436,7 @@ private fun StreamingSong.toDisplaySong(): Song {
         artworkUri = artworkUri?.takeIf { it.isNotBlank() }?.let(Uri::parse),
         albumArtist = albumArtist,
         trackNumber = trackNumber ?: 0,
+        discNumber = discNumber ?: 0,
         year = year ?: 0,
         genre = genre,
         bitrate = bitrate,
@@ -1645,13 +1650,11 @@ private fun LocalNavigationContent(
                         onAddToPlaylist = {
                             showAddToPlaylistSheet.value = true
                         },
-                        showLyrics = showLyrics && !currentIsLan,
+                        showLyrics = showLyrics,
                         onlineOnlyLyrics = showOnlineOnlyLyrics,
-                        lyrics = lyrics.takeUnless { currentIsLan },
-                        isLoadingLyrics = isLoadingLyrics && !currentIsLan,
-                        onRetryLyrics = {
-                            if (!currentIsLan) viewModel.retryFetchLyrics()
-                        },
+                        lyrics = lyrics,
+                        isLoadingLyrics = isLoadingLyrics,
+                        onRetryLyrics = viewModel::retryFetchLyrics,
                         volume = viewModel.volume.collectAsState().value,
                         isMuted = viewModel.isMuted.collectAsState().value,
                         onVolumeChange = { volume ->
@@ -2499,6 +2502,29 @@ private fun LocalNavigationContent(
                         onBack = {
                             if (!navController.popBackStack()) navigateToTopLevel(Screen.Library.route)
                         },
+                    )
+                }
+
+                composable(
+                    route = Screen.LanSongTags.route,
+                    arguments = listOf(navArgument("songId") { type = NavType.StringType }),
+                ) { backStackEntry ->
+                    val songId = backStackEntry.arguments?.getString("songId").orEmpty()
+                    val targetSong = remember(songId) {
+                        nativeSongs.firstOrNull { it.id == songId }
+                            ?: currentSong?.takeIf { it.id == songId }
+                            ?: viewModel.currentQueue.value.songs.firstOrNull { it.id == songId }
+                    }
+                    val tagsViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.LanSongTagsViewModel =
+                        androidx.lifecycle.viewmodel.compose.viewModel()
+                    io.github.cluno1.sonorus.features.streaming.presentation.screens.LanSongTagsScreen(
+                        song = targetSong, viewModel = tagsViewModel, appSettings = appSettings,
+                        onSaved = { metadata ->
+                            viewModel.applyLanSongMetadata(metadata)
+                            streamingMusicViewModel.applyLanMetadata(metadata)
+                            navController.popBackStack()
+                        },
+                        onBack = { navController.popBackStack() },
                     )
                 }
 

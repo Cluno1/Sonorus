@@ -265,6 +265,13 @@ fun PlayerScreen(
         mediaId = song?.id,
         uri = song?.uri?.toString(),
     )
+    val editLanTags: (() -> Unit)? = song?.takeIf { readOnlyLan }?.let { targetSong ->
+        {
+            navController.navigate(Screen.LanSongTags.createRoute(targetSong.id)) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     // issue 9: catalog MP3 走 Rhythm 原生播放器（Expressive/Material），不再进自研的
     // ManagedCatalogPlayer。`song` 已是 catalog 投影的 Song，直接落入下方原生播放逻辑，
@@ -489,14 +496,14 @@ fun PlayerScreen(
             queueTotal = queueTotal,
             isShuffleEnabled = isShuffleEnabled,
             repeatMode = repeatMode,
-            showLyricsView = showLyricsView && !readOnlyLan,
-            showLyrics = showLyrics && !readOnlyLan,
-            lyrics = lyrics.takeUnless { readOnlyLan },
-            isLoadingLyrics = isLoadingLyrics && !readOnlyLan,
+            showLyricsView = showLyricsView,
+            showLyrics = showLyrics,
+            lyrics = lyrics,
+            isLoadingLyrics = isLoadingLyrics,
             onlineOnlyLyrics = onlineOnlyLyrics,
             onLyricsSeek = onLyricsSeek,
-            onRetryLyrics = { if (!readOnlyLan) onRetryLyrics() },
-            onShowLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
+            onRetryLyrics = onRetryLyrics,
+            onShowLyricsEditor = { if (readOnlyLan) editLanTags?.invoke() else showLyricsEditorDialog = true },
             onPickLyricsFile = { if (!readOnlyLan) onPickLyricsFile() },
             onManualLyricsSearch = song?.takeIf {
                 DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
@@ -529,11 +536,12 @@ fun PlayerScreen(
             isCatalogItem = isCatalogItem,
             isCatalogScoreAvailable = isCatalogScoreAvailable,
             onOpenScore = onCatalogOpenScore,
+            onEditTags = editLanTags,
             onToggleShuffle = onToggleShuffle,
             onToggleRepeat = onToggleRepeat,
-            onToggleLyrics = { if (!readOnlyLan) showLyricsView = !showLyricsView },
+            onToggleLyrics = { showLyricsView = !showLyricsView },
             onSongInfoClick = { showSongInfoSheet = true },
-            onOpenFullScreenLyrics = { if (!readOnlyLan) showFullScreenLyrics = true },
+            onOpenFullScreenLyrics = { showFullScreenLyrics = true },
             onShowAlbumBottomSheet = {
                 song?.let { currentSong ->
                     val album = resolveAlbumForSong(currentSong)
@@ -763,7 +771,7 @@ fun PlayerScreen(
                         android.util.Log.w("PlayerScreen", "Metadata update failed for song: ${song.title}", e)
                     }
                 },
-                onShowLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
+                onShowLyricsEditor = { if (readOnlyLan) editLanTags?.invoke() else showLyricsEditorDialog = true },
                 onOpenManualMetadata = song.takeIf {
                     DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
                 }?.let { targetSong ->
@@ -791,12 +799,13 @@ fun PlayerScreen(
                 equalizerEnabled = equalizerEnabled,
                 sleepTimerActive = sleepTimerActive,
                 sleepTimerRemainingSeconds = sleepTimerRemainingSeconds,
-                lyrics = lyrics.takeUnless { readOnlyLan },
+                lyrics = lyrics,
                 overflowButtonIds = overflowBottomButtonIds,
                 isFavorite = isFavorite,
-                onToggleLyrics = { if (!readOnlyLan) showLyricsView = !showLyricsView },
+                onToggleLyrics = { showLyricsView = !showLyricsView },
                 onToggleFavorite = onToggleFavorite,
                 onOpenScore = onCatalogOpenScore,
+                onEditTags = editLanTags,
                 onDevice = { showDeviceOutputSheet = true },
                 onQueue = { showQueueSheet = true },
                 onAddToPlaylist = { showAddToPlaylistSheetInternal = true },
@@ -815,7 +824,7 @@ fun PlayerScreen(
                     }
                 },
                 onSleepTimer = { showSleepTimerBottomSheet = true },
-                onLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
+                onLyricsEditor = { if (readOnlyLan) editLanTags?.invoke() else showLyricsEditorDialog = true },
                 onAlbum = {
                     song?.let { currentSong ->
                         val album = resolveAlbumForSong(currentSong)
@@ -953,6 +962,7 @@ fun PlayerScreen(
     } else {
         MaterialPlayerScreen(
             song = song,
+            onEditTags = editLanTags,
             isPlaying = isPlaying,
             progress = progress,
             location = location,
@@ -982,11 +992,11 @@ fun PlayerScreen(
             isShuffleEnabled = isShuffleEnabled,
             repeatMode = repeatMode,
             isFavorite = isFavorite,
-            showLyrics = showLyrics && !readOnlyLan,
+            showLyrics = showLyrics,
             onlineOnlyLyrics = onlineOnlyLyrics,
-            lyrics = lyrics.takeUnless { readOnlyLan },
-            isLoadingLyrics = isLoadingLyrics && !readOnlyLan,
-            onRetryLyrics = { if (!readOnlyLan) onRetryLyrics() },
+            lyrics = lyrics,
+            isLoadingLyrics = isLoadingLyrics,
+            onRetryLyrics = onRetryLyrics,
             onEditLyrics = { value -> if (!readOnlyLan) onEditLyrics(value) },
             onPickLyricsFile = { if (!readOnlyLan) onPickLyricsFile() },
             onSaveLyrics = { value, format -> if (!readOnlyLan) onSaveLyrics(value, format) },
@@ -1018,7 +1028,7 @@ fun PlayerScreen(
             musicViewModel = musicViewModel,
             navController = navController,
             isStreamingMode = isStreamingMode,
-            onOpenFullScreenLyrics = { if (!readOnlyLan) showFullScreenLyrics = true },
+            onOpenFullScreenLyrics = { showFullScreenLyrics = true },
             canvasArtwork = if (showFullScreenLyrics) null else canvasArtwork,
             canvasLoading = if (showFullScreenLyrics) false else canvasLoading,
             swipeToDismissEnabled = swipeToDismissEnabled,
@@ -1028,7 +1038,7 @@ fun PlayerScreen(
     }
 
     AnimatedVisibility(
-        visible = showFullScreenLyrics && !readOnlyLan,
+        visible = showFullScreenLyrics,
         enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         modifier = Modifier.fillMaxSize()
@@ -1042,14 +1052,14 @@ fun PlayerScreen(
             song = song,
             isPlaying = isPlaying,
             currentTimeMs = currentTimeMs,
-            lyrics = lyrics.takeUnless { readOnlyLan },
-            isLoadingLyrics = isLoadingLyrics && !readOnlyLan,
+            lyrics = lyrics,
+            isLoadingLyrics = isLoadingLyrics,
             onPlayPause = onPlayPause,
             onSkipNext = onSkipNext,
             onSkipPrevious = onSkipPrevious,
             onSeek = onSeek,
             onLyricsSeek = onLyricsSeek,
-            onRetryLyrics = { if (!readOnlyLan) onRetryLyrics() },
+            onRetryLyrics = onRetryLyrics,
             onManualLyricsSearch = song?.takeIf {
                 DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
             }?.let { targetSong ->
@@ -1061,7 +1071,7 @@ fun PlayerScreen(
                 }
             },
             onClose = { showFullScreenLyrics = false },
-            onShowLyricsEditor = { if (!readOnlyLan) showLyricsEditorDialog = true },
+            onShowLyricsEditor = { if (readOnlyLan) editLanTags?.invoke() else showLyricsEditorDialog = true },
             onNavigateToLyricsSettings = {
                 try {
                     navController.navigate(Screen.TunerLyrics.route) {
