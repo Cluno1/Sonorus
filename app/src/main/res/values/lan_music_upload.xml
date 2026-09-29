@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_upload_title">Upload to gateway</string>
+    <string name="lan_upload_description">Choose local music and upload it directly to the gateway. Keep this page open until uploading finishes. Leaving cancels remaining uploads.</string>
+    <string name="lan_upload_gateway">Gateway: %1$s</string>
+    <string name="lan_upload_formats">%1$s · Up to %2$d MiB per file</string>
+    <string name="lan_upload_select">Choose local audio files</string>
+    <string name="lan_upload_selected">Selected: %1$d files</string>
+    <string name="lan_upload_progress">%1$d%%</string>
+    <string name="lan_upload_empty">Choose one or more audio files to begin.</string>
+    <string name="lan_upload_ready">Ready</string>
+    <string name="lan_upload_preparing">Preparing audio…</string>
+    <string name="lan_upload_uploading">Uploading…</string>
+    <string name="lan_upload_importing">Adding to the library…</string>
+    <string name="lan_upload_success">Added to the gateway library</string>
+    <string name="lan_upload_duplicate">Already on the gateway; existing tags kept</string>
+    <string name="lan_upload_failed">Upload failed</string>
+    <string name="lan_upload_cancelled">Cancelled</string>
+    <string name="lan_upload_remove">Remove from this list</string>
+    <string name="lan_upload_cancel">Cancel uploads</string>
+    <string name="lan_upload_start">Start uploading</string>
+    <string name="lan_upload_retry">Retry remaining uploads</string>
+    <string name="lan_upload_unavailable">Connect to a gateway that supports music uploads, then retry.</string>
+    <string name="lan_upload_read_failed">The audio file could not be read or prepared. Choose it again.</string>
+    <string name="lan_upload_unsupported">Supported formats: MP3, FLAC, WAV and M4A.</string>
+    <string name="lan_upload_invalid">The gateway could not read this audio format or its duration.</string>
+    <string name="lan_upload_too_large">This audio file exceeds the gateway upload limit.</string>
+    <string name="lan_upload_connection_changed">The gateway connection changed. Reopen this page after connecting.</string>
+    <string name="lan_upload_library_full">The gateway library has reached its song limit.</string>
+    <string name="lan_upload_busy">The gateway is receiving other music. Try again shortly.</string>
+    <string name="lan_upload_storage_failed">The gateway could not save the music. Check its disk space and try again.</string>
+    <string name="lan_upload_request_failed">Upload failed. Check your network and gateway connection, then retry.</string>
+</resources>

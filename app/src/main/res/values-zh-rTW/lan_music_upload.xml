@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_upload_title">上傳到閘道</string>
+    <string name="lan_upload_description">選擇本機音樂，直接上傳到閘道。請停留在此頁面等待上傳完成；離開會取消剩餘上傳。</string>
+    <string name="lan_upload_gateway">目標閘道：%1$s</string>
+    <string name="lan_upload_formats">%1$s · 單一檔案最多 %2$d MiB</string>
+    <string name="lan_upload_select">選擇本機音訊檔案</string>
+    <string name="lan_upload_selected">已選擇 %1$d 個檔案</string>
+    <string name="lan_upload_progress">%1$d%%</string>
+    <string name="lan_upload_empty">請選擇一個或多個音訊檔案開始。</string>
+    <string name="lan_upload_ready">待上傳</string>
+    <string name="lan_upload_preparing">正在準備音訊…</string>
+    <string name="lan_upload_uploading">正在上傳…</string>
+    <string name="lan_upload_importing">正在加入曲庫…</string>
+    <string name="lan_upload_success">已加入閘道曲庫</string>
+    <string name="lan_upload_duplicate">閘道已有此檔案，保留已有標籤</string>
+    <string name="lan_upload_failed">上傳失敗</string>
+    <string name="lan_upload_cancelled">已取消</string>
+    <string name="lan_upload_remove">從上傳清單移除</string>
+    <string name="lan_upload_cancel">取消上傳</string>
+    <string name="lan_upload_start">開始上傳</string>
+    <string name="lan_upload_retry">重試剩餘檔案</string>
+    <string name="lan_upload_unavailable">請連接支援音樂上傳的閘道後重試。</string>
+    <string name="lan_upload_read_failed">無法讀取或準備音訊檔案，請重新選擇。</string>
+    <string name="lan_upload_unsupported">支援 MP3、FLAC、WAV、M4A 格式。</string>
+    <string name="lan_upload_invalid">閘道無法識別此音訊格式或時長。</string>
+    <string name="lan_upload_too_large">音訊檔案超過閘道允許的上傳大小。</string>
+    <string name="lan_upload_connection_changed">閘道連線已改變，請連接後重新開啟此頁面。</string>
+    <string name="lan_upload_library_full">閘道曲庫已達到歌曲數量上限。</string>
+    <string name="lan_upload_busy">閘道正在接收其他音樂，請稍後重試。</string>
+    <string name="lan_upload_storage_failed">閘道儲存音樂失敗，請檢查磁碟空間後重試。</string>
+    <string name="lan_upload_request_failed">上傳失敗，請檢查網路和閘道連線後重試。</string>
+</resources>

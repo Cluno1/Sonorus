@@ -253,6 +253,7 @@ sealed class Screen(val route: String) {
         fun createRoute(tab: LibraryTab = LibraryTab.SONGS): String = "library?tab=${tab.name.lowercase()}"
     }
     object Player : Screen("player")
+    object LanMusicUpload : Screen("lan_music_upload")
     object LanSongTags : Screen("lan_song_tags/{songId}") {
         fun createRoute(songId: String): String = "lan_song_tags/${Uri.encode(songId)}"
     }
@@ -2505,6 +2506,16 @@ private fun LocalNavigationContent(
                     )
                 }
 
+                composable(route = Screen.LanMusicUpload.route) {
+                    val uploadViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.LanMusicUploadViewModel =
+                        androidx.lifecycle.viewmodel.compose.viewModel()
+                    io.github.cluno1.sonorus.features.streaming.presentation.screens.LanMusicUploadScreen(
+                        viewModel = uploadViewModel,
+                        onLibraryChanged = { streamingMusicViewModel.loadLanLibrary(force = true) },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+
                 composable(
                     route = Screen.LanSongTags.route,
                     arguments = listOf(navArgument("songId") { type = NavType.StringType }),
@@ -3925,6 +3936,9 @@ private fun LocalNavigationContent(
                                     .DeviceManualMetadataKind.LYRICS,
                             )
                         },
+                        onUploadLanMusic = if (ProductCapabilities.lanSubsonicOnly) ({
+                            navController.navigate(Screen.LanMusicUpload.route) { launchSingleTop = true }
+                        }) else null,
                         isStreamingMode = isStreamingMode,
                         streamingServiceName = streamingServiceName,
                         streamingServiceConnected = streamingServiceConnected,

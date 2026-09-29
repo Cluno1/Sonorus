@@ -61,6 +61,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private var seekProgressHandler: ((Float) -> Unit)? = null
     private var seekPositionHandler: ((Long) -> Unit)? = null
     private var lanLibraryLoadJob: Job? = null
+    private var lanLibraryRefreshPending = false
 
     fun applyLanMetadata(metadata: io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata) {
         val id = LanSubsonicPlaybackPolicy.mediaId(metadata.trackId)
@@ -476,7 +477,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     /** Load only the read-only songs/albums surface used by the private LAN gateway. */
     fun loadLanLibrary(force: Boolean = false) {
         if (!ProductCapabilities.lanSubsonicOnly) return
-        if (lanLibraryLoadJob?.isActive == true) return
+        if (lanLibraryLoadJob?.isActive == true) {
+            if (force) lanLibraryRefreshPending = true
+            return
+        }
         if (!force && _hasLoadedHomeContent.value && _hasLoadedLibrary.value && _allSongs.value.isNotEmpty()) {
             return
         }
@@ -524,6 +528,10 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _hasLoadedLibrary.value = true
                 _isLoading.value = false
                 lanLibraryLoadJob = null
+                if (lanLibraryRefreshPending) {
+                    lanLibraryRefreshPending = false
+                    loadLanLibrary(force = true)
+                }
             }
         }
     }

@@ -8,21 +8,33 @@ package io.github.cluno1.sonorus.features.streaming.data.provider
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.Response
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
 import org.json.JSONObject
 import java.security.MessageDigest
+import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import androidx.core.content.edit
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanMusicUploadCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanMusicUploadError
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanMusicUploadException
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanMusicUploadResult
+import okio.BufferedSink
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class SubsonicErrorException(val code: Int, message: String) : Exception(message)
 
@@ -49,6 +61,15 @@ class SubsonicApiClient(context: Context) {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(15, TimeUnit.SECONDS)
+        .build()
+
+    private val musicUploadClient = okHttpClient.newBuilder()
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.MINUTES)
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .retryOnConnectionFailure(false)
         .build()
 
     fun isConnected(): Boolean = credentials?.let { it.serverUrl.isNotBlank() && it.username.isNotBlank() && it.password.isNotBlank() } == true
@@ -116,6 +137,100 @@ class SubsonicApiClient(context: Context) {
 
     suspend fun getLanSongMetadata(trackId: String, expectedServer: String): Result<LanSongMetadata> =
         metadataRequest("songs/$trackId", expectedServer).mapCatching { parseLanMetadata(it, trackId) }
+
+    suspend fun getLanMusicUploadCapabilities(expectedServer: String): Result<LanMusicUploadCapabilities> =
+        metadataRequest("capabilities", expectedServer).mapCatching { response ->
+            val upload = response.optJSONObject("musicUpload")
+            if (upload == null || !upload.optBoolean("enabled")) {
+                throw LanMusicUploadException(LanMusicUploadError.UNAVAILABLE)
+            }
+            val maxBytes = upload.getLong("maxBytes")
+            val formats = upload.getJSONArray("extensions")
+            val extensions = (0 until formats.length()).map { formats.getString(it) }.toSet()
+                .intersect(setOf("mp3", "flac", "wav", "m4a"))
+            check(maxBytes in 1..(512L * 1024 * 1024) && extensions.isNotEmpty())
+            LanMusicUploadCapabilities(response.getString("gatewayId"), maxBytes, extensions)
+        }
+
+    suspend fun uploadLanMusic(
+        expectedServer: String,
+        expectedGateway: String,
+        filename: String,
+        body: RequestBody,
+    ): Result<LanMusicUploadResult> {
+        val cred = credentials
+        if (cred == null || cred.serverUrl != expectedServer || expectedServer.isBlank()) {
+            return Result.failure(LanMusicUploadException(LanMusicUploadError.CONNECTION_CHANGED))
+        }
+        return try {
+            val base = cred.serverUrl.toHttpUrlOrNull() ?: error("Invalid gateway URL")
+            val authenticated = buildApiUrl(cred, "ping", emptyMap()).toHttpUrlOrNull()!!
+            val url = authenticated.newBuilder()
+                .encodedPath("${base.encodedPath.trimEnd('/')}/sonorus/v1/music/upload")
+                .addQueryParameter("filename", filename)
+                .build()
+            val guardedBody = object : RequestBody() {
+                override fun contentType() = body.contentType()
+                override fun contentLength() = body.contentLength()
+                override fun isOneShot() = true
+                override fun writeTo(sink: BufferedSink) {
+                    if (credentials != cred) throw LanMusicUploadException(LanMusicUploadError.CONNECTION_CHANGED)
+                    body.writeTo(sink)
+                }
+            }
+            val request = Request.Builder().url(url)
+                .header("Accept", "application/json")
+                .header("X-Sonorus-Gateway-Id", expectedGateway)
+                .post(guardedBody).build()
+            val result = suspendCancellableCoroutine<LanMusicUploadResult> { continuation ->
+                val call = musicUploadClient.newCall(request)
+                continuation.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (continuation.isActive) continuation.resumeWithException(
+                            e as? LanMusicUploadException ?: LanMusicUploadException(LanMusicUploadError.REQUEST_FAILED),
+                        )
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        response.use {
+                            if (!continuation.isActive) return
+                            try {
+                                if (credentials != cred) throw LanMusicUploadException(LanMusicUploadError.CONNECTION_CHANGED)
+                                if (!response.isSuccessful) {
+                                    val error = when (response.code) {
+                                        400 -> LanMusicUploadError.INVALID_AUDIO
+                                        401, 403 -> LanMusicUploadError.CONNECTION_CHANGED
+                                        409 -> if (JSONObject(response.body.string()).optString("code") == "gateway_changed")
+                                            LanMusicUploadError.CONNECTION_CHANGED else LanMusicUploadError.LIBRARY_FULL
+                                        404 -> LanMusicUploadError.UNAVAILABLE
+                                        413 -> LanMusicUploadError.TOO_LARGE
+                                        429 -> LanMusicUploadError.BUSY
+                                        503 -> LanMusicUploadError.STORAGE
+                                        else -> LanMusicUploadError.REQUEST_FAILED
+                                    }
+                                    throw LanMusicUploadException(error)
+                                }
+                                val payload = JSONObject(response.body.string())
+                                val id = payload.getJSONObject("song").getString("trackId")
+                                check(LanSubsonicPlaybackPolicy.trackIdFromMediaId("SUBSONIC::$id") != null)
+                                continuation.resume(LanMusicUploadResult(id, payload.optBoolean("duplicate")))
+                            } catch (e: Exception) {
+                                if (continuation.isActive) continuation.resumeWithException(
+                                    e as? LanMusicUploadException ?: LanMusicUploadException(LanMusicUploadError.REQUEST_FAILED),
+                                )
+                            }
+                        }
+                    }
+                })
+            }
+            Result.success(result)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e as? LanMusicUploadException ?: LanMusicUploadException(LanMusicUploadError.REQUEST_FAILED))
+        }
+    }
 
     suspend fun saveLanSongMetadata(
         trackId: String,

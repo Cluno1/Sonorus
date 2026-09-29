@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lan_upload_title">上传到网关</string>
+    <string name="lan_upload_description">选择本地音乐，直接上传到网关。请停留在此页面等待上传完成；离开会取消剩余上传。</string>
+    <string name="lan_upload_gateway">目标网关：%1$s</string>
+    <string name="lan_upload_formats">%1$s · 单文件最多 %2$d MiB</string>
+    <string name="lan_upload_select">选择本地音频文件</string>
+    <string name="lan_upload_selected">已选择 %1$d 个文件</string>
+    <string name="lan_upload_progress">%1$d%%</string>
+    <string name="lan_upload_empty">请选择一个或多个音频文件开始。</string>
+    <string name="lan_upload_ready">待上传</string>
+    <string name="lan_upload_preparing">正在准备音频…</string>
+    <string name="lan_upload_uploading">正在上传…</string>
+    <string name="lan_upload_importing">正在加入曲库…</string>
+    <string name="lan_upload_success">已加入网关曲库</string>
+    <string name="lan_upload_duplicate">网关已有此文件，保留已有标签</string>
+    <string name="lan_upload_failed">上传失败</string>
+    <string name="lan_upload_cancelled">已取消</string>
+    <string name="lan_upload_remove">从上传列表移除</string>
+    <string name="lan_upload_cancel">取消上传</string>
+    <string name="lan_upload_start">开始上传</string>
+    <string name="lan_upload_retry">重试剩余文件</string>
+    <string name="lan_upload_unavailable">请连接支持音乐上传的网关后重试。</string>
+    <string name="lan_upload_read_failed">无法读取或准备音频文件，请重新选择。</string>
+    <string name="lan_upload_unsupported">支持 MP3、FLAC、WAV、M4A 格式。</string>
+    <string name="lan_upload_invalid">网关无法识别此音频格式或时长。</string>
+    <string name="lan_upload_too_large">音频文件超过网关允许的上传大小。</string>
+    <string name="lan_upload_connection_changed">网关连接已改变，请连接后重新打开此页面。</string>
+    <string name="lan_upload_library_full">网关曲库已达到歌曲数量上限。</string>
+    <string name="lan_upload_busy">网关正在接收其他音乐，请稍后重试。</string>
+    <string name="lan_upload_storage_failed">网关保存音乐失败，请检查磁盘空间后重试。</string>
+    <string name="lan_upload_request_failed">上传失败，请检查网络和网关连接后重试。</string>
+</resources>
