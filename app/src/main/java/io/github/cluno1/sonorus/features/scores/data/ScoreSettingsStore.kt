@@ -17,6 +17,8 @@ internal data class ScoreGlobalSettings(
     val playbackEndBehavior: String = "PAUSE_AT_END",
     val notationLayout: String = "SEPARATE_PARTS",
     val partColorMode: String = "DEFAULT",
+    /** "AUTO" follows the app language; otherwise a [ScoreLyricScript] name. */
+    val lyricScript: String = ScoreLyricScript.AUTO,
 )
 
 internal data class ScoreScopedSettings(
@@ -31,6 +33,7 @@ internal object ScoreSettingsCodec {
     private val endBehaviors = setOf("PAUSE_AT_END", "LOOP_CURRENT")
     private val notationLayouts = setOf("SEPARATE_PARTS", "MERGED_STAVES")
     private val partColorModes = setOf("DEFAULT", "ENHANCED")
+    private val lyricScripts = setOf(ScoreLyricScript.AUTO) + ScoreLyricScript.entries.map { it.name }
     private val staffModes = setOf("ALL_STAVES", "SELECTED_PARTS")
     private val scoreVariants = setOf("OCR", "MIDI")
 
@@ -41,6 +44,7 @@ internal object ScoreSettingsCodec {
         addProperty("playbackEndBehavior", settings.playbackEndBehavior)
         addProperty("notationLayout", settings.notationLayout)
         addProperty("partColorMode", settings.partColorMode)
+        addProperty("lyricScript", settings.lyricScript)
     }.toString()
 
     fun decodeGlobal(raw: String?): ScoreGlobalSettings {
@@ -60,6 +64,9 @@ internal object ScoreSettingsCodec {
             partColorMode = json.string("partColorMode")
                 ?.takeIf(partColorModes::contains)
                 ?: "DEFAULT",
+            lyricScript = json.string("lyricScript")
+                ?.takeIf(lyricScripts::contains)
+                ?: ScoreLyricScript.AUTO,
         )
     }
 

@@ -85,8 +85,51 @@ internal class LoadedScore(
     val displayScore: Score,
     val playbackScore: Score,
     val canonicalMusicXml: ByteArray,
-    private val displayMusicXml: ByteArray
+    private val displayMusicXml: ByteArray,
+    private val lyricRoot: LoadedScore? = null,
+    val lyricScript: ScoreLyricScript? = null,
 ) {
+    /** Chinese lyric scripts present in this score; empty for untagged or lyric-free files. */
+    val availableLyricScripts: Set<ScoreLyricScript> by lazy {
+        lyricRoot?.availableLyricScripts
+            ?: MusicXmlLyricLanguageProjector.availableScripts(displayMusicXml)
+    }
+    private val lyricVariants = mutableMapOf<ScoreLyricScript, LoadedScore>()
+
+    /**
+     * Returns a display variant showing only [script] lyrics. The playback score and canonical
+     * bytes are shared with the original, so switching scripts never restarts playback.
+     * Parses MusicXML: call off the main thread.
+     */
+    fun withLyricScript(script: ScoreLyricScript): LoadedScore {
+        val base = lyricRoot ?: this
+        if (script == lyricScript || base.availableLyricScripts.isEmpty()) return this
+        return synchronized(base.lyricVariants) {
+            base.lyricVariants.getOrPut(script) {
+                val projected = MusicXmlLyricLanguageProjector.project(base.displayMusicXml, script)
+                if (projected === base.displayMusicXml) {
+                    base
+                } else {
+                    LoadedScore(
+                        displayScore = ScoreLoader.loadScoreFromBytes(
+                            Uint8Array(projected.toUByteArray()),
+                            Settings().apply {
+                                player.playerMode = PlayerMode.Disabled
+                                player.enableCursor = false
+                                player.enableUserInteraction = false
+                            },
+                        ),
+                        playbackScore = base.playbackScore,
+                        canonicalMusicXml = base.canonicalMusicXml,
+                        displayMusicXml = projected,
+                        lyricRoot = base,
+                        lyricScript = script,
+                    )
+                }
+            }
+        }
+    }
+
     val displayPartLabels: List<String> by lazy {
         ChoirScoreDisplayProjector.trackLabels(displayMusicXml)
     }

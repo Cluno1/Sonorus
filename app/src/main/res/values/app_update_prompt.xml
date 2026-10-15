@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_prompt_title">New version available</string>
+    <string name="update_prompt_message">Sonorus %1$s is available (installed: %2$s).</string>
+    <string name="update_prompt_release_notes">What\'s new</string>
+    <string name="update_prompt_upgrade">Upgrade now</string>
+    <string name="update_prompt_skip">Skip</string>
+    <string name="update_prompt_cancel">Cancel</string>
+    <string name="update_prompt_retry">Retry</string>
+    <string name="update_prompt_downloading">Downloading… %1$d%%</string>
+    <string name="update_prompt_install_permission">Allow Sonorus to install unknown apps in system settings. Installation continues automatically when you come back.</string>
+    <string name="update_prompt_failed">Upgrade failed: %1$s</string>
+</resources>

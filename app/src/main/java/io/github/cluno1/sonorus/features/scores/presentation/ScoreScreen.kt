@@ -91,6 +91,7 @@ import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.features.scores.data.BundledScoreLoader
 import io.github.cluno1.sonorus.features.scores.data.BundledScoreVariant
 import io.github.cluno1.sonorus.features.scores.data.LoadedScore
+import io.github.cluno1.sonorus.features.scores.data.ScoreLyricScript
 import io.github.cluno1.sonorus.features.scores.data.MergedDisplayScore
 import io.github.cluno1.sonorus.features.scores.data.ScoreEditSession
 import io.github.cluno1.sonorus.features.scores.data.ScoreGlobalSettings
@@ -906,6 +907,12 @@ private fun ScoreReadyContent(
     var selectedTrackMask by remember(scoreSettingsId) {
         mutableIntStateOf(initialScopedSettings.selectedTrackMask)
     }
+    var lyricScriptSetting by remember {
+        mutableStateOf(initialGlobalSettings.lyricScript)
+    }
+    val uiLocale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val effectiveLyricScript = ScoreLyricScript.fromSetting(lyricScriptSetting)
+        ?: ScoreLyricScript.forLocale(uiLocale)
     var trackControlsExpanded by rememberSaveable { mutableStateOf(false) }
     var mutedTracksByVariant by remember(scoreSettingsId) {
         mutableStateOf(
@@ -998,6 +1005,7 @@ private fun ScoreReadyContent(
         endBehavior: ScorePlaybackEndBehavior = playbackEndBehavior,
         layout: ScoreNotationLayout = notationLayout,
         colorMode: ScorePartColorMode = partColorMode,
+        lyricScript: String = lyricScriptSetting,
     ) {
         scoreSettingsStore.saveGlobal(
             ScoreGlobalSettings(
@@ -1007,6 +1015,7 @@ private fun ScoreReadyContent(
                 playbackEndBehavior = endBehavior.name,
                 notationLayout = layout.name,
                 partColorMode = colorMode.name,
+                lyricScript = lyricScript,
             )
         )
     }
@@ -1060,6 +1069,25 @@ private fun ScoreReadyContent(
         .orEmpty()
         .filterTo(mutableSetOf()) { it in trackOptions.indices }
     var mergedDisplayProjection by remember { mutableStateOf<MergedDisplayProjection?>(null) }
+    val availableLyricScripts = remember(activeScores) {
+        activeScores.values.flatMapTo(linkedSetOf()) { it.availableLyricScripts }
+    }
+
+    // Show only the selected Chinese script when a score carries both. Display-only: the shared
+    // playback score is untouched, and editing works on the full canonical lyrics.
+    LaunchedEffect(effectiveLyricScript, activeScores, editSession == null) {
+        if (editSession != null || availableLyricScripts.isEmpty()) return@LaunchedEffect
+        val projected = runCatching {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                activeScores.mapValues { (_, score) -> score.withLyricScript(effectiveLyricScript) }
+            }
+        }.getOrElse { error ->
+            if (error is CancellationException) throw error
+            Log.e(SCORE_DISPLAY_TAG, "lyric script projection failed; showing all lyrics", error)
+            return@LaunchedEffect
+        }
+        if (projected != activeScores) activeScores = projected
+    }
 
     LaunchedEffect(notationLayout, visibleTrackIndexes, activeScores) {
         if (notationLayout == ScoreNotationLayout.SEPARATE_PARTS) {
@@ -1255,6 +1283,32 @@ private fun ScoreReadyContent(
             interactionEnabled = editSession == null && playbackInteractionEnabled,
             settingsContent = {
                 scoreSettingsContent()
+                if (editSession == null && availableLyricScripts.size >= 2) {
+                    ScoreSettingsCard(
+                        icon = RhythmIcons.Player.Lyrics,
+                        title = stringResource(R.string.score_lyrics_script),
+                    ) {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            listOf(
+                                ScoreLyricScript.ZH_HANT to R.string.score_lyrics_script_hant,
+                                ScoreLyricScript.ZH_HANS to R.string.score_lyrics_script_hans,
+                            ).filter { (script, _) -> script in availableLyricScripts }
+                                .forEach { (script, label) ->
+                                    ScoreModeChip(
+                                        selected = effectiveLyricScript == script,
+                                        onClick = {
+                                            lyricScriptSetting = script.name
+                                            persistGlobalSettings(lyricScript = script.name)
+                                        },
+                                        label = stringResource(label),
+                                    )
+                                }
+                        }
+                    }
+                }
             },
             settingsFooterContent = {
                 if (editSession == null) {

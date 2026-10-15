@@ -81,4 +81,11 @@ class ScoreSettingsStoreTest {
         assertEquals(mapOf("OCR" to listOf(0, 2)), invalid.mutedTrackIndexesByVariant)
     }
 
+    @Test
+    fun `lyric script setting round trips and falls back to auto`() {
+        val settings = ScoreGlobalSettings(lyricScript = "ZH_HANT")
+        assertEquals(settings, ScoreSettingsCodec.decodeGlobal(ScoreSettingsCodec.encodeGlobal(settings)))
+        assertEquals("AUTO", ScoreSettingsCodec.decodeGlobal("""{"lyricScript":"EN"}""").lyricScript)
+        assertEquals("AUTO", ScoreSettingsCodec.decodeGlobal("""{"partColorMode":"ENHANCED"}""").lyricScript)
+    }
 }

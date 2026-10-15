@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="score_lyrics_script">Lyrics</string>
+    <string name="score_lyrics_script_hant">Traditional Chinese</string>
+    <string name="score_lyrics_script_hans">Simplified Chinese</string>
+</resources>

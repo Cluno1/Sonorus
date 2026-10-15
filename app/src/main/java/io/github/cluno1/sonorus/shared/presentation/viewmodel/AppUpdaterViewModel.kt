@@ -42,6 +42,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
@@ -95,6 +96,9 @@ private data class PendingMismatchedDownload(
     val fileName: String,
     val retryAttempt: Int,
 )
+
+/** Local epoch day on which the app-open update prompt was last shown. */
+private const val KEY_PROMPT_LAST_SHOWN_DAY = "last_shown_epoch_day"
 
 /**
  * ViewModel for handling app updates
@@ -198,6 +202,20 @@ class AppUpdaterViewModel(
     private val _downloadState = MutableStateFlow<DownloadState?>(null)
     val downloadState: StateFlow<DownloadState?> = _downloadState.asStateFlow()
     private var pendingMismatchedDownload: PendingMismatchedDownload? = null
+
+    // Serializes manifest fetches so the app-open check and periodic checks share one request.
+    private val checkMutex = Mutex()
+
+    // App-open update prompt (shown at most once per local day)
+    private val startupPromptPrefs: SharedPreferences =
+        application.getSharedPreferences("app_update_prompt", Context.MODE_PRIVATE)
+    private val _startupPrompt = MutableStateFlow<AppVersion?>(null)
+    val startupPrompt: StateFlow<AppVersion?> = _startupPrompt.asStateFlow()
+    private val _startupInstallPending = MutableStateFlow(false)
+    val startupInstallPending: StateFlow<Boolean> = _startupInstallPending.asStateFlow()
+    private val _startupUpgradeError = MutableStateFlow<String?>(null)
+    val startupUpgradeError: StateFlow<String?> = _startupUpgradeError.asStateFlow()
+    private var startupUpgradeJob: kotlinx.coroutines.Job? = null
 
     init {
         if (!ProductCapabilities.inAppUpdates) {
@@ -346,49 +364,181 @@ class AppUpdaterViewModel(
                 return@launch
             }
 
-            // Skip check if within update interval unless forced
-            if (!force && System.currentTimeMillis() - lastUpdateCheck < updateCheckInterval) {
-                Log.d(tag, "Skipping update check - within interval")
-                return@launch
-            }
-
-            _isCheckingForUpdates.value = true
-            _error.value = null
-            _latestVersion.value = null // Clear any previous version data
-
-            try {
-                when (val result = updateClient.latest()) {
-                    SonorusUpdateFetchResult.NotModified -> Unit
-                    is SonorusUpdateFetchResult.Available -> {
-                        val update = result.update
-                        val manifest = update.manifest
-                        processCandidate(
-                            AppVersion(
-                                versionName = manifest.versionName,
-                                versionCode = manifest.versionCode,
-                                releaseDate = manifest.publishedAt.substringBefore('T'),
-                                whatsNew = manifest.releaseNotes,
-                                knownIssues = emptyList(),
-                                downloadUrl = update.downloadUrl,
-                                apkAssetName = update.asset.fileName,
-                                apkSize = update.asset.sizeBytes,
-                                releaseNotes = manifest.releaseNotes.joinToString("\n"),
-                                isPreRelease = manifest.channel == "debug",
-                                buildNumber = manifest.versionCode,
-                                apkSha256 = update.asset.sha256,
-                                minimumAndroidSdk = manifest.minimumAndroidSdk,
-                            ),
-                        )
-                    }
+            checkMutex.withLock {
+                // Skip check if within update interval unless forced. Evaluated under the lock so
+                // a concurrent app-open check that just finished is reused instead of repeated.
+                if (!force && System.currentTimeMillis() - lastUpdateCheck < updateCheckInterval) {
+                    Log.d(tag, "Skipping update check - within interval")
+                    return@launch
                 }
-            } catch (e: Exception) {
-                Log.e(tag, "Error checking for updates", e)
-                _error.value = "Update check failed: ${e.message ?: "Unknown error"}"
-            } finally {
-                _isCheckingForUpdates.value = false
-                lastUpdateCheck = System.currentTimeMillis()
+
+                _isCheckingForUpdates.value = true
+                _error.value = null
+
+                try {
+                    fetchLatestCandidate()
+                } catch (e: Exception) {
+                    Log.e(tag, "Error checking for updates", e)
+                    _error.value = "Update check failed: ${e.message ?: "Unknown error"}"
+                } finally {
+                    _isCheckingForUpdates.value = false
+                    lastUpdateCheck = System.currentTimeMillis()
+                }
             }
         }
+    }
+
+    /**
+     * Fetches the signed manifest and publishes it through [processCandidate].
+     * Callers must hold [checkMutex]. Throws on network, enrollment or validation failures.
+     */
+    private suspend fun fetchLatestCandidate() {
+        _latestVersion.value = null // Clear any previous version data
+        when (val result = updateClient.latest()) {
+            SonorusUpdateFetchResult.NotModified -> Unit
+            is SonorusUpdateFetchResult.Available -> {
+                val update = result.update
+                val manifest = update.manifest
+                processCandidate(
+                    AppVersion(
+                        versionName = manifest.versionName,
+                        versionCode = manifest.versionCode,
+                        releaseDate = manifest.publishedAt.substringBefore('T'),
+                        whatsNew = manifest.releaseNotes,
+                        knownIssues = emptyList(),
+                        downloadUrl = update.downloadUrl,
+                        apkAssetName = update.asset.fileName,
+                        apkSize = update.asset.sizeBytes,
+                        releaseNotes = manifest.releaseNotes.joinToString("\n"),
+                        isPreRelease = manifest.channel == "debug",
+                        buildNumber = manifest.versionCode,
+                        apkSha256 = update.asset.sha256,
+                        minimumAndroidSdk = manifest.minimumAndroidSdk,
+                    ),
+                )
+            }
+        }
+    }
+
+    /**
+     * App-open update check. Runs on cold start and whenever the app returns to the foreground,
+     * and publishes [startupPrompt] at most once per local calendar day. Failures (not enrolled,
+     * offline, invalid manifest) are logged only: an app-open check must never surface errors.
+     */
+    fun checkForUpdatesOnAppOpen() {
+        if (!ProductCapabilities.inAppUpdates) return
+        viewModelScope.launch {
+            if (!_appSettings.updatesEnabled.first() || !_appSettings.autoCheckForUpdates.first()) return@launch
+            if (_startupPrompt.value != null) return@launch
+            val today = java.time.LocalDate.now().toEpochDay()
+            val lastShownDay = startupPromptPrefs.getLong(KEY_PROMPT_LAST_SHOWN_DAY, StartupUpdatePromptPolicy.NEVER_SHOWN)
+            if (!StartupUpdatePromptPolicy.canPromptToday(lastShownDay, today)) return@launch
+
+            val candidate = checkMutex.withLock {
+                val sinceLastCheck = System.currentTimeMillis() - lastUpdateCheck
+                if (lastUpdateCheck == 0L || sinceLastCheck >= StartupUpdatePromptPolicy.RESUME_RECHECK_INTERVAL_MS) {
+                    _isCheckingForUpdates.value = true
+                    try {
+                        fetchLatestCandidate()
+                    } catch (e: Exception) {
+                        Log.w(tag, "App-open update check failed silently", e)
+                        return@launch
+                    } finally {
+                        _isCheckingForUpdates.value = false
+                        lastUpdateCheck = System.currentTimeMillis()
+                    }
+                }
+                _latestVersion.value
+            } ?: return@launch
+
+            val currentDay = java.time.LocalDate.now().toEpochDay()
+            val shouldPrompt = StartupUpdatePromptPolicy.shouldPrompt(
+                lastShownEpochDay = startupPromptPrefs.getLong(KEY_PROMPT_LAST_SHOWN_DAY, StartupUpdatePromptPolicy.NEVER_SHOWN),
+                todayEpochDay = currentDay,
+                candidateVersionCode = candidate.versionCode,
+                installedVersionCode = BuildConfig.VERSION_CODE,
+                candidateMinimumSdk = candidate.minimumAndroidSdk,
+                deviceSdk = Build.VERSION.SDK_INT,
+            )
+            if (!shouldPrompt || _startupPrompt.value != null) return@launch
+            // Record the day before showing so a crash or kill still counts as today's prompt.
+            startupPromptPrefs.edit { putLong(KEY_PROMPT_LAST_SHOWN_DAY, currentDay) }
+            _startupUpgradeError.value = null
+            _startupPrompt.value = candidate
+        }
+    }
+
+    /** User chose "skip": hide the prompt; it may appear again tomorrow. */
+    fun skipStartupPrompt() {
+        _startupPrompt.value = null
+        _startupInstallPending.value = false
+        _startupUpgradeError.value = null
+    }
+
+    /**
+     * One-tap upgrade from the app-open prompt: download (or reuse a verified download), then
+     * hand the APK to the system installer automatically.
+     */
+    fun startStartupUpgrade() {
+        val target = _startupPrompt.value ?: return
+        _startupUpgradeError.value = null
+        _startupInstallPending.value = true
+        val alreadyDownloaded = _downloadedFile.value?.takeIf { it.exists() }
+        if (alreadyDownloaded != null) {
+            installForStartupPrompt()
+            return
+        }
+        if (_latestVersion.value?.versionCode != target.versionCode) {
+            _latestVersion.value = target
+        }
+        _error.value = null
+        downloadUpdate()
+        startupUpgradeJob?.cancel()
+        startupUpgradeJob = viewModelScope.launch {
+            // Wait for either a verified APK or a terminal download error.
+            kotlinx.coroutines.flow.combine(_downloadedFile, _isDownloading, _error) { file, downloading, error ->
+                Triple(file, downloading, error)
+            }.first { (file, downloading, error) -> file != null || (!downloading && error != null) }
+            if (!_startupInstallPending.value) return@launch
+            if (_downloadedFile.value != null) {
+                installForStartupPrompt()
+            } else {
+                _startupInstallPending.value = false
+                _startupUpgradeError.value = _error.value
+            }
+        }
+    }
+
+    /** Cancel an in-flight one-tap upgrade and close the prompt. */
+    fun cancelStartupUpgrade() {
+        startupUpgradeJob?.cancel()
+        if (_isDownloading.value) cancelDownload()
+        skipStartupPrompt()
+    }
+
+    /**
+     * Called when the app returns to the foreground. If the user was sent to the
+     * "install unknown apps" settings page, continue the pending install automatically.
+     */
+    fun onAppForegroundForStartupUpgrade() {
+        if (!_startupInstallPending.value || _downloadedFile.value == null) return
+        if (getApplication<Application>().packageManager.canRequestPackageInstalls()) {
+            installForStartupPrompt()
+        }
+    }
+
+    private fun installForStartupPrompt() {
+        installDownloadedApk()
+        if (_downloadedFile.value == null) {
+            // The system installer was launched successfully.
+            _startupInstallPending.value = false
+            _startupPrompt.value = null
+        } else if (getApplication<Application>().packageManager.canRequestPackageInstalls()) {
+            // Permission was granted but the install still failed: report it in the prompt.
+            _startupInstallPending.value = false
+            _startupUpgradeError.value = _error.value
+        }
+        // Otherwise the unknown-sources settings page was opened; keep pending until resume.
     }
 
     private fun processCandidate(candidate: AppVersion) {

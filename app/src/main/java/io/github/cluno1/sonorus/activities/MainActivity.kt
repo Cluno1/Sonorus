@@ -393,6 +393,11 @@ class MainActivity : AppCompatActivity() {
                             }
                         )
 
+                        // App-open update check: one-tap upgrade prompt, at most once per day.
+                        io.github.cluno1.sonorus.shared.presentation.components.dialogs.StartupUpdatePromptHost(
+                            enabled = !showBetaPopup,
+                        )
+
                         // Track Corruption Popup
                         val showCorruptionDialog by musicViewModel.showCorruptionDialog.collectAsState()
                         val corruptedTrackName by musicViewModel.corruptedTrackName.collectAsState()

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="score_lyrics_script">歌詞</string>
+    <string name="score_lyrics_script_hant">繁中</string>
+    <string name="score_lyrics_script_hans">簡中</string>
+</resources>

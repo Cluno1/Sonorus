@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="update_prompt_title">發現新版本</string>
+    <string name="update_prompt_message">Sonorus %1$s 已發布（目前版本 %2$s）。</string>
+    <string name="update_prompt_release_notes">更新內容</string>
+    <string name="update_prompt_upgrade">一鍵升級</string>
+    <string name="update_prompt_skip">略過</string>
+    <string name="update_prompt_cancel">取消</string>
+    <string name="update_prompt_retry">重試</string>
+    <string name="update_prompt_downloading">正在下載… %1$d%%</string>
+    <string name="update_prompt_install_permission">請在系統設定中允許 Sonorus 安裝未知應用程式，返回後將自動繼續安裝。</string>
+    <string name="update_prompt_failed">升級失敗：%1$s</string>
+</resources>
