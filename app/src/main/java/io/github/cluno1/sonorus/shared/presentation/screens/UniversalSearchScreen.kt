@@ -82,6 +82,17 @@ import io.github.cluno1.sonorus.shared.data.model.Artist
 import io.github.cluno1.sonorus.shared.data.model.Playlist
 import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryScoreWork
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogFailure
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchItem
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
+import io.github.cluno1.sonorus.features.catalog.presentation.displayLabel
+import io.github.cluno1.sonorus.features.catalog.presentation.formatWorkNumbers
+import io.github.cluno1.sonorus.features.catalog.presentation.isWorkNumberQuery
+import androidx.annotation.StringRes
+import androidx.compose.foundation.lazy.LazyListScope
+import android.content.Context
 import io.github.cluno1.sonorus.features.catalog.presentation.components.ScoreWorkGridCard
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsGroup
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsItem
@@ -112,6 +123,8 @@ data class UniversalSearchCatalogSource(
     val serverUrl: String? = null,
     val isLoading: Boolean = false,
     val requiredAppModeForLocalItems: String? = null,
+    /** issue 107: server lyrics / hymnal-number search; null hides both categories. */
+    val searchLibrary: (suspend (String, CatalogLibrarySearchType) -> Result<CatalogLibrarySearchResult>)? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,6 +136,9 @@ fun UniversalSearchScreen(
     onLocalSongClick: (Song, List<Song>) -> Unit = { _, _ -> },
     onLocalAlbumClick: (Album) -> Unit = {},
     onCatalogScoreWorkClick: (CatalogLibraryScoreWork) -> Unit = {},
+    onCatalogWorkLyricsClick: (CatalogLibrarySearchItem) -> Unit = {},
+    onCatalogWorkScoreClick: (CatalogLibrarySearchItem) -> Unit = {},
+    onCatalogWorkSongClick: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit = { _, _ -> },
     onLocalArtistClick: (Artist) -> Unit = {},
     onLocalPlaylistClick: (Playlist) -> Unit = {},
     onStreamingSongClick: (StreamingSong) -> Unit = {},
@@ -174,6 +190,16 @@ fun UniversalSearchScreen(
     var filterAlbums by remember { mutableStateOf(true) }
     var filterArtists by remember { mutableStateOf(true) }
     var filterPlaylists by remember { mutableStateOf(true) }
+    var filterLyrics by remember { mutableStateOf(true) }
+    var filterNumbers by remember { mutableStateOf(true) }
+    var lyricsSearchState by remember {
+        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
+    }
+    var numberSearchState by remember {
+        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
+    }
+    var lyricsSectionExpanded by remember { mutableStateOf(false) }
+    var numberSectionExpanded by remember { mutableStateOf(false) }
 
     var showSwitchDialog by remember { mutableStateOf(false) }
     var pendingAction: (() -> Unit)? by remember { mutableStateOf(null) }
@@ -276,6 +302,43 @@ fun UniversalSearchScreen(
         }
     }
 
+    // issue 107: lyrics and number categories are answered by the server, debounced like typing.
+    val catalogTextSearchAvailable = catalogSource?.searchLibrary != null
+    val currentCatalogTextSearch by rememberUpdatedState(catalogSource?.searchLibrary)
+    val catalogTextQuery = remember(query) { query.trim().take(100) }
+    LaunchedEffect(catalogTextQuery, filterLyrics, catalogTextSearchAvailable) {
+        lyricsSectionExpanded = false
+        val search = currentCatalogTextSearch
+        if (search == null || !filterLyrics || catalogTextQuery.isEmpty()) {
+            lyricsSearchState = UniversalCatalogTextSearchState.Idle
+            return@LaunchedEffect
+        }
+        lyricsSearchState = UniversalCatalogTextSearchState.Loading
+        delay(300)
+        lyricsSearchState = search(catalogTextQuery, CatalogLibrarySearchType.LYRICS).fold(
+            onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
+            onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
+        )
+    }
+    LaunchedEffect(catalogTextQuery, filterNumbers, catalogTextSearchAvailable) {
+        numberSectionExpanded = false
+        val search = currentCatalogTextSearch
+        if (search == null || !filterNumbers || !isWorkNumberQuery(catalogTextQuery)) {
+            numberSearchState = UniversalCatalogTextSearchState.Idle
+            return@LaunchedEffect
+        }
+        numberSearchState = UniversalCatalogTextSearchState.Loading
+        delay(300)
+        numberSearchState = search(catalogTextQuery, CatalogLibrarySearchType.NUMBER).fold(
+            onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
+            onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
+        )
+    }
+    val matchedLyricsItems = (lyricsSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
+    val matchedNumberItems = (numberSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
+    val isCatalogTextSearchLoading = lyricsSearchState is UniversalCatalogTextSearchState.Loading ||
+        numberSearchState is UniversalCatalogTextSearchState.Loading
+
     val matchedLocalSongs = remember(normalizedQuery, localSongs, filterSongs) {
         if (!filterSongs || normalizedQuery.isBlank()) emptyList()
         else {
@@ -327,17 +390,18 @@ fun UniversalSearchScreen(
     val matchedStreamingPlaylists = if (catalogSource == null && filterPlaylists) streamingResults.playlists else emptyList()
 
     val effectiveStreamingLoading = catalogSource == null && isStreamingLoading
-    val isSearchLoading = isLocalLoading || effectiveStreamingLoading
+    val isSearchLoading = isLocalLoading || effectiveStreamingLoading || isCatalogTextSearchLoading
 
     val hasResults = matchedLocalSongs.isNotEmpty() || matchedStreamingSongs.isNotEmpty() ||
             matchedLocalAlbums.isNotEmpty() || matchedStreamingAlbums.isNotEmpty() ||
             matchedLocalArtists.isNotEmpty() || matchedStreamingArtists.isNotEmpty() ||
             matchedLocalPlaylists.isNotEmpty() || matchedStreamingPlaylists.isNotEmpty() ||
-            matchedScoreWorks.isNotEmpty()
+            matchedScoreWorks.isNotEmpty() ||
+            matchedLyricsItems.isNotEmpty() || matchedNumberItems.isNotEmpty()
     val showEmptyState = shouldShowUniversalSearchEmptyState(
         hasResults = hasResults,
         isLocalLoading = isLocalLoading,
-        isStreamingLoading = effectiveStreamingLoading,
+        isStreamingLoading = effectiveStreamingLoading || isCatalogTextSearchLoading,
     )
 
     val handleAction = { itemMode: String, action: () -> Unit ->
@@ -352,6 +416,32 @@ fun UniversalSearchScreen(
             pendingAction = action
             showSwitchDialog = true
         }
+    }
+
+    val openCatalogWorkLyrics: (CatalogLibrarySearchItem) -> Unit = { item ->
+        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        onCatalogWorkLyricsClick(item)
+    }
+    val openCatalogWorkScore: (CatalogLibrarySearchItem) -> Unit = { item ->
+        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        onCatalogWorkScoreClick(item)
+    }
+    val openCatalogWorkSong: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit = { item, song ->
+        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        handleAction("LOCAL") { onCatalogWorkSongClick(item, song) }
+    }
+    val catalogTextSearchItems: LazyListScope.() -> Unit = {
+        universalCatalogTextSearchItems(
+            lyricsState = lyricsSearchState,
+            numberState = numberSearchState,
+            lyricsExpanded = lyricsSectionExpanded,
+            numbersExpanded = numberSectionExpanded,
+            onToggleLyricsExpanded = { lyricsSectionExpanded = !lyricsSectionExpanded },
+            onToggleNumbersExpanded = { numberSectionExpanded = !numberSectionExpanded },
+            onOpenLyrics = openCatalogWorkLyrics,
+            onOpenScore = openCatalogWorkScore,
+            onOpenSong = openCatalogWorkSong,
+        )
     }
 
     val handleBack = {
@@ -726,6 +816,7 @@ fun UniversalSearchScreen(
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
+                        catalogTextSearchItems()
                     }
                 } else if (isLandscapeTablet) {
                     Row(
@@ -855,6 +946,8 @@ fun UniversalSearchScreen(
                                         }
                                     }
                                 }
+
+                                catalogTextSearchItems()
 
                                 val allPlaylists = buildList {
                                     matchedLocalPlaylists.take(5).forEach { playlist ->
@@ -1110,6 +1203,8 @@ fun UniversalSearchScreen(
                                     }
                                 }
                             }
+
+                            catalogTextSearchItems()
 
                             val allAlbums = buildList {
                                 matchedLocalAlbums.take(6).forEach { album ->
@@ -1478,6 +1573,74 @@ fun UniversalSearchScreen(
                         ),
                         border = null
                     )
+                    if (catalogTextSearchAvailable) {
+                        val filterLyricsCornerRadius by animateDpAsState(
+                            targetValue = if (filterLyrics) 24.dp else 12.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "lyricsCornerRadius"
+                        )
+                        FilterChip(
+                            selected = filterLyrics,
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                                filterLyrics = !filterLyrics
+                            },
+                            label = { Text(stringResource(R.string.search_lyrics_section), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                            leadingIcon = if (filterLyrics) {
+                                {
+                                    Icon(
+                                        imageVector = RhythmIcons.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                    )
+                                }
+                            } else null,
+                            shape = RoundedCornerShape(filterLyricsCornerRadius),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = null
+                        )
+                    }
+                    if (catalogTextSearchAvailable) {
+                        val filterNumbersCornerRadius by animateDpAsState(
+                            targetValue = if (filterNumbers) 24.dp else 12.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "numbersCornerRadius"
+                        )
+                        FilterChip(
+                            selected = filterNumbers,
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                                filterNumbers = !filterNumbers
+                            },
+                            label = { Text(stringResource(R.string.search_number_section), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                            leadingIcon = if (filterNumbers) {
+                                {
+                                    Icon(
+                                        imageVector = RhythmIcons.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                    )
+                                }
+                            } else null,
+                            shape = RoundedCornerShape(filterNumbersCornerRadius),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = null
+                        )
+                    }
                 }
             }
         }
@@ -2811,5 +2974,331 @@ private fun universalGenreIconFor(genre: String): io.github.cluno1.sonorus.share
             RhythmIcons.Music.Audiotrack
 
         else -> RhythmIcons.Music.MusicNote
+    }
+}
+
+/** issue 107: state of one server-side search category (lyrics or number). */
+@Immutable
+internal sealed interface UniversalCatalogTextSearchState {
+    data object Idle : UniversalCatalogTextSearchState
+    data object Loading : UniversalCatalogTextSearchState
+    data class Loaded(val result: CatalogLibrarySearchResult) : UniversalCatalogTextSearchState
+    data class Failed(val message: String) : UniversalCatalogTextSearchState
+}
+
+private const val CATALOG_TEXT_SEARCH_PREVIEW_COUNT = 5
+
+private fun catalogTextSearchFailureMessage(context: Context, error: Throwable): String = when (error) {
+    is CatalogFailure.Unreachable -> context.getString(R.string.search_lyrics_number_offline)
+    is CatalogFailure.NotConfigured,
+    is CatalogFailure.InvalidCredentials,
+    -> context.getString(R.string.search_lyrics_number_not_enrolled)
+    else -> error.message?.takeIf(String::isNotBlank)
+        ?: context.getString(R.string.search_lyrics_number_failed)
+}
+
+private fun LazyListScope.universalCatalogTextSearchItems(
+    lyricsState: UniversalCatalogTextSearchState,
+    numberState: UniversalCatalogTextSearchState,
+    lyricsExpanded: Boolean,
+    numbersExpanded: Boolean,
+    onToggleLyricsExpanded: () -> Unit,
+    onToggleNumbersExpanded: () -> Unit,
+    onOpenLyrics: (CatalogLibrarySearchItem) -> Unit,
+    onOpenScore: (CatalogLibrarySearchItem) -> Unit,
+    onOpenSong: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit,
+) {
+    universalCatalogTextSection(
+        sectionKey = "catalog_lyrics",
+        titleRes = R.string.search_lyrics_section,
+        state = lyricsState,
+        expanded = lyricsExpanded,
+        onToggleExpanded = onToggleLyricsExpanded,
+    ) { item ->
+        UniversalLyricsSearchRow(item = item, onClick = { onOpenLyrics(item) })
+    }
+    universalCatalogTextSection(
+        sectionKey = "catalog_numbers",
+        titleRes = R.string.search_number_section,
+        state = numberState,
+        expanded = numbersExpanded,
+        onToggleExpanded = onToggleNumbersExpanded,
+    ) { item ->
+        UniversalNumberSearchRow(
+            item = item,
+            onOpenLyrics = { onOpenLyrics(item) },
+            onOpenScore = { onOpenScore(item) },
+            onOpenSong = { song -> onOpenSong(item, song) },
+        )
+    }
+}
+
+private fun LazyListScope.universalCatalogTextSection(
+    sectionKey: String,
+    @StringRes titleRes: Int,
+    state: UniversalCatalogTextSearchState,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    row: @Composable (CatalogLibrarySearchItem) -> Unit,
+) {
+    when (state) {
+        is UniversalCatalogTextSearchState.Failed -> item(key = "${sectionKey}_message") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateItem(),
+            ) {
+                UniversalCatalogTextSectionHeader(titleRes)
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = RhythmIcons.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+        is UniversalCatalogTextSearchState.Loaded -> {
+            val results = state.result.items
+            if (results.isEmpty()) return
+            item(key = "${sectionKey}_group") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+                ) {
+                    UniversalCatalogTextSectionHeader(titleRes)
+                    if (state.result.fallback != null) {
+                        Text(
+                            text = stringResource(R.string.search_lyrics_fallback_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        val visible = if (expanded) results else results.take(CATALOG_TEXT_SEARCH_PREVIEW_COUNT)
+                        visible.forEach { result ->
+                            key(result.workId) { row(result) }
+                        }
+                    }
+                    if (results.size > CATALOG_TEXT_SEARCH_PREVIEW_COUNT) {
+                        TextButton(
+                            onClick = onToggleExpanded,
+                            modifier = Modifier.padding(start = 4.dp),
+                        ) {
+                            Text(
+                                text = if (expanded) {
+                                    stringResource(R.string.search_lyrics_number_show_less)
+                                } else {
+                                    stringResource(R.string.search_lyrics_number_show_all, results.size)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        UniversalCatalogTextSearchState.Idle,
+        UniversalCatalogTextSearchState.Loading,
+        -> Unit
+    }
+}
+
+@Composable
+private fun UniversalCatalogTextSectionHeader(@StringRes titleRes: Int) {
+    Text(
+        text = stringResource(titleRes),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 8.dp, bottom = 8.dp),
+    )
+}
+
+@Composable
+private fun UniversalLyricsSearchRow(
+    item: CatalogLibrarySearchItem,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = MaterialSymbolIcon("lyrics"),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                item.snippet?.let { snippet ->
+                    Text(
+                        text = snippet,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UniversalNumberSearchRow(
+    item: CatalogLibrarySearchItem,
+    onOpenLyrics: () -> Unit,
+    onOpenScore: () -> Unit,
+    onOpenSong: (CatalogLibrarySearchSong) -> Unit,
+) {
+    val numberLabel = remember(item.matchedNumber, item.numbers) {
+        item.matchedNumber?.displayLabel() ?: formatWorkNumbers(item.numbers)
+    }
+    val showScore = item.defaultScoreId != null
+    val showSongs = item.songs.isNotEmpty()
+    Surface(
+        onClick = onOpenLyrics,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = MaterialSymbolIcon("tag"),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (numberLabel.isNotEmpty()) {
+                        Text(
+                            text = numberLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+            if (item.hasLyrics || showScore || showSongs) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (item.hasLyrics) {
+                        AssistChip(
+                            onClick = onOpenLyrics,
+                            label = { Text(stringResource(R.string.search_number_entry_lyrics)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = MaterialSymbolIcon("lyrics"),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                        )
+                    }
+                    if (showScore) {
+                        AssistChip(
+                            onClick = onOpenScore,
+                            label = { Text(stringResource(R.string.search_number_entry_score)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = RhythmIcons.Score,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                )
+                            },
+                        )
+                    }
+                    if (showSongs) {
+                        var songMenuExpanded by remember(item.workId) { mutableStateOf(false) }
+                        Box {
+                            AssistChip(
+                                onClick = {
+                                    if (item.songs.size == 1) onOpenSong(item.songs.first())
+                                    else songMenuExpanded = true
+                                },
+                                label = { Text(stringResource(R.string.search_number_entry_song)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = RhythmIcons.MusicNote,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(AssistChipDefaults.IconSize),
+                                    )
+                                },
+                            )
+                            DropdownMenu(
+                                expanded = songMenuExpanded,
+                                onDismissRequest = { songMenuExpanded = false },
+                            ) {
+                                item.songs.forEach { song ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = song.trackNo?.let { "$it. ${song.title}" } ?: song.title,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        },
+                                        onClick = {
+                                            songMenuExpanded = false
+                                            onOpenSong(song)
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

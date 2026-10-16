@@ -30,6 +30,14 @@ fun RhythmNowPlayingItem.lyricsVariants(): List<CatalogLyricsVariant> = catalogL
     formats = lyricsFormats,
 )
 
+/** Work-level lyrics (issue 107) carry no per-language format, so every variant is plain text. */
+fun WorkSummary.lyricsVariants(): List<CatalogLyricsVariant> = catalogLyricsVariants(
+    lyrics = lyrics,
+    lyricsLanguage = lyricsLanguage ?: language,
+    translations = lyricsTranslations,
+    formats = null,
+)
+
 fun selectCatalogLyricsVariant(
     variants: List<CatalogLyricsVariant>,
     preferredLanguageTags: List<String>,

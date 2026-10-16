@@ -27,6 +27,13 @@ import io.github.cluno1.sonorus.features.catalog.domain.WorkBundle
 import io.github.cluno1.sonorus.features.catalog.domain.WorkCredit
 import io.github.cluno1.sonorus.features.catalog.domain.WorkSummary
 import io.github.cluno1.sonorus.features.catalog.domain.normalizeCatalogLyricsLanguageTag
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchItem
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogWorkNumber
+import com.google.gson.JsonElement
+import java.util.Locale
 import java.util.UUID
 
 internal object CatalogDtoMapper {
@@ -106,7 +113,105 @@ internal object CatalogDtoMapper {
         },
         createdAt = text(dto.createdAt, "work.created_at"),
         updatedAt = text(dto.updatedAt, "work.updated_at"),
+        // issue 107 fields are display-only: malformed entries are dropped instead of failing
+        // the bundle that score and playback screens depend on.
+        lyrics = dto.lyrics?.takeIf(String::isNotBlank),
+        lyricsLanguage = dto.lyricsLanguage?.let {
+            runCatching { normalizeCatalogLyricsLanguageTag(it) }.getOrNull()
+        },
+        lyricsTranslations = workLyricsTranslations(dto.lyricsTranslations),
+        lyricsSourceImages = dto.lyricsSourceImages.orEmpty()
+            .mapNotNull { runCatching { lyricSourceImage(it) }.getOrNull() }
+            .distinctBy { it.sourcePageId },
+        numberMeta = workNumbers(dto.numberMeta),
     )
+
+    fun librarySearch(
+        dto: LibrarySearchDto,
+        requestedType: CatalogLibrarySearchType,
+    ): CatalogLibrarySearchResult = CatalogLibrarySearchResult(
+        query = dto.query.orEmpty(),
+        type = CatalogLibrarySearchType.entries.firstOrNull { it.wireValue == dto.type } ?: requestedType,
+        fallback = dto.fallback?.trim()?.takeIf(String::isNotEmpty),
+        items = dto.items.required("items")
+            .mapNotNull { runCatching { librarySearchItem(it) }.getOrNull() }
+            .distinctBy { it.workId },
+    )
+
+    private fun librarySearchItem(dto: LibrarySearchItemDto) = CatalogLibrarySearchItem(
+        workId = uuid(dto.workId, "search_item.work_id"),
+        title = text(dto.title, "search_item.title"),
+        matchField = dto.matchField?.trim()?.takeIf(String::isNotEmpty),
+        matchLanguage = dto.matchLanguage?.let {
+            runCatching { normalizeCatalogLyricsLanguageTag(it) }.getOrNull()
+        },
+        snippet = dto.snippet?.trim()?.takeIf(String::isNotEmpty),
+        matchedNumber = workNumber(dto.matchedNumber),
+        numbers = workNumbers(dto.numbers),
+        hasLyrics = dto.hasLyrics ?: false,
+        defaultScoreId = dto.defaultScoreId?.let {
+            runCatching { uuid(it, "search_item.default_score_id") }.getOrNull()
+        },
+        songs = dto.songs.orEmpty().mapNotNull { song ->
+            runCatching {
+                CatalogLibrarySearchSong(
+                    renditionId = uuid(song.renditionId, "search_song.rendition_id"),
+                    albumId = uuid(song.albumId, "search_song.album_id"),
+                    title = text(song.title, "search_song.title"),
+                    trackNo = song.trackNo?.takeIf { it > 0 },
+                )
+            }.getOrNull()
+        }.distinctBy { it.renditionId },
+    )
+
+    /** Accepts `[{"key": "ihope_num", "value": 256}]` and the stored `[{"ihope_num": 256}]` form. */
+    internal fun workNumbers(element: JsonElement?): List<CatalogWorkNumber> {
+        if (element == null || !element.isJsonArray) return emptyList()
+        return element.asJsonArray.mapNotNull(::workNumber).distinctBy { it.key }
+    }
+
+    internal fun workNumber(element: JsonElement?): CatalogWorkNumber? {
+        if (element == null || !element.isJsonObject) return null
+        val json = element.asJsonObject
+        if (json.has("key")) {
+            val key = json.get("key").primitiveText()?.trim()?.takeIf(String::isNotEmpty) ?: return null
+            val value = json.get("value").primitiveLong() ?: return null
+            return CatalogWorkNumber(key, value)
+        }
+        val entry = json.entrySet().singleOrNull() ?: return null
+        val key = entry.key.trim().takeIf(String::isNotEmpty) ?: return null
+        val value = entry.value.primitiveLong() ?: return null
+        return CatalogWorkNumber(key, value)
+    }
+
+    /** Accepts a `[{"language", "lyrics"}]` list or a `{"language": "lyrics"}` object. */
+    internal fun workLyricsTranslations(element: JsonElement?): List<CatalogLyricsTranslation> {
+        val pairs: List<Pair<String?, String?>> = when {
+            element == null -> emptyList()
+            element.isJsonArray -> element.asJsonArray.mapNotNull { item ->
+                if (!item.isJsonObject) return@mapNotNull null
+                val json = item.asJsonObject
+                json.get("language").primitiveText() to json.get("lyrics").primitiveText()
+            }
+            element.isJsonObject -> element.asJsonObject.entrySet().map { entry ->
+                entry.key to entry.value.primitiveText()
+            }
+            else -> emptyList()
+        }
+        return pairs.mapNotNull { (language, lyrics) ->
+            val tag = language?.let {
+                runCatching { normalizeCatalogLyricsLanguageTag(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            val text = lyrics?.takeIf(String::isNotBlank) ?: return@mapNotNull null
+            CatalogLyricsTranslation(tag, text)
+        }.distinctBy { it.language.lowercase(Locale.ROOT) }
+    }
+
+    private fun JsonElement?.primitiveText(): String? =
+        this?.takeIf { it.isJsonPrimitive }?.asString
+
+    private fun JsonElement?.primitiveLong(): Long? =
+        primitiveText()?.trim()?.toLongOrNull()?.takeIf { it >= 0 }
 
     fun bundle(dto: WorkBundleDto): WorkBundle {
         val mappedWork = work(dto.work.required("work"))

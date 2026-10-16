@@ -43,6 +43,13 @@ internal interface CatalogApi {
         @Query("limit") limit: Int = 200,
     ): Response<LibraryScoreWorkPageDto>
 
+    @GET("v2/library/search")
+    suspend fun librarySearch(
+        @Query("q") query: String,
+        @Query("type") type: String,
+        @Query("limit") limit: Int = 50,
+    ): Response<LibrarySearchDto>
+
     @GET("v2/library/albums/{id}")
     suspend fun libraryAlbum(@Path("id") albumId: String): Response<LibraryAlbumDetailDto>
 

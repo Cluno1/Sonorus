@@ -10,6 +10,53 @@ data class WorkSummary(
     val credits: List<WorkCredit>,
     val createdAt: String,
     val updatedAt: String,
+    // issue 107: work-level lyrics for the lyrics detail page. Nullable lists keep bundles cached
+    // by older app versions (deserialized by Gson without Kotlin defaults) readable.
+    val lyrics: String? = null,
+    val lyricsLanguage: String? = null,
+    val lyricsTranslations: List<CatalogLyricsTranslation>? = emptyList(),
+    val lyricsSourceImages: List<CatalogLyricSourceImage>? = emptyList(),
+    val numberMeta: List<CatalogWorkNumber>? = emptyList(),
+)
+
+/** One hymnal number of a Work, e.g. key `ihope_num`, value 256. */
+data class CatalogWorkNumber(
+    val key: String,
+    val value: Long,
+)
+
+enum class CatalogLibrarySearchType(val wireValue: String) {
+    LYRICS("lyrics"),
+    NUMBER("number"),
+}
+
+/** A playable release item of a Work returned by `/v2/library/search`. */
+data class CatalogLibrarySearchSong(
+    val renditionId: String,
+    val albumId: String,
+    val title: String,
+    val trackNo: Int?,
+)
+
+data class CatalogLibrarySearchItem(
+    val workId: String,
+    val title: String,
+    val matchField: String?,
+    val matchLanguage: String?,
+    val snippet: String?,
+    val matchedNumber: CatalogWorkNumber?,
+    val numbers: List<CatalogWorkNumber>,
+    val hasLyrics: Boolean,
+    val defaultScoreId: String?,
+    val songs: List<CatalogLibrarySearchSong>,
+)
+
+data class CatalogLibrarySearchResult(
+    val query: String,
+    val type: CatalogLibrarySearchType,
+    /** null, `opencc_t2s` or `opencc_s2t` when the server matched after a script conversion. */
+    val fallback: String?,
+    val items: List<CatalogLibrarySearchItem>,
 )
 
 data class WorkAlias(val namespace: String, val externalId: String)

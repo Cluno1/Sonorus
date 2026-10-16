@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 107: universal search lyrics / number categories and the work lyrics page. -->
+<resources>
+    <string name="search_lyrics_section">歌詞</string>
+    <string name="search_number_section">序號</string>
+    <string name="search_lyrics_number_offline">需要連網才能搜尋歌詞和序號</string>
+    <string name="search_lyrics_number_not_enrolled">登記音樂庫後才能搜尋歌詞和序號</string>
+    <string name="search_lyrics_number_failed">搜尋失敗</string>
+    <string name="search_lyrics_fallback_hint">已按繁簡轉換匹配</string>
+    <string name="search_lyrics_number_show_all">顯示全部（%1$d）</string>
+    <string name="search_lyrics_number_show_less">收起</string>
+    <string name="search_number_entry_lyrics">歌詞</string>
+    <string name="search_number_entry_score">樂譜</string>
+    <string name="search_number_entry_song">歌曲</string>
+    <string name="work_lyrics_title">歌詞</string>
+    <string name="work_lyrics_play_song">播放歌曲</string>
+    <string name="work_lyrics_empty">該作品暫無歌詞</string>
+    <string name="work_lyrics_load_failed">歌詞載入失敗</string>
+    <string name="work_lyrics_retry">重試</string>
+    <string name="work_lyrics_offline_cached">離線中，正在顯示本機儲存的內容</string>
+    <string name="work_lyrics_song_unavailable">這首歌還沒有同步到本機曲庫，請重新整理後重試</string>
+    <string name="work_lyrics_score_unavailable">樂譜還沒有同步到本機曲庫，請重新整理後重試</string>
+</resources>

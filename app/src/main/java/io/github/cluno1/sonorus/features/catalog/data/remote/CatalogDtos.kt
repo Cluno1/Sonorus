@@ -1,5 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.data.remote
 
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 
 internal data class WorkPageDto(
@@ -159,6 +160,39 @@ internal data class WorkDto(
     @SerializedName("created_at") val createdAt: String?,
     @SerializedName("updated_at") val updatedAt: String?,
     @SerializedName("lyrics_source_images") val lyricsSourceImages: List<LyricSourceImageDto>? = null,
+    // issue 107. Kept as raw JSON so an unexpected shape never fails the whole bundle.
+    @SerializedName("lyrics") val lyrics: String? = null,
+    @SerializedName("lyrics_language") val lyricsLanguage: String? = null,
+    @SerializedName("lyrics_translations") val lyricsTranslations: JsonElement? = null,
+    @SerializedName("number_meta") val numberMeta: JsonElement? = null,
+)
+
+/** `GET /v2/library/search` response (issue 107). */
+internal data class LibrarySearchDto(
+    @SerializedName("query") val query: String?,
+    @SerializedName("type") val type: String?,
+    @SerializedName("fallback") val fallback: String?,
+    @SerializedName("items") val items: List<LibrarySearchItemDto>?,
+)
+
+internal data class LibrarySearchItemDto(
+    @SerializedName("work_id") val workId: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("match_field") val matchField: String? = null,
+    @SerializedName("match_language") val matchLanguage: String? = null,
+    @SerializedName("snippet") val snippet: String? = null,
+    @SerializedName("matched_number") val matchedNumber: JsonElement? = null,
+    @SerializedName("numbers") val numbers: JsonElement? = null,
+    @SerializedName("has_lyrics") val hasLyrics: Boolean? = null,
+    @SerializedName("default_score_id") val defaultScoreId: String? = null,
+    @SerializedName("songs") val songs: List<LibrarySearchSongDto>? = null,
+)
+
+internal data class LibrarySearchSongDto(
+    @SerializedName("rendition_id") val renditionId: String?,
+    @SerializedName("album_id") val albumId: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("track_no") val trackNo: Int? = null,
 )
 
 internal data class WorkBundleDto(

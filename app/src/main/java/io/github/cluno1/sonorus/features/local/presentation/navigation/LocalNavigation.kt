@@ -152,6 +152,10 @@ import io.github.cluno1.sonorus.features.chorus.presentation.ChorusRecordingScre
 import io.github.cluno1.sonorus.features.chorus.presentation.ChorusScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogViewModel
 import io.github.cluno1.sonorus.features.catalog.presentation.currentScoreOption
+import io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkLyricsScreen
+import io.github.cluno1.sonorus.features.catalog.presentation.decodeWorkLyricsSongs
+import io.github.cluno1.sonorus.features.catalog.presentation.encodeWorkLyricsSongs
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
 import io.github.cluno1.sonorus.core.ProductCapabilities
 import io.github.cluno1.sonorus.core.ProductRoutePolicy
 import io.github.cluno1.sonorus.shared.presentation.screens.RhythmStatsScreen
@@ -281,6 +285,15 @@ sealed class Screen(val route: String) {
             parts: Int,
         ) = "catalog_score/${Uri.encode(workId)}/${Uri.encode(scoreId)}/${Uri.encode(revisionId)}" +
             "?title=${Uri.encode(title)}&scoreLabel=${Uri.encode(scoreLabel)}&parts=$parts"
+    }
+    /** issue 107: lyrics of a catalog Work. `songs` absent = unknown, see encodeWorkLyricsSongs. */
+    object CatalogWorkLyrics : Screen("catalog_work_lyrics/{workId}?title={title}&songs={songs}") {
+        fun createRoute(
+            workId: String,
+            title: String,
+            songs: List<CatalogLibrarySearchSong>?,
+        ): String = "catalog_work_lyrics/${Uri.encode(workId)}?title=${Uri.encode(title)}" +
+            (songs?.let { "&songs=${Uri.encode(encodeWorkLyricsSongs(it))}" } ?: "")
     }
     object Chorus : Screen(
         "chorus/{workId}?title={title}&scoreId={scoreId}&revisionId={revisionId}",
@@ -1264,6 +1277,47 @@ private fun LocalNavigationContent(
     val openNativeAlbum: (Album) -> Unit = { album ->
         navController.navigate(Screen.AlbumDetail.createRoute(album.id, album.title)) {
             launchSingleTop = true
+        }
+    }
+    // issue 107: entries from the lyrics / number search results and the work lyrics page.
+    val openCatalogWorkLyrics: (String, String, List<CatalogLibrarySearchSong>?) -> Unit = { workId, title, workSongs ->
+        navController.navigate(Screen.CatalogWorkLyrics.createRoute(workId, title, workSongs)) {
+            launchSingleTop = true
+        }
+    }
+    val openCatalogWorkSong: (CatalogLibrarySearchSong) -> Unit = { searchSong ->
+        val nativeSong = nativeSongs.firstOrNull { it.id == "$CATALOG_SONG_ID_PREFIX${searchSong.renditionId}" }
+        val nativeAlbum = nativeAlbums.firstOrNull { it.id == searchSong.albumId }
+        when {
+            nativeSong != null -> playNativeSong(nativeSong)
+            nativeAlbum != null -> openNativeAlbum(nativeAlbum)
+            else -> {
+                if (catalogState.configured) catalogViewModel.refreshLibrary()
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(context.getString(R.string.work_lyrics_song_unavailable))
+                }
+            }
+        }
+    }
+    val openCatalogWorkScore: (String) -> Unit = { workId ->
+        val scoreWork = catalogState.scoreWorks.firstOrNull { it.workId == workId }
+        val option = scoreWork?.currentScoreOption()
+        if (scoreWork != null && option != null) {
+            navController.navigate(
+                Screen.CatalogScore.createRoute(
+                    scoreWork.workId,
+                    option.scoreId,
+                    option.revisionId,
+                    scoreWork.title,
+                    option.scoreLabel,
+                    option.partCount,
+                )
+            )
+        } else {
+            if (catalogState.configured) catalogViewModel.refreshLibrary()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.work_lyrics_score_unavailable))
+            }
         }
     }
     val queueNativeSong: (Song, Boolean) -> Unit = { song, playNext ->
@@ -2583,6 +2637,40 @@ private fun LocalNavigationContent(
                 }
 
                 composable(
+                    route = Screen.CatalogWorkLyrics.route,
+                    arguments = listOf(
+                        navArgument("workId") { type = NavType.StringType },
+                        navArgument("title") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("songs") { type = NavType.StringType; nullable = true; defaultValue = null },
+                    ),
+                ) { backStackEntry ->
+                    val lyricsWorkId = backStackEntry.arguments?.getString("workId")?.let(Uri::decode).orEmpty()
+                    val lyricsTitle = backStackEntry.arguments?.getString("title")?.let(Uri::decode).orEmpty()
+                    val songsArgument = backStackEntry.arguments?.getString("songs")?.let(Uri::decode)
+                    val playableSongs = remember(lyricsWorkId, lyricsTitle, songsArgument, catalogState.songs) {
+                        if (songsArgument != null) {
+                            decodeWorkLyricsSongs(songsArgument, lyricsTitle)
+                        } else {
+                            // Opened without search data: a song is playable when the Work has a
+                            // release item in the synced library (same rule as /library/songs).
+                            catalogState.songs
+                                .filter { it.workId == lyricsWorkId }
+                                .map { CatalogLibrarySearchSong(it.renditionId, it.albumId, it.title, it.trackNo) }
+                        }
+                    }
+                    CatalogWorkLyricsScreen(
+                        workId = lyricsWorkId,
+                        initialTitle = lyricsTitle,
+                        playableSongs = playableSongs,
+                        viewModel = catalogViewModel,
+                        onBack = {
+                            if (!navController.popBackStack()) navigateToTopLevel(Screen.Home.route)
+                        },
+                        onPlaySong = openCatalogWorkSong,
+                    )
+                }
+
+                composable(
                     Screen.Search.route,
                     enterTransition = {
                         fadeIn(animationSpec = tween(300)) +
@@ -2614,7 +2702,13 @@ private fun LocalNavigationContent(
                                 scoreWorks = catalogState.scoreWorks,
                                 serverUrl = catalogState.serverUrl,
                                 isLoading = catalogState.loading || streamingIsLoading,
+                                searchLibrary = catalogViewModel::searchLibrary,
                             ),
+                            onCatalogWorkLyricsClick = { item ->
+                                openCatalogWorkLyrics(item.workId, item.title, item.songs)
+                            },
+                            onCatalogWorkScoreClick = { item -> openCatalogWorkScore(item.workId) },
+                            onCatalogWorkSongClick = { _, song -> openCatalogWorkSong(song) },
                             onLocalSongClick = { song, contextSongs ->
                                 val index = contextSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
                                 playCatalogQueue(contextSongs, index, false)

@@ -36,6 +36,8 @@ import io.github.cluno1.sonorus.features.catalog.domain.ChorusTrackUpload
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySnapshot
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRepository
 import io.github.cluno1.sonorus.features.catalog.domain.PlaybackDescriptor
@@ -352,6 +354,21 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
         }
     }.recoverCatching { error ->
         if (error is CatalogFailure.Unreachable) cache.loadLibraryAlbum(albumId) ?: throw error else throw error
+    }
+
+    override suspend fun searchLibrary(
+        query: String,
+        type: CatalogLibrarySearchType,
+        limit: Int,
+    ): Result<CatalogLibrarySearchResult> = guarded {
+        val trimmed = query.trim()
+        require(trimmed.length in 1..100) { "search query must be 1..100 characters" }
+        require(limit in 1..100) { "limit must be in 1..100" }
+        // Search results are live server data; there is deliberately no offline cache fallback.
+        CatalogDtoMapper.librarySearch(
+            client().api.librarySearch(trimmed, type.wireValue, limit).bodyOrThrow(),
+            requestedType = type,
+        )
     }
 
     override suspend fun downloadArtwork(assetId: String): Result<CatalogArtwork> = guarded {

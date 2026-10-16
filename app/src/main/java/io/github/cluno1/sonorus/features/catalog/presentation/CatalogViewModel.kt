@@ -17,6 +17,8 @@ import io.github.cluno1.sonorus.features.catalog.domain.RhythmQueueEntry
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryScoreWork
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogIssuedInvite
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDashboard
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDevice
@@ -421,6 +423,23 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             )
         }
     }
+
+    /** issue 107: server-side lyrics / hymnal-number search used by universal search. */
+    suspend fun searchLibrary(
+        query: String,
+        type: CatalogLibrarySearchType,
+    ): Result<CatalogLibrarySearchResult> = repository.searchLibrary(query, type)
+
+    fun cachedWorkBundle(workId: String): WorkBundle? = repository.cachedBundle(workId)
+
+    /**
+     * Bypasses the ETag so bundles cached before work lyrics/number_meta existed are replaced;
+     * the repository still falls back to the cached bundle when the server is unreachable.
+     */
+    suspend fun loadWorkLyrics(workId: String): Result<WorkBundle> =
+        repository.getWorkBundle(workId, forceRefresh = true)
+
+    fun errorMessage(error: Throwable): String = message(error)
 
     fun closeWork() {
         _state.value = _state.value.copy(selectedBundle = null, error = null)

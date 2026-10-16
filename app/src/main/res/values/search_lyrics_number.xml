@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 107: universal search lyrics / number categories and the work lyrics page. -->
+<resources>
+    <string name="search_lyrics_section">Lyrics</string>
+    <string name="search_number_section">Numbers</string>
+    <string name="search_lyrics_number_offline">Connect to the internet to search lyrics and numbers</string>
+    <string name="search_lyrics_number_not_enrolled">Register the music library to search lyrics and numbers</string>
+    <string name="search_lyrics_number_failed">Search failed</string>
+    <string name="search_lyrics_fallback_hint">Matched after Simplified/Traditional Chinese conversion</string>
+    <string name="search_lyrics_number_show_all">Show all (%1$d)</string>
+    <string name="search_lyrics_number_show_less">Show less</string>
+    <string name="search_number_entry_lyrics">Lyrics</string>
+    <string name="search_number_entry_score">Score</string>
+    <string name="search_number_entry_song">Song</string>
+    <string name="work_lyrics_title">Lyrics</string>
+    <string name="work_lyrics_play_song">Play song</string>
+    <string name="work_lyrics_empty">This work has no lyrics yet</string>
+    <string name="work_lyrics_load_failed">Couldn\'t load lyrics</string>
+    <string name="work_lyrics_retry">Retry</string>
+    <string name="work_lyrics_offline_cached">Offline. Showing the saved copy.</string>
+    <string name="work_lyrics_song_unavailable">This song isn\'t in the music library on this device yet. Refresh and try again.</string>
+    <string name="work_lyrics_score_unavailable">This score isn\'t in the music library on this device yet. Refresh and try again.</string>
+</resources>

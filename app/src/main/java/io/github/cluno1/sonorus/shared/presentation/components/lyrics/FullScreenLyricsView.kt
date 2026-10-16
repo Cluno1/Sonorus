@@ -1513,7 +1513,7 @@ private fun FullScreenPlainLyricsView(
 
 
 @Composable
-private fun CatalogLyricSourceToggleButton(
+internal fun CatalogLyricSourceToggleButton(
     visible: Boolean,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -1536,7 +1536,7 @@ private fun CatalogLyricSourceToggleButton(
 }
 
 @Composable
-private fun CatalogLyricSourceImagesView(
+internal fun CatalogLyricSourceImagesView(
     images: List<CatalogLyricSourceImage>,
     modifier: Modifier = Modifier,
 ) {
@@ -1635,7 +1635,7 @@ private fun CatalogLyricSourceImagesView(
 }
 
 @Composable
-private fun ZoomableLyricSourcePage(page: CatalogLyricSourceImage) {
+internal fun ZoomableLyricSourcePage(page: CatalogLyricSourceImage) {
     var scale by remember(page.sourcePageId) { mutableFloatStateOf(1f) }
     var offset by remember(page.sourcePageId) { mutableStateOf(Offset.Zero) }
     var loadFailed by remember(page.sourcePageId) { mutableStateOf(false) }
@@ -1712,7 +1712,7 @@ private fun ZoomableLyricSourcePage(page: CatalogLyricSourceImage) {
 }
 
 @Composable
-private fun CatalogLyricsLanguageMenu(
+internal fun CatalogLyricsLanguageMenu(
     languages: List<String>,
     selectedLanguage: String?,
     onLanguageSelect: (String) -> Unit,
