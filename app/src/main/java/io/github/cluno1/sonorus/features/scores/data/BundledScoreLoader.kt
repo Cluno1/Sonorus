@@ -149,6 +149,42 @@ internal class LoadedScore(
         )
     }
     private val mergedDisplayScores = mutableMapOf<Int, MergedDisplayScore>()
+    private val lyricCarriedScores = mutableMapOf<Int, MergedDisplayScore?>()
+
+    /**
+     * Separate-parts view showing only [visibleTrackIndexes]: when the lyric-carrying part is
+     * hidden, returns a display score whose top visible part carries the lyrics; null when the
+     * normal display score already shows them. Track indexes are unchanged.
+     */
+    suspend fun loadLyricCarriedDisplayScore(visibleTrackIndexes: Set<Int>): MergedDisplayScore? =
+        withContext(Dispatchers.Default) {
+            val mask = visibleTrackIndexes.fold(0) { acc, index -> acc or (1 shl index) }
+            synchronized(lyricCarriedScores) {
+                if (lyricCarriedScores.containsKey(mask)) return@withContext lyricCarriedScores[mask]
+            }
+            val projected = MusicXmlLyricCarrierProjector.project(displayMusicXml, visibleTrackIndexes)
+            val result = if (projected === displayMusicXml) {
+                null
+            } else {
+                val score = ScoreLoader.loadScoreFromBytes(
+                    Uint8Array(projected.toUByteArray()),
+                    Settings().apply {
+                        player.playerMode = PlayerMode.Disabled
+                        player.enableCursor = false
+                        player.enableUserInteraction = false
+                    },
+                )
+                MergedDisplayScore(
+                    score = score,
+                    sourcePartIndexesByTrack = score.tracks.toList().associate { track ->
+                        track.index.toInt() to listOf(track.index.toInt())
+                    },
+                    colorPartIndexesByTrack = displayPartColorIndexesByTrack,
+                )
+            }
+            synchronized(lyricCarriedScores) { lyricCarriedScores[mask] = result }
+            result
+        }
 
     suspend fun loadMergedDisplayScore(selectedTrackIndexes: Set<Int>): MergedDisplayScore =
         withContext(Dispatchers.Default) {
@@ -158,7 +194,8 @@ internal class LoadedScore(
             synchronized(mergedDisplayScores) {
                 mergedDisplayScores[selectionMask]
             } ?: ChoirScoreDisplayProjector.projectWithMapping(
-                source = displayMusicXml,
+                // Keep words visible when the lyric-carrying part is not among the merged parts.
+                source = MusicXmlLyricCarrierProjector.project(displayMusicXml, selectedTrackIndexes),
                 selectedTrackIndexes = selectedTrackIndexes,
             ).let { projection ->
                 val score = ScoreLoader.loadScoreFromBytes(

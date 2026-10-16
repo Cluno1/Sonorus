@@ -1089,9 +1089,25 @@ private fun ScoreReadyContent(
         if (projected != activeScores) activeScores = projected
     }
 
-    LaunchedEffect(notationLayout, visibleTrackIndexes, activeScores) {
+    LaunchedEffect(notationLayout, staffMode, visibleTrackIndexes, activeScores) {
         if (notationLayout == ScoreNotationLayout.SEPARATE_PARTS) {
             mergedDisplayProjection = null
+            if (staffMode != ScoreStaffMode.SELECTED_PARTS) return@LaunchedEffect
+            // Only some parts shown: if the lyric part is hidden, show its words on a visible part.
+            val carried = runCatching {
+                activeScores.mapValues { (_, score) -> score.loadLyricCarriedDisplayScore(visibleTrackIndexes) }
+            }.getOrElse { error ->
+                if (error is CancellationException) throw error
+                Log.e(SCORE_DISPLAY_TAG, "lyric carrier projection failed; showing parts as-is", error)
+                return@LaunchedEffect
+            }
+            if (carried.values.all { it == null }) return@LaunchedEffect
+            mergedDisplayProjection = MergedDisplayProjection(
+                trackIndexes = visibleTrackIndexes,
+                scores = activeScores.mapValues { (variant, score) ->
+                    carried[variant] ?: score.fallbackMergedDisplayScore
+                },
+            )
             return@LaunchedEffect
         }
         mergedDisplayProjection = null
