@@ -123,7 +123,7 @@ data class UniversalSearchCatalogSource(
     val serverUrl: String? = null,
     val isLoading: Boolean = false,
     val requiredAppModeForLocalItems: String? = null,
-    /** issue 107: server lyrics / hymnal-number search; null hides both categories. */
+    /** Server lyrics, hymnal-number, and score search; null hides catalog search categories. */
     val searchLibrary: (suspend (String, CatalogLibrarySearchType) -> Result<CatalogLibrarySearchResult>)? = null,
 )
 
@@ -196,6 +196,9 @@ fun UniversalSearchScreen(
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
     var numberSearchState by remember {
+        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
+    }
+    var scoreSearchState by remember {
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
     var lyricsSectionExpanded by remember { mutableStateOf(false) }
@@ -334,10 +337,26 @@ fun UniversalSearchScreen(
             onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
         )
     }
+    LaunchedEffect(catalogTextQuery, catalogTextSearchAvailable) {
+        val search = currentCatalogTextSearch
+        if (search == null || catalogTextQuery.isEmpty()) {
+            scoreSearchState = UniversalCatalogTextSearchState.Idle
+            return@LaunchedEffect
+        }
+        scoreSearchState = UniversalCatalogTextSearchState.Loading
+        delay(300)
+        scoreSearchState = search(catalogTextQuery, CatalogLibrarySearchType.SCORES).fold(
+            onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
+            // Older servers reject the new type; the score list below retains the local filter as a fallback.
+            onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
+        )
+    }
     val matchedLyricsItems = (lyricsSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
     val matchedNumberItems = (numberSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
+    val scoreSearchResult = (scoreSearchState as? UniversalCatalogTextSearchState.Loaded)?.result
     val isCatalogTextSearchLoading = lyricsSearchState is UniversalCatalogTextSearchState.Loading ||
-        numberSearchState is UniversalCatalogTextSearchState.Loading
+        numberSearchState is UniversalCatalogTextSearchState.Loading ||
+        scoreSearchState is UniversalCatalogTextSearchState.Loading
 
     val matchedLocalSongs = remember(normalizedQuery, localSongs, filterSongs) {
         if (!filterSongs || normalizedQuery.isBlank()) emptyList()
@@ -366,13 +385,20 @@ fun UniversalSearchScreen(
             }
         }
     }
-    val matchedScoreWorks = remember(normalizedQuery, catalogSource?.scoreWorks) {
+    val matchedScoreWorks = remember(normalizedQuery, catalogSource?.scoreWorks, scoreSearchResult) {
         if (normalizedQuery.isBlank()) emptyList()
-        else catalogSource?.scoreWorks.orEmpty().filter { work ->
-            sequenceOf(work.title, work.artist)
-                .plus(work.scoreOptions.asSequence().flatMap { sequenceOf(it.scoreLabel, it.origin) })
-                .filterNotNull()
-                .any { it.contains(normalizedQuery, ignoreCase = true) }
+        else {
+            val scoreWorkIds = scoreSearchResult?.items?.map { it.workId }?.toSet()
+            if (scoreSearchResult != null) {
+                catalogSource?.scoreWorks.orEmpty().filter { it.workId in scoreWorkIds.orEmpty() }
+            } else {
+                catalogSource?.scoreWorks.orEmpty().filter { work ->
+                    sequenceOf(work.title, work.artist)
+                        .plus(work.scoreOptions.asSequence().flatMap { sequenceOf(it.scoreLabel, it.origin) })
+                        .filterNotNull()
+                        .any { it.contains(normalizedQuery, ignoreCase = true) }
+                }
+            }
         }
     }
     val matchedLocalArtists = remember(query, localArtists, filterArtists) {
@@ -2977,7 +3003,7 @@ private fun universalGenreIconFor(genre: String): io.github.cluno1.sonorus.share
     }
 }
 
-/** issue 107: state of one server-side search category (lyrics or number). */
+/** State of one server-side catalog search category. */
 @Immutable
 internal sealed interface UniversalCatalogTextSearchState {
     data object Idle : UniversalCatalogTextSearchState

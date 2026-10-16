@@ -28,6 +28,7 @@ data class CatalogWorkNumber(
 enum class CatalogLibrarySearchType(val wireValue: String) {
     LYRICS("lyrics"),
     NUMBER("number"),
+    SCORES("scores"),
 }
 
 /** A playable release item of a Work returned by `/v2/library/search`. */
