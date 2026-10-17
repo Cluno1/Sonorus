@@ -1352,7 +1352,7 @@ class AppSettings private constructor(context: Context) {
     private val _savedShuffleState = MutableStateFlow(prefs.getBoolean(KEY_SAVED_SHUFFLE_STATE, false))
     val savedShuffleState: StateFlow<Boolean> = _savedShuffleState.asStateFlow()
     
-    private val _savedRepeatMode = MutableStateFlow(prefs.getInt(KEY_SAVED_REPEAT_MODE, 0)) // 0 = OFF, 1 = ALL, 2 = ONE
+    private val _savedRepeatMode = MutableStateFlow(prefs.getInt(KEY_SAVED_REPEAT_MODE, 0))
     val savedRepeatMode: StateFlow<Int> = _savedRepeatMode.asStateFlow()
     
     private val _playbackSpeed = MutableStateFlow(prefs.getFloat(KEY_PLAYBACK_SPEED, 1.0f))

@@ -10791,10 +10791,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     songsById[mediaItem.mediaId] ?: mediaItemToTransientSong(mediaItem)
                 }
 
-                val currentMediaId = controller.currentMediaItem?.mediaId
+                val currentMediaId = controller.currentMediaItem?.mediaId ?: _currentSong.value?.id
                 val rawCurrentMediaIndex = currentMediaId
                     ?.let { id -> mediaItemSongs.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
-                    ?: controller.currentMediaItemIndex.coerceAtLeast(0)
+                    ?: controller.currentMediaItemIndex.takeIf { it >= 0 }
+                    ?: _currentQueue.value.currentIndex.takeIf { it in mediaItemSongs.indices }
+                    ?: 0
                 val currentMediaIndex = if (mediaItemSongs.isEmpty()) {
                     -1
                 } else {
@@ -10804,9 +10806,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Update current song if needed
                 if (mediaItemSongs.isNotEmpty() && currentMediaIndex >= 0 && currentMediaIndex < mediaItemSongs.size) {
-                    val currentSong = mediaItemSongs[currentMediaIndex]
-                    _currentSong.value = currentSong
-                    _isFavorite.value = _favoriteSongs.value.contains(currentSong.id)
+                    if (controller.currentMediaItem != null || _currentSong.value == null) {
+                        val currentSong = mediaItemSongs[currentMediaIndex]
+                        _currentSong.value = currentSong
+                        _isFavorite.value = _favoriteSongs.value.contains(currentSong.id)
+                    }
                 } else if (mediaItemSongs.isEmpty()) {
                     _currentSong.value = null
                 }
