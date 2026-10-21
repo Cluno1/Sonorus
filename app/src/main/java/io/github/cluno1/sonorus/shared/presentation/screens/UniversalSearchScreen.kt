@@ -87,6 +87,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchItem
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
 import io.github.cluno1.sonorus.features.catalog.presentation.displayLabel
 import io.github.cluno1.sonorus.features.catalog.presentation.formatWorkNumbers
 import io.github.cluno1.sonorus.features.catalog.presentation.isWorkNumberQuery
@@ -123,7 +124,7 @@ data class UniversalSearchCatalogSource(
     val serverUrl: String? = null,
     val isLoading: Boolean = false,
     val requiredAppModeForLocalItems: String? = null,
-    /** Server lyrics, hymnal-number, and score search; null hides catalog search categories. */
+    /** Server lyrics, number, score, and tag search; null hides catalog search categories. */
     val searchLibrary: (suspend (String, CatalogLibrarySearchType) -> Result<CatalogLibrarySearchResult>)? = null,
 )
 
@@ -139,6 +140,7 @@ fun UniversalSearchScreen(
     onCatalogWorkLyricsClick: (CatalogLibrarySearchItem) -> Unit = {},
     onCatalogWorkScoreClick: (CatalogLibrarySearchItem) -> Unit = {},
     onCatalogWorkSongClick: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit = { _, _ -> },
+    onCatalogTagClick: (CatalogLibraryTag) -> Unit = {},
     onLocalArtistClick: (Artist) -> Unit = {},
     onLocalPlaylistClick: (Playlist) -> Unit = {},
     onStreamingSongClick: (StreamingSong) -> Unit = {},
@@ -192,10 +194,14 @@ fun UniversalSearchScreen(
     var filterPlaylists by remember { mutableStateOf(true) }
     var filterLyrics by remember { mutableStateOf(true) }
     var filterNumbers by remember { mutableStateOf(true) }
+    var filterTags by remember { mutableStateOf(true) }
     var lyricsSearchState by remember {
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
     var numberSearchState by remember {
+        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
+    }
+    var tagSearchState by remember {
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
     var scoreSearchState by remember {
@@ -203,6 +209,7 @@ fun UniversalSearchScreen(
     }
     var lyricsSectionExpanded by remember { mutableStateOf(false) }
     var numberSectionExpanded by remember { mutableStateOf(false) }
+    var tagSectionExpanded by remember { mutableStateOf(false) }
 
     var showSwitchDialog by remember { mutableStateOf(false) }
     var pendingAction: (() -> Unit)? by remember { mutableStateOf(null) }
@@ -337,6 +344,20 @@ fun UniversalSearchScreen(
             onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
         )
     }
+    LaunchedEffect(catalogTextQuery, filterTags, catalogTextSearchAvailable) {
+        tagSectionExpanded = false
+        val search = currentCatalogTextSearch
+        if (search == null || !filterTags || catalogTextQuery.isEmpty()) {
+            tagSearchState = UniversalCatalogTextSearchState.Idle
+            return@LaunchedEffect
+        }
+        tagSearchState = UniversalCatalogTextSearchState.Loading
+        delay(300)
+        tagSearchState = search(catalogTextQuery, CatalogLibrarySearchType.TAGS).fold(
+            onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
+            onFailure = { UniversalCatalogTextSearchState.Failed(catalogTagSearchFailureMessage(context, it)) },
+        )
+    }
     LaunchedEffect(catalogTextQuery, catalogTextSearchAvailable) {
         val search = currentCatalogTextSearch
         if (search == null || catalogTextQuery.isEmpty()) {
@@ -353,9 +374,11 @@ fun UniversalSearchScreen(
     }
     val matchedLyricsItems = (lyricsSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
     val matchedNumberItems = (numberSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
+    val matchedTagItems = (tagSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.tagItems.orEmpty()
     val scoreSearchResult = (scoreSearchState as? UniversalCatalogTextSearchState.Loaded)?.result
     val isCatalogTextSearchLoading = lyricsSearchState is UniversalCatalogTextSearchState.Loading ||
         numberSearchState is UniversalCatalogTextSearchState.Loading ||
+        tagSearchState is UniversalCatalogTextSearchState.Loading ||
         scoreSearchState is UniversalCatalogTextSearchState.Loading
 
     val matchedLocalSongs = remember(normalizedQuery, localSongs, filterSongs) {
@@ -423,7 +446,7 @@ fun UniversalSearchScreen(
             matchedLocalArtists.isNotEmpty() || matchedStreamingArtists.isNotEmpty() ||
             matchedLocalPlaylists.isNotEmpty() || matchedStreamingPlaylists.isNotEmpty() ||
             matchedScoreWorks.isNotEmpty() ||
-            matchedLyricsItems.isNotEmpty() || matchedNumberItems.isNotEmpty()
+            matchedLyricsItems.isNotEmpty() || matchedNumberItems.isNotEmpty() || matchedTagItems.isNotEmpty()
     val showEmptyState = shouldShowUniversalSearchEmptyState(
         hasResults = hasResults,
         isLocalLoading = isLocalLoading,
@@ -456,17 +479,26 @@ fun UniversalSearchScreen(
         if (query.isNotBlank()) localViewModel.addSearchQuery(query)
         handleAction("LOCAL") { onCatalogWorkSongClick(item, song) }
     }
+    val openCatalogTag: (CatalogLibraryTag) -> Unit = { tag ->
+        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        focusManager.clearFocus()
+        onCatalogTagClick(tag)
+    }
     val catalogTextSearchItems: LazyListScope.() -> Unit = {
         universalCatalogTextSearchItems(
             lyricsState = lyricsSearchState,
             numberState = numberSearchState,
+            tagState = tagSearchState,
             lyricsExpanded = lyricsSectionExpanded,
             numbersExpanded = numberSectionExpanded,
+            tagsExpanded = tagSectionExpanded,
             onToggleLyricsExpanded = { lyricsSectionExpanded = !lyricsSectionExpanded },
             onToggleNumbersExpanded = { numberSectionExpanded = !numberSectionExpanded },
+            onToggleTagsExpanded = { tagSectionExpanded = !tagSectionExpanded },
             onOpenLyrics = openCatalogWorkLyrics,
             onOpenScore = openCatalogWorkScore,
             onOpenSong = openCatalogWorkSong,
+            onOpenTag = openCatalogTag,
         )
     }
 
@@ -1665,6 +1697,40 @@ fun UniversalSearchScreen(
                                 selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
                             ),
                             border = null
+                        )
+                    }
+                    if (catalogTextSearchAvailable) {
+                        val filterTagsCornerRadius by animateDpAsState(
+                            targetValue = if (filterTags) 24.dp else 12.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "tagsCornerRadius",
+                        )
+                        FilterChip(
+                            selected = filterTags,
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                                filterTags = !filterTags
+                            },
+                            label = { Text(stringResource(R.string.search_tags_section), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                            leadingIcon = if (filterTags) {
+                                {
+                                    Icon(
+                                        imageVector = RhythmIcons.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                                    )
+                                }
+                            } else null,
+                            shape = RoundedCornerShape(filterTagsCornerRadius),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                            border = null,
                         )
                     }
                 }
@@ -3023,16 +3089,27 @@ private fun catalogTextSearchFailureMessage(context: Context, error: Throwable):
         ?: context.getString(R.string.search_lyrics_number_failed)
 }
 
+private fun catalogTagSearchFailureMessage(context: Context, error: Throwable): String =
+    if (error is CatalogFailure.Server && error.statusCode in setOf(404, 422)) {
+        context.getString(R.string.search_tags_unavailable)
+    } else {
+        catalogTextSearchFailureMessage(context, error)
+    }
+
 private fun LazyListScope.universalCatalogTextSearchItems(
     lyricsState: UniversalCatalogTextSearchState,
     numberState: UniversalCatalogTextSearchState,
+    tagState: UniversalCatalogTextSearchState,
     lyricsExpanded: Boolean,
     numbersExpanded: Boolean,
+    tagsExpanded: Boolean,
     onToggleLyricsExpanded: () -> Unit,
     onToggleNumbersExpanded: () -> Unit,
+    onToggleTagsExpanded: () -> Unit,
     onOpenLyrics: (CatalogLibrarySearchItem) -> Unit,
     onOpenScore: (CatalogLibrarySearchItem) -> Unit,
     onOpenSong: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit,
+    onOpenTag: (CatalogLibraryTag) -> Unit,
 ) {
     universalCatalogTextSection(
         sectionKey = "catalog_lyrics",
@@ -3050,12 +3127,103 @@ private fun LazyListScope.universalCatalogTextSearchItems(
         expanded = numbersExpanded,
         onToggleExpanded = onToggleNumbersExpanded,
     ) { item ->
-        UniversalNumberSearchRow(
+        CatalogWorkEntryRow(
             item = item,
             onOpenLyrics = { onOpenLyrics(item) },
             onOpenScore = { onOpenScore(item) },
             onOpenSong = { song -> onOpenSong(item, song) },
         )
+    }
+    universalCatalogTagSection(
+        state = tagState,
+        expanded = tagsExpanded,
+        onToggleExpanded = onToggleTagsExpanded,
+        onOpenTag = onOpenTag,
+    )
+}
+
+private fun LazyListScope.universalCatalogTagSection(
+    state: UniversalCatalogTextSearchState,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onOpenTag: (CatalogLibraryTag) -> Unit,
+) {
+    when (state) {
+        is UniversalCatalogTextSearchState.Failed -> item(key = "catalog_tags_message") {
+            Column(modifier = Modifier.fillMaxWidth().animateItem()) {
+                UniversalCatalogTextSectionHeader(R.string.search_tags_section)
+                Text(
+                    text = state.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+        is UniversalCatalogTextSearchState.Loaded -> {
+            val tags = state.result.tagItems
+            if (tags.isEmpty()) return
+            item(key = "catalog_tags_group") {
+                Column(modifier = Modifier.fillMaxWidth().animateItem()) {
+                    UniversalCatalogTextSectionHeader(R.string.search_tags_section)
+                    if (state.result.fallback != null) {
+                        Text(
+                            text = stringResource(R.string.search_lyrics_fallback_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        val visible = if (expanded) tags else tags.take(CATALOG_TEXT_SEARCH_PREVIEW_COUNT)
+                        visible.forEach { tag ->
+                            key(tag.key) { UniversalCatalogTagRow(tag, onClick = { onOpenTag(tag) }) }
+                        }
+                    }
+                    if (tags.size > CATALOG_TEXT_SEARCH_PREVIEW_COUNT) {
+                        TextButton(onClick = onToggleExpanded, modifier = Modifier.padding(start = 4.dp)) {
+                            Text(
+                                if (expanded) stringResource(R.string.search_lyrics_number_show_less)
+                                else stringResource(R.string.search_lyrics_number_show_all, tags.size),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        UniversalCatalogTextSearchState.Idle,
+        UniversalCatalogTextSearchState.Loading,
+        -> Unit
+    }
+}
+
+@Composable
+private fun UniversalCatalogTagRow(tag: CatalogLibraryTag, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(MaterialSymbolIcon("tag"), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(tag.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(R.string.search_tag_work_count, tag.workCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(RhythmIcons.Back, contentDescription = null, modifier = Modifier.graphicsLayer { rotationZ = 180f })
+        }
     }
 }
 
@@ -3207,22 +3375,30 @@ private fun UniversalLyricsSearchRow(
 }
 
 @Composable
-private fun UniversalNumberSearchRow(
+internal fun CatalogWorkEntryRow(
     item: CatalogLibrarySearchItem,
     onOpenLyrics: () -> Unit,
     onOpenScore: () -> Unit,
     onOpenSong: (CatalogLibrarySearchSong) -> Unit,
+    tagLabel: String? = null,
 ) {
     val numberLabel = remember(item.matchedNumber, item.numbers) {
         item.matchedNumber?.displayLabel() ?: formatWorkNumbers(item.numbers)
     }
     val showScore = item.defaultScoreId != null
     val showSongs = item.songs.isNotEmpty()
+    val subtitle = listOfNotNull(tagLabel?.takeIf(String::isNotBlank), numberLabel.takeIf(String::isNotBlank))
+        .joinToString(" · ")
+    val onRowClick: (() -> Unit)? = when {
+        item.hasLyrics -> onOpenLyrics
+        showScore -> onOpenScore
+        item.songs.size == 1 -> ({ onOpenSong(item.songs.first()) })
+        else -> null
+    }
     Surface(
-        onClick = onOpenLyrics,
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = onRowClick != null) { onRowClick?.invoke() },
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3241,9 +3417,9 @@ private fun UniversalNumberSearchRow(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (numberLabel.isNotEmpty()) {
+                    if (subtitle.isNotEmpty()) {
                         Text(
-                            text = numberLabel,
+                            text = subtitle,
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )

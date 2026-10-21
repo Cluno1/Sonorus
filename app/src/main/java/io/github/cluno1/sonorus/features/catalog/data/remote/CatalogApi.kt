@@ -50,6 +50,13 @@ internal interface CatalogApi {
         @Query("limit") limit: Int = 50,
     ): Response<LibrarySearchDto>
 
+    @GET("v2/library/tag-works")
+    suspend fun tagWorks(
+        @Query("tag") tagKey: String,
+        @Query("cursor") cursor: String? = null,
+        @Query("limit") limit: Int = 50,
+    ): Response<LibraryTagWorksPageDto>
+
     @GET("v2/library/albums/{id}")
     suspend fun libraryAlbum(@Path("id") albumId: String): Response<LibraryAlbumDetailDto>
 

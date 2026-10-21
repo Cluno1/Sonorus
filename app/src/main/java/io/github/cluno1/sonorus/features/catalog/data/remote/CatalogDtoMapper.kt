@@ -31,6 +31,8 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchItem
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogTagWorksPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogWorkNumber
 import com.google.gson.JsonElement
 import java.util.Locale
@@ -136,6 +138,27 @@ internal object CatalogDtoMapper {
         items = dto.items.required("items")
             .mapNotNull { runCatching { librarySearchItem(it) }.getOrNull() }
             .distinctBy { it.workId },
+        tagItems = (if (requestedType == CatalogLibrarySearchType.TAGS) {
+            dto.tagItems.required("tag_items")
+        } else {
+            dto.tagItems.orEmpty()
+        })
+            .mapNotNull { runCatching { libraryTag(it) }.getOrNull() }
+            .distinctBy { it.key },
+    )
+
+    fun tagWorksPage(dto: LibraryTagWorksPageDto): CatalogTagWorksPage = CatalogTagWorksPage(
+        tag = libraryTag(dto.tag.required("tag")),
+        items = dto.items.required("items")
+            .mapNotNull { runCatching { librarySearchItem(it) }.getOrNull() }
+            .distinctBy { it.workId },
+        nextCursor = dto.nextCursor?.takeIf(String::isNotBlank),
+    )
+
+    private fun libraryTag(dto: LibraryTagDto) = CatalogLibraryTag(
+        key = text(dto.tagKey, "tag.tag_key"),
+        label = text(dto.label, "tag.label"),
+        workCount = nonNegative(dto.workCount, "tag.work_count"),
     )
 
     private fun librarySearchItem(dto: LibrarySearchItemDto) = CatalogLibrarySearchItem(

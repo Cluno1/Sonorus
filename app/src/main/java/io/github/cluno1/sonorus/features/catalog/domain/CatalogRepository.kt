@@ -65,6 +65,7 @@ interface CatalogRepository {
         type: CatalogLibrarySearchType,
         limit: Int = 50,
     ): Result<CatalogLibrarySearchResult>
+    suspend fun listTagWorks(tagKey: String, cursor: String? = null, limit: Int = 50): Result<CatalogTagWorksPage>
     suspend fun downloadArtwork(assetId: String): Result<CatalogArtwork>
     suspend fun downloadAsset(assetId: String, expectedSha256: String, expectedSize: Long): Result<ByteArray>
     suspend fun cachePlaybackAndLatestScore(

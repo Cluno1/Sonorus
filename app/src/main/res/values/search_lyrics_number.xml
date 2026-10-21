@@ -3,6 +3,14 @@
 <resources>
     <string name="search_lyrics_section">Lyrics</string>
     <string name="search_number_section">Numbers</string>
+    <string name="search_tags_section">Tags</string>
+    <string name="search_tags_unavailable">Tag search is not available on this server yet</string>
+    <string name="search_tag_work_count">%1$d works</string>
+    <string name="search_tag_empty">No works have this tag now</string>
+    <string name="search_tag_load_failed">Couldn\'t load tagged works</string>
+    <string name="search_tag_load_more">Load more</string>
+    <string name="search_tag_refresh">Refresh</string>
+    <string name="search_tag_back">Back</string>
     <string name="search_lyrics_number_offline">Connect to the internet to search lyrics and numbers</string>
     <string name="search_lyrics_number_not_enrolled">Register the music library to search lyrics and numbers</string>
     <string name="search_lyrics_number_failed">Search failed</string>

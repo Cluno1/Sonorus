@@ -173,6 +173,19 @@ internal data class LibrarySearchDto(
     @SerializedName("type") val type: String?,
     @SerializedName("fallback") val fallback: String?,
     @SerializedName("items") val items: List<LibrarySearchItemDto>?,
+    @SerializedName("tag_items") val tagItems: List<LibraryTagDto>? = null,
+)
+
+internal data class LibraryTagDto(
+    @SerializedName("tag_key") val tagKey: String?,
+    @SerializedName("label") val label: String?,
+    @SerializedName("work_count") val workCount: Int?,
+)
+
+internal data class LibraryTagWorksPageDto(
+    @SerializedName("tag") val tag: LibraryTagDto?,
+    @SerializedName("items") val items: List<LibrarySearchItemDto>?,
+    @SerializedName("next_cursor") val nextCursor: String?,
 )
 
 internal data class LibrarySearchItemDto(

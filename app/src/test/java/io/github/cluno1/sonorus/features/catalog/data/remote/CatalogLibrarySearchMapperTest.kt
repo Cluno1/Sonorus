@@ -49,6 +49,37 @@ class CatalogLibrarySearchMapperTest {
     }
 
     @Test
+    fun mapsTagDiscoveryAndTaggedWorkPageWithoutChangingNumberResults() {
+        val discovery = """
+            {"query":"声部","type":"tags","fallback":null,"items":[],
+             "tag_items":[{"tag_key":"多声部","label":"多声部","work_count":2}]}
+        """.trimIndent()
+        val tags = CatalogDtoMapper.librarySearch(
+            gson.fromJson(discovery, LibrarySearchDto::class.java),
+            CatalogLibrarySearchType.TAGS,
+        )
+        assertEquals(CatalogLibrarySearchType.TAGS, tags.type)
+        assertTrue(tags.items.isEmpty())
+        assertEquals("多声部", tags.tagItems.single().key)
+        assertEquals(2, tags.tagItems.single().workCount)
+
+        val workPage = """
+            {"tag":{"tag_key":"多声部","label":"多声部","work_count":2},
+             "items":[{"work_id":"$workId","title":"示例作品","match_field":"tag",
+                       "numbers":[{"key":"ihope_num","value":256}],"has_lyrics":true,
+                       "default_score_id":"$scoreId",
+                       "songs":[{"rendition_id":"$renditionId","album_id":"$albumId","title":"录音名"}]}],
+             "next_cursor":"opaque-next"}
+        """.trimIndent()
+        val page = CatalogDtoMapper.tagWorksPage(gson.fromJson(workPage, LibraryTagWorksPageDto::class.java))
+        assertEquals("opaque-next", page.nextCursor)
+        assertEquals(workId, page.items.single().workId)
+        assertEquals(scoreId, page.items.single().defaultScoreId)
+        assertEquals(1, page.items.single().songs.size)
+        assertEquals(CatalogWorkNumber("ihope_num", 256), page.items.single().numbers.single())
+    }
+
+    @Test
     fun toleratesMissingOptionalFieldsAndDropsInvalidItems() {
         val json = """
             {

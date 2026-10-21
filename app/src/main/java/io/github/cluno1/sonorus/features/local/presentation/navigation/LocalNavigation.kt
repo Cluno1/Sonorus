@@ -153,6 +153,8 @@ import io.github.cluno1.sonorus.features.chorus.presentation.ChorusScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogViewModel
 import io.github.cluno1.sonorus.features.catalog.presentation.currentScoreOption
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkLyricsScreen
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
+import io.github.cluno1.sonorus.shared.presentation.screens.CatalogTagWorksScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.decodeWorkLyricsSongs
 import io.github.cluno1.sonorus.features.catalog.presentation.encodeWorkLyricsSongs
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
@@ -294,6 +296,10 @@ sealed class Screen(val route: String) {
             songs: List<CatalogLibrarySearchSong>?,
         ): String = "catalog_work_lyrics/${Uri.encode(workId)}?title=${Uri.encode(title)}" +
             (songs?.let { "&songs=${Uri.encode(encodeWorkLyricsSongs(it))}" } ?: "")
+    }
+    object CatalogTagWorks : Screen("catalog_tag_works?tagKey={tagKey}&label={label}") {
+        fun createRoute(tag: CatalogLibraryTag): String =
+            "catalog_tag_works?tagKey=${Uri.encode(tag.key)}&label=${Uri.encode(tag.label)}"
     }
     object Chorus : Screen(
         "chorus/{workId}?title={title}&scoreId={scoreId}&revisionId={revisionId}",
@@ -2671,6 +2677,24 @@ private fun LocalNavigationContent(
                 }
 
                 composable(
+                    route = Screen.CatalogTagWorks.route,
+                    arguments = listOf(
+                        navArgument("tagKey") { type = NavType.StringType },
+                        navArgument("label") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) { backStackEntry ->
+                    CatalogTagWorksScreen(
+                        tagKey = backStackEntry.arguments?.getString("tagKey")?.let(Uri::decode).orEmpty(),
+                        initialLabel = backStackEntry.arguments?.getString("label")?.let(Uri::decode).orEmpty(),
+                        viewModel = catalogViewModel,
+                        onBack = { navController.popBackStack() },
+                        onOpenLyrics = { item -> openCatalogWorkLyrics(item.workId, item.title, item.songs) },
+                        onOpenScore = { item -> openCatalogWorkScore(item.workId) },
+                        onOpenSong = openCatalogWorkSong,
+                    )
+                }
+
+                composable(
                     Screen.Search.route,
                     enterTransition = {
                         fadeIn(animationSpec = tween(300)) +
@@ -2709,6 +2733,11 @@ private fun LocalNavigationContent(
                             },
                             onCatalogWorkScoreClick = { item -> openCatalogWorkScore(item.workId) },
                             onCatalogWorkSongClick = { _, song -> openCatalogWorkSong(song) },
+                            onCatalogTagClick = { tag ->
+                                navController.navigate(Screen.CatalogTagWorks.createRoute(tag)) {
+                                    launchSingleTop = true
+                                }
+                            },
                             onLocalSongClick = { song, contextSongs ->
                                 val index = contextSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
                                 playCatalogQueue(contextSongs, index, false)

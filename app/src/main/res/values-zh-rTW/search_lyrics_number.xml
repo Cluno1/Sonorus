@@ -3,6 +3,14 @@
 <resources>
     <string name="search_lyrics_section">歌詞</string>
     <string name="search_number_section">序號</string>
+    <string name="search_tags_section">標籤</string>
+    <string name="search_tags_unavailable">目前伺服器暫不支援標籤搜尋</string>
+    <string name="search_tag_work_count">%1$d 個作品</string>
+    <string name="search_tag_empty">目前沒有帶此標籤的作品</string>
+    <string name="search_tag_load_failed">標籤作品載入失敗</string>
+    <string name="search_tag_load_more">載入更多</string>
+    <string name="search_tag_refresh">重新整理</string>
+    <string name="search_tag_back">返回</string>
     <string name="search_lyrics_number_offline">需要連網才能搜尋歌詞和序號</string>
     <string name="search_lyrics_number_not_enrolled">登記音樂庫後才能搜尋歌詞和序號</string>
     <string name="search_lyrics_number_failed">搜尋失敗</string>

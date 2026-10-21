@@ -29,7 +29,14 @@ enum class CatalogLibrarySearchType(val wireValue: String) {
     LYRICS("lyrics"),
     NUMBER("number"),
     SCORES("scores"),
+    TAGS("tags"),
 }
+
+data class CatalogLibraryTag(
+    val key: String,
+    val label: String,
+    val workCount: Int,
+)
 
 /** A playable release item of a Work returned by `/v2/library/search`. */
 data class CatalogLibrarySearchSong(
@@ -58,6 +65,13 @@ data class CatalogLibrarySearchResult(
     /** null, `opencc_t2s` or `opencc_s2t` when the server matched after a script conversion. */
     val fallback: String?,
     val items: List<CatalogLibrarySearchItem>,
+    val tagItems: List<CatalogLibraryTag> = emptyList(),
+)
+
+data class CatalogTagWorksPage(
+    val tag: CatalogLibraryTag,
+    val items: List<CatalogLibrarySearchItem>,
+    val nextCursor: String?,
 )
 
 data class WorkAlias(val namespace: String, val externalId: String)

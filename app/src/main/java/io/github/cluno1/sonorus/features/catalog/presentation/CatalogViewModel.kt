@@ -19,6 +19,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryScoreWork
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogTagWorksPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogIssuedInvite
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDashboard
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDevice
@@ -429,6 +430,9 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         query: String,
         type: CatalogLibrarySearchType,
     ): Result<CatalogLibrarySearchResult> = repository.searchLibrary(query, type)
+
+    suspend fun listTagWorks(tagKey: String, cursor: String? = null): Result<CatalogTagWorksPage> =
+        repository.listTagWorks(tagKey, cursor)
 
     fun cachedWorkBundle(workId: String): WorkBundle? = repository.cachedBundle(workId)
 
