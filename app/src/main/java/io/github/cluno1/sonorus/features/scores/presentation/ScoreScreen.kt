@@ -609,7 +609,7 @@ fun RemoteScoreScreen(
     canOpenOlderRevision: Boolean = false,
     onOpenNewerRevision: () -> Unit = {},
     onOpenOlderRevision: () -> Unit = {},
-    scoreSettingsContent: @Composable () -> Unit = {},
+    scoreSettingsContent: @Composable (stopPlayback: () -> Unit) -> Unit = {},
     topContent: @Composable () -> Unit = {},
     overlayContent: @Composable () -> Unit = {},
     expectedPartCount: Int? = null,
@@ -736,8 +736,8 @@ fun RemoteScoreScreen(
                         onPlaybackPositionChanged = onPlaybackPositionChanged,
                         playbackCommand = playbackCommand,
                         playbackInteractionEnabled = playbackInteractionEnabled,
-                        scoreSettingsContent = {
-                            scoreSettingsContent()
+                        scoreSettingsContent = { stopPlayback ->
+                            scoreSettingsContent(stopPlayback)
                             if (revisionLabel != null) {
                                 ScoreSettingsCard(
                                     icon = RhythmIcons.Score,
@@ -846,7 +846,7 @@ private fun ScoreReadyContent(
     onPlaybackPositionChanged: (tick: Long, timeMs: Long) -> Unit = { _, _ -> },
     playbackCommand: ScorePlaybackCommand? = null,
     playbackInteractionEnabled: Boolean = true,
-    scoreSettingsContent: @Composable () -> Unit = {},
+    scoreSettingsContent: @Composable (stopPlayback: () -> Unit) -> Unit = {},
     topContent: @Composable () -> Unit = {},
     overlayContent: @Composable () -> Unit = {},
     playbackSubject: PlaybackSubject? = null,
@@ -1298,7 +1298,10 @@ private fun ScoreReadyContent(
             },
             interactionEnabled = editSession == null && playbackInteractionEnabled,
             settingsContent = {
-                scoreSettingsContent()
+                scoreSettingsContent {
+                    playbackController.stop()
+                    playbackStatus = ScorePlaybackStatus.READY
+                }
                 if (editSession == null && availableLyricScripts.size >= 2) {
                     ScoreSettingsCard(
                         icon = RhythmIcons.Player.Lyrics,

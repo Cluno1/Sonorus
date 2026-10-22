@@ -1,11 +1,13 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
 import io.github.cluno1.sonorus.R
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +39,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.FilterChip
 import io.github.cluno1.sonorus.shared.presentation.components.common.M3CircularLoader
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
+import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.data.repository.PlaybackMediaKind
 import io.github.cluno1.sonorus.shared.data.repository.PlaybackSubject
@@ -81,6 +84,11 @@ fun CatalogRemoteScoreScreen(
         revisionId: String,
         title: String,
     ) -> Unit,
+    // issue 112: settings-panel entries that jump to this Work's lyrics page / song playback
+    // page. Lyrics is always reachable (an empty-lyrics state is a valid landing); song is
+    // null when the Work has no playable song in the synced library, so the entry is hidden.
+    onOpenWorkLyrics: () -> Unit = {},
+    onOpenWorkSong: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -160,12 +168,32 @@ fun CatalogRemoteScoreScreen(
             canOpenOlderRevision = selectedIndex < history.lastIndex,
             onOpenNewerRevision = { selectedIndex-- },
             onOpenOlderRevision = { selectedIndex++ },
-            scoreSettingsContent = {
+            scoreSettingsContent = { stopPlayback ->
                 CatalogScoreSelectionCard(
                     scoreWork = scoreWork,
                     selectedScoreId = selectedOption?.scoreId,
                     onSelectScore = { selectedScoreId = it },
                 )
+                // issue 112: leaving the score page (either entry) always stops the alphaTab
+                // synthesis first, so its audio never keeps playing underneath the next screen.
+                CatalogScoreQuickLink(
+                    icon = RhythmIcons.Player.Lyrics,
+                    label = stringResource(R.string.score_view_lyrics),
+                    onClick = {
+                        stopPlayback()
+                        onOpenWorkLyrics()
+                    },
+                )
+                onOpenWorkSong?.let { openSong ->
+                    CatalogScoreQuickLink(
+                        icon = RhythmIcons.Play,
+                        label = stringResource(R.string.score_play_song),
+                        onClick = {
+                            stopPlayback()
+                            openSong()
+                        },
+                    )
+                }
             },
             expectedPartCount = activePartCount,
             playbackSubject = history.getOrNull(selectedIndex)?.let { revision ->
@@ -270,6 +298,33 @@ internal fun CatalogScoreSelectionCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/** issue 112: a single-line settings-panel entry that jumps to another page for this Work. */
+@Composable
+private fun CatalogScoreQuickLink(
+    icon: MaterialSymbolIcon,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(
+                label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }

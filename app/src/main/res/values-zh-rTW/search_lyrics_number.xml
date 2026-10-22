@@ -22,6 +22,7 @@
     <string name="search_number_entry_song">歌曲</string>
     <string name="work_lyrics_title">歌詞</string>
     <string name="work_lyrics_play_song">播放歌曲</string>
+    <string name="work_lyrics_open_score">樂譜</string>
     <string name="work_lyrics_empty">該作品暫無歌詞</string>
     <string name="work_lyrics_load_failed">歌詞載入失敗</string>
     <string name="work_lyrics_retry">重試</string>

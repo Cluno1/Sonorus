@@ -2639,6 +2639,30 @@ private fun LocalNavigationContent(
                                 launchSingleTop = true
                             }
                         },
+                        // issue 112: score settings panel entries jumping to this Work's lyrics
+                        // page / song playback. Reuse the same lookups as openCatalogWorkScore
+                        // and the CatalogWorkLyrics route's own playableSongs fallback.
+                        onOpenWorkLyrics = {
+                            val targetWorkId = backStackEntry.arguments?.getString("workId")?.let(Uri::decode).orEmpty()
+                            val lyricsTitle = catalogState.scoreWorks
+                                .firstOrNull { it.workId == targetWorkId }?.title.orEmpty()
+                            openCatalogWorkLyrics(targetWorkId, lyricsTitle, null)
+                        },
+                        onOpenWorkSong = run {
+                            val targetWorkId = backStackEntry.arguments?.getString("workId")?.let(Uri::decode).orEmpty()
+                            catalogState.songs.firstOrNull { it.workId == targetWorkId }?.let { song ->
+                                {
+                                    openCatalogWorkSong(
+                                        CatalogLibrarySearchSong(
+                                            song.renditionId,
+                                            song.albumId,
+                                            song.title,
+                                            song.trackNo,
+                                        ),
+                                    )
+                                }
+                            }
+                        },
                     )
                 }
 
@@ -2673,6 +2697,11 @@ private fun LocalNavigationContent(
                             if (!navController.popBackStack()) navigateToTopLevel(Screen.Home.route)
                         },
                         onPlaySong = openCatalogWorkSong,
+                        // issue 112: same "no fake entry" availability check as openCatalogWorkScore.
+                        onOpenScore = catalogState.scoreWorks
+                            .firstOrNull { it.workId == lyricsWorkId }
+                            ?.currentScoreOption()
+                            ?.let { { openCatalogWorkScore(lyricsWorkId) } },
                     )
                 }
 

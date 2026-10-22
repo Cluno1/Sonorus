@@ -3,4 +3,6 @@
     <string name="score_lyrics_script">歌词</string>
     <string name="score_lyrics_script_hant">繁中</string>
     <string name="score_lyrics_script_hans">简中</string>
+    <string name="score_view_lyrics">查看歌词</string>
+    <string name="score_play_song">播放歌曲</string>
 </resources>

@@ -22,6 +22,7 @@
     <string name="search_number_entry_song">Song</string>
     <string name="work_lyrics_title">Lyrics</string>
     <string name="work_lyrics_play_song">Play song</string>
+    <string name="work_lyrics_open_score">Score</string>
     <string name="work_lyrics_empty">This work has no lyrics yet</string>
     <string name="work_lyrics_load_failed">Couldn\'t load lyrics</string>
     <string name="work_lyrics_retry">Retry</string>

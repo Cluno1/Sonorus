@@ -3,4 +3,6 @@
     <string name="score_lyrics_script">Lyrics</string>
     <string name="score_lyrics_script_hant">Traditional Chinese</string>
     <string name="score_lyrics_script_hans">Simplified Chinese</string>
+    <string name="score_view_lyrics">Lyrics</string>
+    <string name="score_play_song">Play song</string>
 </resources>

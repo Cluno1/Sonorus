@@ -70,6 +70,9 @@ fun CatalogWorkLyricsScreen(
     viewModel: CatalogViewModel,
     onBack: () -> Unit,
     onPlaySong: (CatalogLibrarySearchSong) -> Unit,
+    // issue 112: opens the Work's default score; null when the Work has no deliverable score,
+    // in which case the entry is not composed at all (same "no fake entry" rule as onPlaySong).
+    onOpenScore: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var bundle by remember(workId) { mutableStateOf<WorkBundle?>(viewModel.cachedWorkBundle(workId)) }
@@ -177,17 +180,33 @@ fun CatalogWorkLyricsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                // Playback rule: no playable song -> no playback element is composed at all.
-                playableSongs.firstOrNull()?.let { song ->
+                // Playback/score rule: unavailable entries are not composed at all, never shown disabled.
+                val playSong = playableSongs.firstOrNull()
+                if (playSong != null || onOpenScore != null) {
                     Spacer(Modifier.height(4.dp))
-                    Button(onClick = { onPlaySong(song) }) {
-                        Icon(
-                            RhythmIcons.Play,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.work_lyrics_play_song))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        playSong?.let { song ->
+                            Button(onClick = { onPlaySong(song) }) {
+                                Icon(
+                                    RhythmIcons.Play,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.work_lyrics_play_song))
+                            }
+                        }
+                        onOpenScore?.let { openScore ->
+                            FilledTonalButton(onClick = openScore) {
+                                Icon(
+                                    RhythmIcons.ScoreFilled,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.work_lyrics_open_score))
+                            }
+                        }
                     }
                 }
             }
