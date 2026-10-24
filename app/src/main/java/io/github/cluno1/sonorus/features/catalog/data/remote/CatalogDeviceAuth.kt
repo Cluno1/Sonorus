@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.features.catalog.data.remote
 
 import android.os.Build
+import android.util.Log
 import io.github.cluno1.sonorus.BuildConfig
 import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.features.catalog.data.CatalogDeviceCredentials
@@ -198,6 +199,7 @@ internal class CatalogDeviceAuthClient(
     serverUrl: String,
     private val credentials: CatalogCredentialsStore,
     private val signer: CatalogSigner = CatalogDeviceKey,
+    private val tokens: CatalogAccessTokenCoordinator = CatalogAccessTokenCoordinator.shared,
 ) {
     private val origin = (CatalogEndpoint.normalize(serverUrl) + "/").toHttpUrl()
     private val api = Retrofit.Builder()
@@ -307,13 +309,25 @@ internal class CatalogDeviceAuthClient(
         require(isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite) {
             "public Catalog only signs reads and narrow owned writes"
         }
-        if (credentials.isReenrollmentRequired()) throw CatalogFailure.InvalidCredentials()
+        // A mark left by an access-token 401 is retried once through the existing session; only a
+        // rejected refresh (revoked device, expired session, key mismatch) keeps it.
+        val recovering = credentials.isReenrollmentRequired()
+        if (recovering) {
+            if (!tokens.tryBeginRecovery()) throw CatalogFailure.InvalidCredentials()
+            Log.w(TAG, "Catalog device is marked for re-enrollment; retrying its existing session")
+        }
         try {
-            val current = accessCredentials()
-            val nonce = api.nonce(
-                "Device ${current.accessToken}",
-                DeviceNonceRequest(current.deviceId),
-            ).execute().bodyOrThrow().nonce
+            var current = accessCredentials(
+                rejectedToken = if (recovering) credentials.loadDevice()?.accessToken else null,
+            )
+            val nonce = try {
+                requestNonce(current)
+            } catch (error: CatalogFailure.InvalidCredentials) {
+                Log.w(TAG, "Catalog nonce rejected the access token; refreshing once")
+                current = accessCredentials(rejectedToken = current.accessToken)
+                requestNonce(current)
+            }
+            if (recovering) Log.i(TAG, "Catalog device session recovered without re-enrollment")
             val timestamp = Instant.now().epochSecond
             val contentSha256 = precomputedContentSha256?.lowercase()?.also {
                 require(it.matches(Regex("^[0-9a-f]{64}$"))) {
@@ -342,20 +356,27 @@ internal class CatalogDeviceAuthClient(
                 "X-Rhythm-Signature" to signer.sign(canonical),
             )
         } catch (error: CatalogFailure.InvalidCredentials) {
-            // Keep the Keystore key and cached media, but stop all use of this invalid session.
-            // The synchronized boundary makes concurrent callers observe one durable result.
+            // Reached only after the session refresh itself or a freshly refreshed token was
+            // rejected. Keep the Keystore key and cached media for a later recovery attempt.
+            Log.w(TAG, "Catalog device session rejected; marking re-enrollment required")
             credentials.markReenrollmentRequired()
             throw error
         }
     }
 
+    private fun requestNonce(current: CatalogDeviceCredentials): String = api.nonce(
+        "Device ${current.accessToken}",
+        DeviceNonceRequest(current.deviceId),
+    ).execute().bodyOrThrow().nonce
+
     fun proofForGet(url: String): Map<String, String> = proof(
         Request.Builder().url(url).get().build(),
     )
 
-    private fun accessCredentials(): CatalogDeviceCredentials {
-        var current = credentials.loadDevice() ?: throw IOException("设备尚未登记")
-        if (current.accessTokenExpiresAtEpochSeconds > Instant.now().epochSecond + 30) return current
+    private fun accessCredentials(rejectedToken: String? = null): CatalogDeviceCredentials =
+        tokens.usable(credentials::loadDevice, ::refreshSession, rejectedToken)
+
+    private fun refreshSession(current: CatalogDeviceCredentials): CatalogDeviceCredentials {
         val challenge = api.refreshChallenge(
             current.sessionId,
             DeviceNonceRequest(current.deviceId),
@@ -377,9 +398,9 @@ internal class CatalogDeviceAuthClient(
                 ),
             ),
         ).execute().bodyOrThrow()
-        current = refreshed.toCredentials(current.serverUrl)
-        credentials.saveDevice(current)
-        return current
+        val next = refreshed.toCredentials(current.serverUrl)
+        credentials.saveDevice(next)
+        return next
     }
 
     private fun DeviceSessionDto.toCredentials(serverUrl: String) = CatalogDeviceCredentials(
@@ -411,6 +432,8 @@ internal class CatalogDeviceAuthClient(
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 }
+
+private const val TAG = "CatalogDeviceAuth"
 
 internal fun catalogHttpFailure(statusCode: Int): IOException = when (statusCode) {
     401 -> CatalogFailure.InvalidCredentials()

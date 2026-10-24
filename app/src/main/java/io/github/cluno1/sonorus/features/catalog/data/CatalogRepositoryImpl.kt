@@ -776,7 +776,10 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
 
     private fun client(): CatalogApiClient {
         val server = credentials.loadServerUrl() ?: throw CatalogFailure.NotConfigured()
-        if (credentials.isReenrollmentRequired()) throw CatalogFailure.InvalidCredentials()
+        // Device credentials go on: CatalogDeviceAuthClient.proof() retries their existing session.
+        if (credentials.isReenrollmentRequired() && credentials.loadDevice() == null) {
+            throw CatalogFailure.InvalidCredentials()
+        }
         if (credentials.loadDevice() == null && credentials.loadToken() == null) {
             throw CatalogFailure.NotConfigured()
         }
@@ -805,7 +808,9 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
         try {
             Result.success(block())
         } catch (error: Throwable) {
-            if (error is CatalogFailure.InvalidCredentials) {
+            // Device auth marks only a rejected session refresh inside proof(); a 401 seen here is
+            // otherwise retried by the next proof() instead of blocking every later request.
+            if (error is CatalogFailure.InvalidCredentials && credentials.loadDevice() == null) {
                 credentials.markReenrollmentRequired()
             }
             when (error) {

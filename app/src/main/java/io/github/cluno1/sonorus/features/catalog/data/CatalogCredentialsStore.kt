@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.features.catalog.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -26,7 +27,23 @@ data class CatalogDeviceCredentials(
     val sessionExpiresAt: String,
 )
 
-/** Stores the short-lived access token encrypted under a non-exportable Android Keystore key. */
+/**
+ * Stores the short-lived access token encrypted under a non-exportable Android Keystore key.
+ *
+ * Invariant: the token ciphertext, its IV, its expiry and the device identity are one snapshot.
+ * Every write goes into a single SharedPreferences commit and every multi-key read or write holds
+ * the process-wide [lock], shared by all instances of this class.
+ *
+ * Why: callers (update check, playback resolver, repository, image uploads) each build their own
+ * store. Issue 115: with two separate commits, one reader got the old expired token together with
+ * the expiry just written by another refresher, skipped the refresh, received 401 and persisted
+ * "re-enrollment required" although the server-side device and session were valid.
+ *
+ * Silent failure if broken: a mixed token/expiry pair produces a sporadic 401 on app start; a mixed
+ * ciphertext/IV pair fails decryption and [loadToken] wipes the whole registration and device key.
+ *
+ * Rejected: `@Synchronized` on callers only locks one instance and did not prevent issue 115.
+ */
 class CatalogCredentialsStore(context: Context) {
     private val applicationContext = context.applicationContext
     private val preferences = context.applicationContext.getSharedPreferences(
@@ -39,35 +56,43 @@ class CatalogCredentialsStore(context: Context) {
         val normalizedUrl = CatalogEndpoint.normalize(serverUrl)
         val normalizedToken = token.trim()
         require(normalizedToken.isNotEmpty())
-        saveEncryptedToken(normalizedToken)
-        preferences.edit(commit = true) {
-            putString(KEY_SERVER_URL, normalizedUrl)
-            remove(KEY_USER_ID)
-            remove(KEY_DEVICE_ID)
-            remove(KEY_SESSION_ID)
-            remove(KEY_ACCESS_EXPIRES_AT)
-            remove(KEY_SESSION_EXPIRES_AT)
-            remove(KEY_REENROLLMENT_REQUIRED)
+        val encrypted = encryptToken(normalizedToken)
+        synchronized(lock) {
+            preferences.edit(commit = true) {
+                putEncryptedToken(encrypted)
+                putString(KEY_SERVER_URL, normalizedUrl)
+                remove(KEY_USER_ID)
+                remove(KEY_DEVICE_ID)
+                remove(KEY_SESSION_ID)
+                remove(KEY_ACCESS_EXPIRES_AT)
+                remove(KEY_SESSION_EXPIRES_AT)
+                remove(KEY_REENROLLMENT_REQUIRED)
+            }
         }
     }
 
     fun saveDevice(credentials: CatalogDeviceCredentials) {
-        saveEncryptedToken(credentials.accessToken)
-        preferences.edit(commit = true) {
-            putString(KEY_SERVER_URL, CatalogEndpoint.normalize(credentials.serverUrl))
-            putString(KEY_USER_ID, credentials.userId)
-            putString(KEY_DEVICE_ID, credentials.deviceId)
-            putString(KEY_SESSION_ID, credentials.sessionId)
-            putLong(KEY_ACCESS_EXPIRES_AT, credentials.accessTokenExpiresAtEpochSeconds)
-            putString(KEY_SESSION_EXPIRES_AT, credentials.sessionExpiresAt)
-            putBoolean(KEY_REENROLLMENT_REQUIRED, false)
+        val encrypted = encryptToken(credentials.accessToken)
+        synchronized(lock) {
+            preferences.edit(commit = true) {
+                putEncryptedToken(encrypted)
+                putString(KEY_SERVER_URL, CatalogEndpoint.normalize(credentials.serverUrl))
+                putString(KEY_USER_ID, credentials.userId)
+                putString(KEY_DEVICE_ID, credentials.deviceId)
+                putString(KEY_SESSION_ID, credentials.sessionId)
+                putLong(KEY_ACCESS_EXPIRES_AT, credentials.accessTokenExpiresAtEpochSeconds)
+                putString(KEY_SESSION_EXPIRES_AT, credentials.sessionExpiresAt)
+                putBoolean(KEY_REENROLLMENT_REQUIRED, false)
+            }
         }
     }
 
     fun markReenrollmentRequired() {
-        preferences.edit(commit = true) {
-            putBoolean(KEY_REENROLLMENT_REQUIRED, true)
-            remove(KEY_ACCESS_EXPIRES_AT)
+        synchronized(lock) {
+            preferences.edit(commit = true) {
+                putBoolean(KEY_REENROLLMENT_REQUIRED, true)
+                remove(KEY_ACCESS_EXPIRES_AT)
+            }
         }
     }
 
@@ -76,9 +101,12 @@ class CatalogCredentialsStore(context: Context) {
 
     fun updateAccessToken(token: String, expiresAtEpochSeconds: Long) {
         check(loadDeviceId() != null) { "device credentials are not configured" }
-        saveEncryptedToken(token)
-        preferences.edit(commit = true) {
-            putLong(KEY_ACCESS_EXPIRES_AT, expiresAtEpochSeconds)
+        val encrypted = encryptToken(token)
+        synchronized(lock) {
+            preferences.edit(commit = true) {
+                putEncryptedToken(encrypted)
+                putLong(KEY_ACCESS_EXPIRES_AT, expiresAtEpochSeconds)
+            }
         }
     }
 
@@ -90,9 +118,11 @@ class CatalogCredentialsStore(context: Context) {
     fun loadDeviceId(): String? = preferences.getString(KEY_DEVICE_ID, null)
         ?.takeIf { it.isNotBlank() }
 
-    fun loadDevice(): CatalogDeviceCredentials? {
+    fun loadDevice(): CatalogDeviceCredentials? = synchronized(lock) { loadDeviceSnapshot() }
+
+    private fun loadDeviceSnapshot(): CatalogDeviceCredentials? {
         val serverUrl = loadServerUrl() ?: return null
-        val token = loadToken() ?: return null
+        val token = loadTokenSnapshot() ?: return null
         return CatalogDeviceCredentials(
             serverUrl = serverUrl,
             userId = preferences.getString(KEY_USER_ID, null)?.takeIf { it.isNotBlank() }
@@ -108,7 +138,9 @@ class CatalogCredentialsStore(context: Context) {
         )
     }
 
-    fun loadToken(): String? {
+    fun loadToken(): String? = synchronized(lock) { loadTokenSnapshot() }
+
+    private fun loadTokenSnapshot(): String? {
         val ciphertext = preferences.getString(KEY_CIPHERTEXT, null) ?: return null
         val iv = preferences.getString(KEY_IV, null) ?: return null
         return runCatching {
@@ -145,19 +177,28 @@ class CatalogCredentialsStore(context: Context) {
     }
 
     fun clear() {
-        preferences.edit(commit = true) { clear() }
-        CatalogDeviceKey.delete()
+        synchronized(lock) {
+            preferences.edit(commit = true) { clear() }
+            CatalogDeviceKey.delete()
+        }
     }
 
-    private fun saveEncryptedToken(token: String) {
+    private class EncryptedToken(val ciphertext: String, val iv: String)
+
+    private fun encryptToken(token: String): EncryptedToken {
         val cipher = Cipher.getInstance(TRANSFORMATION).apply {
             init(Cipher.ENCRYPT_MODE, getOrCreateEncryptionKey())
         }
         val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
-        preferences.edit(commit = true) {
-            putString(KEY_CIPHERTEXT, Base64.encodeToString(encrypted, Base64.NO_WRAP))
-            putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-        }
+        return EncryptedToken(
+            ciphertext = Base64.encodeToString(encrypted, Base64.NO_WRAP),
+            iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP),
+        )
+    }
+
+    private fun SharedPreferences.Editor.putEncryptedToken(token: EncryptedToken) {
+        putString(KEY_CIPHERTEXT, token.ciphertext)
+        putString(KEY_IV, token.iv)
     }
 
     private fun getOrCreateEncryptionKey(): SecretKey {
@@ -187,6 +228,8 @@ class CatalogCredentialsStore(context: Context) {
         }
 
     private companion object {
+        /** Process-wide: every store instance reads and writes the same preferences file. */
+        val lock = Any()
         const val PREFERENCES_NAME = "rhythm_catalog_credentials"
         const val KEY_SERVER_URL = "server_url"
         const val KEY_CIPHERTEXT = "token_ciphertext"
