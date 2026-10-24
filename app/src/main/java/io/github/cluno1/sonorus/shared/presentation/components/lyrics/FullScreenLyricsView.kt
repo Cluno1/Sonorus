@@ -86,6 +86,7 @@ import io.github.cluno1.sonorus.util.windowScreenHeightDp
 import coil.compose.AsyncImage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogArtworkPolicy
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLyricSourceImage
+import io.github.cluno1.sonorus.features.catalog.presentation.isTabletLyricsLayout
 
 @Composable
 fun FullScreenLyricsView(
@@ -108,6 +109,8 @@ fun FullScreenLyricsView(
     selectedCatalogLyricsLanguage: String? = null,
     onCatalogLyricsLanguageSelect: (String) -> Unit = {},
     catalogLyricSourceImages: List<CatalogLyricSourceImage> = emptyList(),
+    // issue 116: tag row of the catalog Work being played (null when the song has no Work).
+    catalogWorkHeader: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     canvasArtwork: CanvasArtwork? = null,
     canvasLoading: Boolean = false
@@ -393,6 +396,9 @@ fun FullScreenLyricsView(
         // 2. MAIN LAYOUT CONTAINER
         // 2. MAIN LAYOUT CONTAINER (Adaptive Tablet Split or Phone Stack)
         val isTablet = windowScreenWidthDp() >= 600
+        // issue 117: only a real tablet (both window axes ≥ 600dp) gets the left-pane image cover;
+        // a landscape phone keeps the original split where the images replace the lyrics.
+        val sourceImagesCoverLeftPane = isTablet && isTabletLyricsLayout()
 
         if (isTablet) {
             Row(
@@ -403,11 +409,14 @@ fun FullScreenLyricsView(
                     .padding(horizontal = 24.dp, vertical = 16.dp)
             ) {
                 // LEFT SIDE (40% width) - Metadata, controls, offset adjuster
-                Column(
+                Box(
                     modifier = Modifier
                         .weight(0.4f)
                         .fillMaxHeight()
                         .padding(end = 24.dp),
+                ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     // Close button aligned to top-left (no Now Playing text)
@@ -428,6 +437,7 @@ fun FullScreenLyricsView(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        if (!sourceImagesCoverLeftPane) {
                         Row(
                             modifier = Modifier.align(Alignment.CenterEnd),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -443,6 +453,7 @@ fun FullScreenLyricsView(
                                 checked = showCatalogSourceImages,
                                 onCheckedChange = { showCatalogSourceImages = it },
                             )
+                        }
                         }
                     }
 
@@ -502,6 +513,10 @@ fun FullScreenLyricsView(
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
                         )
+                        if (!sourceImagesCoverLeftPane && catalogWorkHeader != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            catalogWorkHeader()
+                        }
                     }
 
                     // Sync tuner dock (only visible for synced lyrics and when controls are visible)
@@ -660,17 +675,63 @@ fun FullScreenLyricsView(
                         )
                     }
                 }
+                // issue 117: the source images cover the whole left pane, player included; the player
+                // stays composed underneath so playback is untouched, the opaque surface blocks touches.
+                if (sourceImagesCoverLeftPane && showCatalogSourceImages) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = baseBgColor,
+                    ) {
+                        CatalogLyricSourceImagesView(
+                            images = catalogLyricSourceImages,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+                }
 
                 // RIGHT SIDE (60% width) - Lyrics scrolling area and settings/editor floating actions
-                Box(
+                Column(
                     modifier = Modifier
                         .weight(0.6f)
                         .fillMaxHeight()
                 ) {
+                // issue 117: on a real tablet the language menu and the source-image toggle sit at the
+                // top right of the lyrics pane, because the images now cover the left pane instead.
+                if (sourceImagesCoverLeftPane) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (catalogWorkHeader != null) {
+                            Box(modifier = Modifier.weight(1f)) { catalogWorkHeader() }
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                        CatalogLyricsLanguageMenu(
+                            languages = catalogLyricsLanguages,
+                            selectedLanguage = selectedCatalogLyricsLanguage,
+                            onLanguageSelect = onCatalogLyricsLanguageSelect,
+                        )
+                        CatalogLyricSourceToggleButton(
+                            visible = catalogLyricSourceImages.isNotEmpty(),
+                            checked = showCatalogSourceImages,
+                            onCheckedChange = { showCatalogSourceImages = it },
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
                     val hasLyrics = lyrics?.hasLyrics() == true && lyrics.isErrorMessage().not()
 
                     when {
-                        showCatalogSourceImages -> {
+                        showCatalogSourceImages && !sourceImagesCoverLeftPane -> {
                             CatalogLyricSourceImagesView(
                                 images = catalogLyricSourceImages,
                                 modifier = Modifier.fillMaxSize(),
@@ -900,6 +961,7 @@ fun FullScreenLyricsView(
                         }
                     }
                 }
+                }
             }
         } else {
             Column(
@@ -1004,6 +1066,19 @@ fun FullScreenLyricsView(
                             contentDescription = stringResource(R.string.onboarding_dismiss),
                             modifier = Modifier.size(24.dp)
                         )
+                    }
+                }
+
+                // issue 116: tags of the catalog Work, shown and hidden with the other controls.
+                if (catalogWorkHeader != null) {
+                    AnimatedVisibility(visible = !autoHideLyricsControls || controlsVisible) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            catalogWorkHeader()
+                        }
                     }
                 }
 

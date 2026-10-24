@@ -1,5 +1,18 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import io.github.cluno1.sonorus.features.scores.presentation.LocalScoreSettingsDismiss
 import io.github.cluno1.sonorus.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -125,6 +138,21 @@ fun CatalogRemoteScoreScreen(
         )
     }
 
+    // issue 118: tablet "view lyrics" opens this pane beside the score instead of leaving the page.
+    // The score stays the first child of the Row below, so opening/closing never rebuilds the
+    // AlphaTab view or its playback; the slot switches once and only the pane content animates, so
+    // the score is re-laid out twice (open, end of close) rather than every frame.
+    val tabletLyrics = isTabletLyricsLayout()
+    var lyricsPaneVisible by remember(workId) { mutableStateOf(false) }
+    LaunchedEffect(tabletLyrics) {
+        // Window narrowed below the tablet split: fold the pane, keep the score playing.
+        if (!tabletLyrics) lyricsPaneVisible = false
+    }
+    BackHandler(enabled = lyricsPaneVisible) { lyricsPaneVisible = false }
+    val lyricsPaneState = remember { MutableTransitionState(false) }
+    lyricsPaneState.targetState = tabletLyrics && lyricsPaneVisible
+    val lyricsSlotShown = lyricsPaneState.currentState || lyricsPaneState.targetState
+
     LaunchedEffect(history, selectedIndex) {
         val revision = history.getOrNull(selectedIndex) ?: return@LaunchedEffect
         bytes = null
@@ -140,6 +168,13 @@ fun CatalogRemoteScoreScreen(
         )
     }
 
+    Row(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .weight(if (lyricsSlotShown) 0.6f else 1f)
+            .fillMaxHeight(),
+    ) {
+    val contentModifier = Modifier.fillMaxSize()
     when {
         bytes != null -> RemoteScoreScreen(
             title = scoreWork?.title ?: title,
@@ -176,12 +211,20 @@ fun CatalogRemoteScoreScreen(
                 )
                 // issue 112: leaving the score page (either entry) always stops the alphaTab
                 // synthesis first, so its audio never keeps playing underneath the next screen.
+                // issue 118: a tablet stays on the page — close the sheet and open the side pane,
+                // without stopping the score; phones keep stop + navigate.
+                val dismissSettings = LocalScoreSettingsDismiss.current
                 CatalogScoreQuickLink(
                     icon = RhythmIcons.Player.Lyrics,
                     label = stringResource(R.string.score_view_lyrics),
                     onClick = {
-                        stopPlayback()
-                        onOpenWorkLyrics()
+                        if (tabletLyrics) {
+                            dismissSettings()
+                            lyricsPaneVisible = true
+                        } else {
+                            stopPlayback()
+                            onOpenWorkLyrics()
+                        }
                     },
                 )
                 onOpenWorkSong?.let { openSong ->
@@ -209,9 +252,9 @@ fun CatalogRemoteScoreScreen(
                     revisionId = revision.id,
                 )
             },
-            modifier = modifier,
+            modifier = contentModifier,
         )
-        error != null -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        error != null -> Box(contentModifier, contentAlignment = Alignment.Center) {
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(24.dp),
                 shape = RoundedCornerShape(28.dp),
@@ -241,11 +284,43 @@ fun CatalogRemoteScoreScreen(
                 }
             }
         }
-        else -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        else -> Box(contentModifier, contentAlignment = Alignment.Center) {
             M3CircularLoader()
         }
     }
+    }
+    if (lyricsSlotShown) {
+        Box(
+            modifier = Modifier
+                .weight(0.4f)
+                .fillMaxHeight()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(top = 8.dp, end = 16.dp, bottom = 16.dp),
+        ) {
+            androidx.compose.animation.AnimatedVisibility(
+                visibleState = lyricsPaneState,
+                enter = slideInHorizontally(tween(320, easing = LyricsPaneEnterEasing)) { it } +
+                    fadeIn(tween(320, easing = LyricsPaneEnterEasing)),
+                exit = slideOutHorizontally(tween(240, easing = LyricsPaneExitEasing)) { it } +
+                    fadeOut(tween(240, easing = LyricsPaneExitEasing)),
+            ) {
+                CatalogWorkLyricsPane(
+                    workId = scoreWork?.workId ?: workId,
+                    initialTitle = scoreWork?.title ?: title,
+                    viewModel = viewModel,
+                    onClose = { lyricsPaneVisible = false },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+    }
 }
+
+/** issue 118: cubic-bezier easings of the score lyrics pane (Material emphasized). */
+private val LyricsPaneEnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val LyricsPaneExitEasing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 
 @Composable
 internal fun CatalogScoreSelectionCard(

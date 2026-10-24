@@ -1089,6 +1089,14 @@ fun PlayerScreen(
             selectedCatalogLyricsLanguage = selectedCatalogLyricsLanguage,
             onCatalogLyricsLanguageSelect = musicViewModel::selectCatalogLyricsLanguage,
             catalogLyricSourceImages = catalogNowPlaying?.lyricsSourceImages.orEmpty(),
+            // issue 116: tags of the playing catalog Work; DEVICE/LAN songs have no Work and no row.
+            catalogWorkHeader = catalogNowPlaying?.workId?.let { workId ->
+                {
+                    io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkTagsForWork(
+                        workId = workId,
+                    )
+                }
+            },
             canvasArtwork = canvasArtwork,
             canvasLoading = canvasLoading,
             modifier = Modifier.fillMaxSize()

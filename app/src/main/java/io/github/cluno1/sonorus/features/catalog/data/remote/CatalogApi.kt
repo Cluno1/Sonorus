@@ -11,6 +11,7 @@ import retrofit2.http.Query
 import retrofit2.http.Url
 import retrofit2.http.Streaming
 import retrofit2.http.Body
+import retrofit2.http.PATCH
 import retrofit2.http.PUT
 
 /** Second-phase API surface. Deliberately contains only GET and HEAD operations. */
@@ -106,6 +107,16 @@ internal interface CatalogLyricsWriteApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: RenditionLyricReplaceDto,
     ): Response<RenditionLyricWriteDto>
+}
+
+/** issue 116: the only Work write a device may make — the tag set; the response is the updated Work. */
+internal interface CatalogWorkTagsWriteApi {
+    @PATCH("v2/works/{id}/tags")
+    suspend fun replaceWorkTags(
+        @Path("id") workId: String,
+        @Header("If-Match") ifMatch: String,
+        @Body body: WorkTagsPatchDto,
+    ): Response<WorkDto>
 }
 
 internal data class HealthDto(

@@ -126,6 +126,7 @@ internal object CatalogDtoMapper {
             .mapNotNull { runCatching { lyricSourceImage(it) }.getOrNull() }
             .distinctBy { it.sourcePageId },
         numberMeta = workNumbers(dto.numberMeta),
+        tags = dto.tags.orEmpty().map(String::trim).filter(String::isNotEmpty),
     )
 
     fun librarySearch(

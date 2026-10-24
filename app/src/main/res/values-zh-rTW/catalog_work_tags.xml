@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 116 / 118: Work tags on lyrics pages, score lyrics pane. -->
+<resources>
+    <string name="work_tags_manage">管理標籤</string>
+    <string name="work_tags_cd_manage">管理這首歌的標籤</string>
+    <string name="work_tags_empty">暫無標籤</string>
+    <string name="work_tags_more">還有 %1$d 個</string>
+    <string name="work_tags_dialog_title">管理標籤</string>
+    <string name="work_tags_add">新增標籤</string>
+    <string name="work_tags_remove">移除標籤 %1$s</string>
+    <string name="work_tags_save">儲存</string>
+    <string name="work_tags_cancel">取消</string>
+    <string name="work_tags_saved">標籤已儲存</string>
+    <string name="work_tags_reload">重新載入最新標籤</string>
+    <string name="work_tags_error_empty">標籤不能為空</string>
+    <string name="work_tags_error_too_long">最多 %1$d 個字</string>
+    <string name="work_tags_error_duplicate">與前面的標籤重複</string>
+    <string name="work_tags_error_too_many">最多 %1$d 個標籤</string>
+    <string name="work_tags_error_stale">標籤已被其他裝置修改，請重新載入最新標籤後再編輯</string>
+    <string name="work_tags_error_unsupported">音樂庫伺服器暫不支援修改標籤，請等伺服器更新後再試</string>
+    <string name="work_tags_error_not_editable">該作品目前不能修改標籤</string>
+    <string name="work_tags_error_offline">無法連線音樂庫，草稿已保留，請稍後重試</string>
+    <string name="work_tags_error_auth">目前登記無權修改標籤，請檢查音樂庫登記</string>
+    <string name="work_tags_error_generic">儲存失敗：%1$s</string>
+    <string name="score_lyrics_pane_title">歌詞</string>
+    <string name="score_lyrics_pane_close">收起歌詞</string>
+</resources>

@@ -29,4 +29,13 @@ class CatalogApiReadOnlyTest {
         assertTrue(methods.size == 1)
         assertTrue(methods.single().getAnnotation(PUT::class.java) != null)
     }
+
+    @Test
+    fun workTagsWriteApiDeclaresOnlyTheNarrowTagPatch() {
+        val methods = CatalogWorkTagsWriteApi::class.java.declaredMethods
+            .filterNot { it.name.endsWith("\$default") }
+        assertTrue(methods.size == 1)
+        val patch = methods.single().getAnnotation(PATCH::class.java)
+        assertTrue(patch != null && patch.value == "v2/works/{id}/tags")
+    }
 }

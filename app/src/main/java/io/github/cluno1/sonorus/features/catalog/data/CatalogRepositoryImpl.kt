@@ -576,6 +576,35 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
         }
     }
 
+    override suspend fun replaceWorkTags(
+        workId: String,
+        tags: List<String>,
+        expectedRevision: Int,
+    ): Result<WorkSummary> = guarded {
+        val id = validUuid(workId)
+        require(expectedRevision > 0) { "work revision must be positive" }
+        val response = client().workTagsWriteApi.replaceWorkTags(
+            workId = id,
+            ifMatch = "\"rev-$expectedRevision\"",
+            body = io.github.cluno1.sonorus.features.catalog.data.remote.WorkTagsPatchDto(tags),
+        )
+        if (response.code() == 412) {
+            val currentRevision = Regex("\\\"current_etag\\\"\\s*:\\s*\\\"rev-(\\d+)\\\"")
+                .find(response.errorBody()?.string().orEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+            throw CatalogFailure.StaleRevision(currentRevision)
+        }
+        val work = CatalogDtoMapper.work(response.bodyOrThrow())
+        require(work.id == id) { "tag write work id does not match request" }
+        // Keep the cached bundle in step so lyrics pages show the saved tags at once; the ETag is
+        // dropped so the next bundle request revalidates against the server.
+        cache.loadBundle(id)?.let { cache.saveBundle(it.copy(work = work), null) }
+        android.util.Log.i("CatalogRepository", "Catalog work tags replaced (work=$id, revision=${work.revision}, count=${work.tags.orEmpty().size})")
+        work
+    }
+
     override suspend fun getChorus(workId: String): Result<ChorusCatalog> = guarded {
         val id = validUuid(workId)
         ChorusDtoMapper.catalog(client().chorusApi.workChorus(id).bodyOrThrow()).also {

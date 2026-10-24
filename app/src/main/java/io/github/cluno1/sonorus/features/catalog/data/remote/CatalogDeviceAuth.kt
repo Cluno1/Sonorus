@@ -306,7 +306,10 @@ internal class CatalogDeviceAuthClient(
             ) && request.method in setOf("POST", "PATCH", "DELETE")
         val isAdminWrite = request.url.encodedPath.startsWith("/v2/admin/") &&
             request.method in setOf("POST", "PATCH", "DELETE")
-        require(isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite) {
+        // issue 116: the only Work write a device may sign is the narrow tag endpoint.
+        val isWorkTagWrite = request.method == "PATCH" &&
+            request.url.encodedPath.matches(Regex("^/v2/works/[^/]+/tags$"))
+        require(isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite) {
             "public Catalog only signs reads and narrow owned writes"
         }
         // A mark left by an access-token 401 is retried once through the existing session; only a

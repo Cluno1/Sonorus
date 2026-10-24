@@ -64,6 +64,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,6 +76,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
@@ -1940,6 +1942,13 @@ private fun ScoreTrackControls(
     }
 }
 
+/**
+ * issue 118: closes the score settings sheet from content injected into it (e.g. the tablet
+ * "view lyrics" entry that opens a side pane instead of leaving the page). Outside the sheet it
+ * does nothing.
+ */
+val LocalScoreSettingsDismiss = staticCompositionLocalOf<() -> Unit> { {} }
+
 @Composable
 private fun ScorePlaybackControls(
     title: String?,
@@ -2121,6 +2130,7 @@ private fun ScorePlaybackControls(
     }
     if (showSettings) {
         ModalBottomSheet(onDismissRequest = { showSettings = false }) {
+          CompositionLocalProvider(LocalScoreSettingsDismiss provides { showSettings = false }) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2257,6 +2267,7 @@ private fun ScorePlaybackControls(
                 }
                 settingsFooterContent()
             }
+          }
         }
     }
 }

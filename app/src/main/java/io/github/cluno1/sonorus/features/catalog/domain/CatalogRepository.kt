@@ -25,6 +25,17 @@ data class CatalogConnection(
 )
 
 interface CatalogRepository {
+    /**
+     * issue 116: replaces the whole tag set of one Work (`[]` clears it) for any enrolled device.
+     * Guarded by the Work revision; a stale revision fails with [CatalogFailure.StaleRevision].
+     * A backend without the endpoint answers 404 ([CatalogFailure.Server]).
+     */
+    suspend fun replaceWorkTags(
+        workId: String,
+        tags: List<String>,
+        expectedRevision: Int,
+    ): Result<WorkSummary> = Result.failure(CatalogFailure.Server(404))
+
     fun connection(): CatalogConnection
     fun cachedWorks(): List<WorkSummary>
     fun cachedBundle(workId: String): WorkBundle?

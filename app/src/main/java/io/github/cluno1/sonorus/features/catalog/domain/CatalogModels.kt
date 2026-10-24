@@ -17,6 +17,9 @@ data class WorkSummary(
     val lyricsTranslations: List<CatalogLyricsTranslation>? = emptyList(),
     val lyricsSourceImages: List<CatalogLyricSourceImage>? = emptyList(),
     val numberMeta: List<CatalogWorkNumber>? = emptyList(),
+    // issue 116: Work tags (Issue 109), shown and edited on the lyrics pages. Nullable for
+    // bundles cached before this field existed.
+    val tags: List<String>? = emptyList(),
 )
 
 /** One hymnal number of a Work, e.g. key `ihope_num`, value 256. */

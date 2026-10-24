@@ -97,4 +97,22 @@ class CatalogWireJsonContractTest {
         ).asJsonObject.keySet()
         assertTrue(anchorKeys.containsAll(setOf("anchor_order", "score_tick", "media_ms", "confidence", "source")))
     }
+
+    @Test
+    fun `标签写入请求体只有 tags 字段，空数组照常序列化`() {
+        assertEquals("""{"tags":["庄严","多声部"]}""", gson.toJson(WorkTagsPatchDto(listOf("庄严", "多声部"))))
+        assertEquals("""{"tags":[]}""", gson.toJson(WorkTagsPatchDto(emptyList())))
+    }
+
+    @Test
+    fun `作品响应的 tags 映射到领域模型，旧服务器缺字段时为空`() {
+        val base = """"id":"11111111-1111-4111-8111-111111111111","canonical_title":"T","language":null,
+            "status":"active","revision":3,"aliases":[],"credits":[],
+            "created_at":"2026-10-25T00:00:00Z","updated_at":"2026-10-25T00:00:00Z""""
+        val tagged = CatalogDtoMapper.work(gson.fromJson("{$base,\"tags\":[\" 庄严 \",\"\"]}", WorkDto::class.java))
+        assertEquals(listOf("庄严"), tagged.tags)
+        assertEquals(3, tagged.revision)
+        val legacy = CatalogDtoMapper.work(gson.fromJson("{$base}", WorkDto::class.java))
+        assertEquals(emptyList<String>(), legacy.tags)
+    }
 }

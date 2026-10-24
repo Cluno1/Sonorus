@@ -1,10 +1,13 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,11 +42,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.os.ConfigurationCompat
 import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLyricsVariant
 import io.github.cluno1.sonorus.features.catalog.domain.WorkBundle
+import io.github.cluno1.sonorus.features.catalog.domain.WorkSummary
 import io.github.cluno1.sonorus.features.catalog.domain.lyricsVariants
 import io.github.cluno1.sonorus.features.catalog.domain.selectCatalogLyricsVariant
 import io.github.cluno1.sonorus.shared.presentation.components.common.M3CircularLoader
@@ -60,6 +67,11 @@ import java.util.Locale
  * Deliberately not built on FullScreenLyricsView (which is bound to the player): when the Work has
  * no playable song the page contains no playback UI at all; otherwise it only offers a single
  * "play song" button that hands over to the normal catalog playback path.
+ *
+ * issue 117: on a tablet the page is the same split as the player lyrics — the left pane is empty
+ * (a Work read from search never borrows the background player) and the source images cover only
+ * that pane, so the lyrics on the right stay readable. Phones keep the single column.
+ * issue 116: the Work's tags and the "Manage tags" entry sit under the title.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,46 +87,20 @@ fun CatalogWorkLyricsScreen(
     onOpenScore: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    var bundle by remember(workId) { mutableStateOf<WorkBundle?>(viewModel.cachedWorkBundle(workId)) }
-    var loading by remember(workId) { mutableStateOf(true) }
-    var error by remember(workId) { mutableStateOf<String?>(null) }
-    var retry by remember(workId) { mutableIntStateOf(0) }
-
-    LaunchedEffect(workId, retry) {
-        loading = true
-        viewModel.loadWorkLyrics(workId).fold(
-            onSuccess = {
-                bundle = it
-                error = null
-            },
-            onFailure = { error = viewModel.errorMessage(it) },
-        )
-        loading = false
-    }
-
-    val work = bundle?.work
-    val title = work?.canonicalTitle ?: initialTitle
-    val numbersLine = remember(work) { formatWorkNumbers(work?.numberMeta.orEmpty()) }
+    val state = rememberCatalogWorkLyricsState(workId, viewModel)
+    val work = state.bundle?.work
     val variants = remember(work) { work?.lyricsVariants().orEmpty() }
     val sourceImages = remember(work) { work?.lyricsSourceImages.orEmpty() }
-    val configuration = LocalConfiguration.current
-    val preferredLanguageTags = remember(configuration) {
-        val locales = ConfigurationCompat.getLocales(configuration)
-        buildList {
-            for (index in 0 until locales.size()) {
-                locales[index]?.toLanguageTag()?.takeIf(String::isNotBlank)?.let(::add)
-            }
-            if (isEmpty()) add(Locale.getDefault().toLanguageTag())
-        }
-    }
-    var selectedLanguage by remember(variants) {
-        mutableStateOf(selectCatalogLyricsVariant(variants, preferredLanguageTags)?.language)
-    }
+    var selectedLanguage by rememberSelectedLyricsLanguage(variants)
     val selectedVariant = variants.firstOrNull { it.language.equals(selectedLanguage, ignoreCase = true) }
         ?: variants.firstOrNull()
     var showSourceImages by remember(workId) { mutableStateOf(false) }
     val displayingImages = showSourceImages && sourceImages.isNotEmpty()
     val bottomPadding = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding()
+    val tablet = isTabletLyricsLayout()
+
+    // Tablet only: back first hides the left-pane images, then leaves. Phones keep their old back.
+    BackHandler(enabled = tablet && displayingImages) { showSourceImages = false }
 
     Scaffold(
         modifier = modifier,
@@ -149,112 +135,313 @@ fun CatalogWorkLyricsScreen(
             )
         },
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                if (numbersLine.isNotEmpty()) {
-                    Text(
-                        text = numbersLine,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                if (error != null && bundle != null) {
-                    Text(
-                        text = stringResource(R.string.work_lyrics_offline_cached),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                // Playback/score rule: unavailable entries are not composed at all, never shown disabled.
-                val playSong = playableSongs.firstOrNull()
-                if (playSong != null || onOpenScore != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        playSong?.let { song ->
-                            Button(onClick = { onPlaySong(song) }) {
-                                Icon(
-                                    RhythmIcons.Play,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.work_lyrics_play_song))
+        val header: @Composable () -> Unit = {
+            CatalogWorkLyricsHeader(
+                state = state,
+                initialTitle = initialTitle,
+                actions = {
+                    // Playback/score rule: unavailable entries are not composed at all, never shown disabled.
+                    val playSong = playableSongs.firstOrNull()
+                    if (playSong != null || onOpenScore != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            playSong?.let { song ->
+                                Button(onClick = { onPlaySong(song) }) {
+                                    Icon(
+                                        RhythmIcons.Play,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.work_lyrics_play_song))
+                                }
                             }
-                        }
-                        onOpenScore?.let { openScore ->
-                            FilledTonalButton(onClick = openScore) {
-                                Icon(
-                                    RhythmIcons.ScoreFilled,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.work_lyrics_open_score))
+                            onOpenScore?.let { openScore ->
+                                FilledTonalButton(onClick = openScore) {
+                                    Icon(
+                                        RhythmIcons.ScoreFilled,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.work_lyrics_open_score))
+                                }
                             }
                         }
                     }
+                },
+            )
+        }
+
+        if (tablet) {
+            CatalogLyricsTabletSplit(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                leftOverlay = if (displayingImages) {
+                    { CatalogLyricSourceImagesView(images = sourceImages, modifier = Modifier.fillMaxSize()) }
+                } else {
+                    null
+                },
+                left = {},
+                right = {
+                    Column(
+                        modifier = Modifier
+                            .weight(0.6f)
+                            .fillMaxHeight(),
+                    ) {
+                        header()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                        ) {
+                            CatalogWorkLyricsBody(
+                                state = state,
+                                selectedVariant = selectedVariant,
+                                bottomPadding = bottomPadding,
+                                onBack = onBack,
+                            )
+                        }
+                    }
+                },
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                header()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                ) {
+                    if (state.bundle != null && displayingImages) {
+                        CatalogLyricSourceImagesView(
+                            images = sourceImages,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        CatalogWorkLyricsBody(
+                            state = state,
+                            selectedVariant = selectedVariant,
+                            bottomPadding = bottomPadding,
+                            onBack = onBack,
+                        )
+                    }
                 }
             }
+        }
+    }
+}
 
+/**
+ * issue 118: Work lyrics as a side pane next to a playing score. Independent of any player: it
+ * reads the Work [workId] the score belongs to, never the background song, and loading, errors or
+ * tag edits here never touch score playback. Source images are not offered (they would cover the
+ * score). [onClose] hides the pane.
+ */
+@Composable
+fun CatalogWorkLyricsPane(
+    workId: String,
+    initialTitle: String,
+    viewModel: CatalogViewModel,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state = rememberCatalogWorkLyricsState(workId, viewModel)
+    val work = state.bundle?.work
+    val variants = remember(work) { work?.lyricsVariants().orEmpty() }
+    var selectedLanguage by rememberSelectedLyricsLanguage(variants)
+    val selectedVariant = variants.firstOrNull { it.language.equals(selectedLanguage, ignoreCase = true) }
+        ?: variants.firstOrNull()
+
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 8.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.score_lyrics_pane_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                CatalogLyricsLanguageMenu(
+                    languages = variants.map { it.language },
+                    selectedLanguage = selectedVariant?.language,
+                    onLanguageSelect = { selectedLanguage = it },
+                )
+                IconButton(onClick = onClose) {
+                    Icon(RhythmIcons.Close, contentDescription = stringResource(R.string.score_lyrics_pane_close))
+                }
+            }
+            CatalogWorkLyricsHeader(state = state, initialTitle = initialTitle)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
             ) {
-                when {
-                    bundle == null && loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        M3CircularLoader()
-                    }
-                    bundle == null -> WorkLyricsError(
-                        message = error ?: stringResource(R.string.work_lyrics_load_failed),
-                        onRetry = { retry++ },
-                        onBack = onBack,
-                    )
-                    displayingImages -> CatalogLyricSourceImagesView(
-                        images = sourceImages,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    selectedVariant != null -> {
-                        val text = remember(selectedVariant) { workLyricsDisplayText(selectedVariant.lyrics) }
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                lineHeight = MaterialTheme.typography.titleMedium.lineHeight * 1.5f,
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = bottomPadding),
-                        )
-                    }
-                    else -> Text(
-                        text = stringResource(R.string.work_lyrics_empty),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                    )
-                }
+                CatalogWorkLyricsBody(
+                    state = state,
+                    selectedVariant = selectedVariant,
+                    bottomPadding = 24.dp,
+                    onBack = onClose,
+                )
             }
         }
+    }
+}
+
+/** Load state of one Work's lyrics; [updateWork] applies a saved tag edit to the shown bundle. */
+@Stable
+class CatalogWorkLyricsState internal constructor(
+    val workId: String,
+    initialBundle: WorkBundle?,
+) {
+    var bundle by mutableStateOf(initialBundle)
+        internal set
+    var loading by mutableStateOf(true)
+        internal set
+    var error by mutableStateOf<String?>(null)
+        internal set
+    internal var retryKey by mutableIntStateOf(0)
+
+    fun retry() {
+        retryKey++
+    }
+
+    /** Ignores a Work other than [workId]: a late save for a previous page must not leak in. */
+    fun updateWork(work: WorkSummary) {
+        val current = bundle ?: return
+        if (work.id == workId) bundle = current.copy(work = work)
+    }
+}
+
+@Composable
+fun rememberCatalogWorkLyricsState(workId: String, viewModel: CatalogViewModel): CatalogWorkLyricsState {
+    val state = remember(workId) { CatalogWorkLyricsState(workId, viewModel.cachedWorkBundle(workId)) }
+    LaunchedEffect(state, state.retryKey) {
+        state.loading = true
+        viewModel.loadWorkLyrics(workId).fold(
+            onSuccess = {
+                state.bundle = it
+                state.error = null
+            },
+            onFailure = { state.error = viewModel.errorMessage(it) },
+        )
+        state.loading = false
+    }
+    return state
+}
+
+/** Selected lyrics language, defaulting to the best match for the device locales. */
+@Composable
+private fun rememberSelectedLyricsLanguage(variants: List<CatalogLyricsVariant>) = run {
+    val configuration = LocalConfiguration.current
+    val preferredLanguageTags = remember(configuration) {
+        val locales = ConfigurationCompat.getLocales(configuration)
+        buildList {
+            for (index in 0 until locales.size()) {
+                locales[index]?.toLanguageTag()?.takeIf(String::isNotBlank)?.let(::add)
+            }
+            if (isEmpty()) add(Locale.getDefault().toLanguageTag())
+        }
+    }
+    remember(variants) {
+        mutableStateOf(selectCatalogLyricsVariant(variants, preferredLanguageTags)?.language)
+    }
+}
+
+/** Title, hymnal numbers, tags (issue 116), offline note and optional entry [actions]. */
+@Composable
+fun CatalogWorkLyricsHeader(
+    state: CatalogWorkLyricsState,
+    initialTitle: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable () -> Unit = {},
+) {
+    val work = state.bundle?.work
+    val numbersLine = remember(work) { formatWorkNumbers(work?.numberMeta.orEmpty()) }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = work?.canonicalTitle ?: initialTitle,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        if (numbersLine.isNotEmpty()) {
+            Text(
+                text = numbersLine,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        CatalogWorkTagsSection(work = work, onWorkUpdated = state::updateWork)
+        if (state.error != null && state.bundle != null) {
+            Text(
+                text = stringResource(R.string.work_lyrics_offline_cached),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        actions()
+    }
+}
+
+/** Loading, error, plain lyrics text or empty state of the selected variant. */
+@Composable
+fun CatalogWorkLyricsBody(
+    state: CatalogWorkLyricsState,
+    selectedVariant: CatalogLyricsVariant?,
+    bottomPadding: Dp,
+    onBack: () -> Unit,
+) {
+    when {
+        state.bundle == null && state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            M3CircularLoader()
+        }
+        state.bundle == null -> WorkLyricsError(
+            message = state.error ?: stringResource(R.string.work_lyrics_load_failed),
+            onRetry = state::retry,
+            onBack = onBack,
+        )
+        selectedVariant != null -> {
+            val text = remember(selectedVariant) { workLyricsDisplayText(selectedVariant.lyrics) }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    lineHeight = MaterialTheme.typography.titleMedium.lineHeight * 1.5f,
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = bottomPadding)),
+            )
+        }
+        else -> Text(
+            text = stringResource(R.string.work_lyrics_empty),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+        )
     }
 }
 

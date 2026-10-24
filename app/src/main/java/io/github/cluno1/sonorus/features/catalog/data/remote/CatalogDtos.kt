@@ -165,6 +165,12 @@ internal data class WorkDto(
     @SerializedName("lyrics_language") val lyricsLanguage: String? = null,
     @SerializedName("lyrics_translations") val lyricsTranslations: JsonElement? = null,
     @SerializedName("number_meta") val numberMeta: JsonElement? = null,
+    @SerializedName("tags") val tags: List<String>? = null,
+)
+
+/** `PATCH /v2/works/{id}/tags` body (issue 116): only the tag set, whole-array replace. */
+internal data class WorkTagsPatchDto(
+    @SerializedName("tags") val tags: List<String>,
 )
 
 /** `GET /v2/library/search` response (issue 107). */
