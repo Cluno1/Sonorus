@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 119: floating back-to-top button on the score page. -->
+<resources>
+    <string name="score_back_to_top">回到顶部</string>
+</resources>

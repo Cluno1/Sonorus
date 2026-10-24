@@ -1,24 +1,41 @@
 package io.github.cluno1.sonorus.features.scores.presentation
 
+import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.ScrollView
 
-/** Detects the first animation frame where a scrolling viewport has stopped moving. */
-internal class ScoreScrollSettleDetector {
+/** Frames the viewport must keep the same position before it counts as settled. */
+internal const val SCORE_SCROLL_SETTLE_FRAMES = 3
+
+/**
+ * Detects the frame where a scrolling viewport has stopped moving.
+ *
+ * issue 119: one unchanged frame is not enough — a slow linear follow animation moves less than
+ * a pixel per frame, so integer scrollY often repeats once while still moving. That fired the
+ * recovery mid-animation and not when the user really stopped.
+ */
+internal class ScoreScrollSettleDetector(private val requiredStableFrames: Int = SCORE_SCROLL_SETTLE_FRAMES) {
     private var previousPosition: Int? = null
+    private var stableFrames = 0
 
     fun observe(position: Int): Boolean {
         if (previousPosition == position) {
-            previousPosition = null
-            return true
+            stableFrames++
+            if (stableFrames >= requiredStableFrames - 1) {
+                reset()
+                return true
+            }
+            return false
         }
         previousPosition = position
+        stableFrames = 0
         return false
     }
 
     fun reset() {
         previousPosition = null
+        stableFrames = 0
     }
 }
 
@@ -32,6 +49,9 @@ internal class ScoreScrollSettleDetector {
 internal class ScoreScrollRenderRecovery(
     private val renderSurface: View,
     private val scrollView: ScrollView,
+    // issue 119: scrolls written by the playback follow animation are not a user settle; the
+    // follow handler calls requestCheck() itself when its animation stops.
+    private val programmaticScrollActive: () -> Boolean = { false },
 ) : ViewTreeObserver.OnScrollChangedListener {
     private val settleDetector = ScoreScrollSettleDetector()
     private var started = false
@@ -39,14 +59,14 @@ internal class ScoreScrollRenderRecovery(
 
     private val settleRunnable = object : Runnable {
         override fun run() {
-            if (!started || !scrollView.isAttachedToWindow) {
+            if (!started || !scrollView.isAttachedToWindow || programmaticScrollActive()) {
                 monitoringSettle = false
                 settleDetector.reset()
                 return
             }
             if (settleDetector.observe(scrollView.scrollY)) {
                 monitoringSettle = false
-                forceVisiblePartialCheck()
+                forceVisiblePartialCheck("scroll settled")
             } else {
                 scrollView.postOnAnimation(this)
             }
@@ -66,6 +86,12 @@ internal class ScoreScrollRenderRecovery(
         scrollView.postOnAnimation(settleRunnable)
     }
 
+    /** issue 119: re-check the visible partials now (follow animation stopped, playback paused). */
+    fun requestCheck(reason: String) {
+        if (!started) return
+        scrollView.postOnAnimation { if (started) forceVisiblePartialCheck(reason) }
+    }
+
     fun close() {
         if (!started) return
         started = false
@@ -76,8 +102,14 @@ internal class ScoreScrollRenderRecovery(
         if (observer.isAlive) observer.removeOnScrollChangedListener(this)
     }
 
-    private fun forceVisiblePartialCheck() {
+    private fun forceVisiblePartialCheck(reason: String) {
         if (!renderSurface.isAttachedToWindow) return
+        // Bounded diagnostics: one line per settle / stop event, never per frame.
+        Log.i(
+            "ScoreRenderRecovery",
+            "partial check ($reason): scrollY=${scrollView.scrollY} viewport=${scrollView.height} " +
+                "surface=${renderSurface.width}x${renderSurface.height} layoutRequested=${renderSurface.isLayoutRequested}",
+        )
         // forceLayout guarantees AlphaTabRenderSurface.onMeasure() refreshes its private
         // visible-rect dirty flag before onLayout() requests any missing lazy partials.
         renderSurface.forceLayout()

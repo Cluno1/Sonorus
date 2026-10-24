@@ -24,6 +24,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.SystemClock
 import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
 import android.widget.ScrollView
 import android.util.Log
@@ -403,8 +404,9 @@ private class ScorePlaybackController(
         view: AlphaTabView,
         mode: ScorePlaybackIndicatorMode,
         onPulsePositions: (List<ScorePlaybackBeatPosition>) -> Unit,
+        onPlaybackHalted: () -> Unit = {},
     ) {
-        val binding = ScorePlaybackDisplayBinding(mode, onPulsePositions)
+        val binding = ScorePlaybackDisplayBinding(mode, onPulsePositions, onPlaybackHalted)
         displayBindings[view] = binding
         view.post {
             if (displayBindings[view] !== binding) return@post
@@ -441,6 +443,7 @@ private class ScorePlaybackController(
             displayView.post {
                 if (displayBindings[displayView] !== binding) return@post
                 displayView.api.pause()
+                binding.onPlaybackHalted()
                 configureDisplayOutput(displayView, binding)
                 updateDisplayPosition(displayView, binding)
                 if (binding.mode == ScorePlaybackIndicatorMode.PULSE) {
@@ -456,6 +459,7 @@ private class ScorePlaybackController(
                 if (displayBindings[displayView] !== binding) return@post
                 configureDisplayOutput(displayView, binding)
                 if (playing) displayView.api.play() else displayView.api.pause()
+                if (!playing) binding.onPlaybackHalted()
             }
         }
     }
@@ -574,6 +578,8 @@ private class ScorePlaybackController(
 private data class ScorePlaybackDisplayBinding(
     val mode: ScorePlaybackIndicatorMode,
     val onPulsePositions: (List<ScorePlaybackBeatPosition>) -> Unit,
+    // issue 119: playback paused / stopped / finished — the display stops its follow animation.
+    val onPlaybackHalted: () -> Unit = {},
     val externalMediaHandler: ScoreDisplayExternalMediaHandler = ScoreDisplayExternalMediaHandler(),
 )
 
@@ -2593,6 +2599,9 @@ private data class AlphaTabScoreViewState(
     val scrollRenderRecovery: ScoreScrollRenderRecovery,
     val renderSurface: View,
     val renderSurfaceLayoutListener: View.OnLayoutChangeListener?,
+    val innerScroll: ScrollView,
+    // issue 119: drives the back-to-top button; removed with the view.
+    val backToTopListener: ViewTreeObserver.OnScrollChangedListener,
 )
 
 @Composable
@@ -2656,12 +2665,16 @@ private fun AlphaTabScore(
             }
         }
     }
+    // issue 119: small floating "back to top" once the reader is more than one screen down.
+    var backToTopVisible by remember { mutableStateOf(false) }
+    val scoreViewHolder = remember { arrayOfNulls<AlphaTabView>(1) }
     Surface(
         modifier = modifier,
         // A score is paper, not a themed surface. alphaTab's glyph palette is authored for
         // dark ink and becomes unreadable when a dark app surface shows through its canvas.
         color = androidx.compose.ui.graphics.Color.White,
     ) {
+      Box(Modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
@@ -2739,16 +2752,22 @@ private fun AlphaTabScore(
                     val renderWrapper =
                         findViewById<RelativeLayout>(net.alphatab.R.id.renderWrapper)
                     val renderSurface = findViewById<View>(net.alphatab.R.id.renderSurface)
+                    var followHandler: ScorePlaybackScrollHandler? = null
                     val scrollRenderRecovery = ScoreScrollRenderRecovery(
                         renderSurface = renderSurface,
                         scrollView = innerScroll,
+                        programmaticScrollActive = { followHandler?.isAnimating == true },
                     )
                     val playbackScrollHandler = if (!editMode) {
                         ScorePlaybackScrollHandler(
                             displayView = displayView,
                             scrollView = innerScroll,
                             initiallyEnabled = followScrollEnabled,
+                            onAnimationSettled = { reason ->
+                                scrollRenderRecovery.requestCheck("follow $reason")
+                            },
                         ).also { handler ->
+                            followHandler = handler
                             api.customCursorHandler = ScorePlaybackCursorHandler(playbackOverlay)
                             api.customScrollHandler = handler
                         }
@@ -2820,6 +2839,10 @@ private fun AlphaTabScore(
                             }
                         },
                     )
+                    val backToTopListener = ViewTreeObserver.OnScrollChangedListener {
+                        backToTopVisible = innerScroll.height > 0 && innerScroll.scrollY > innerScroll.height
+                    }
+                    innerScroll.viewTreeObserver.addOnScrollChangedListener(backToTopListener)
                     tag = AlphaTabScoreViewState(
                         playbackOverlay = playbackOverlay,
                         renderReadiness = renderReadiness,
@@ -2827,7 +2850,10 @@ private fun AlphaTabScore(
                         scrollRenderRecovery = scrollRenderRecovery,
                         renderSurface = renderSurface,
                         renderSurfaceLayoutListener = renderSurfaceLayoutListener,
+                        innerScroll = innerScroll,
+                        backToTopListener = backToTopListener,
                     )
+                    scoreViewHolder[0] = displayView
                     scrollRenderRecovery.start()
                     renderReadiness.start()
                 }
@@ -2847,6 +2873,7 @@ private fun AlphaTabScore(
                     playbackController.attachDisplay(
                         view = displayView,
                         mode = playbackIndicatorMode,
+                        onPlaybackHalted = { viewState.playbackScrollHandler?.haltForPause() },
                         onPulsePositions = { positions ->
                             val pulseBeats = findScorePlaybackHighlightBeats(
                                 tracks = tracksToRender,
@@ -2864,7 +2891,10 @@ private fun AlphaTabScore(
                 }
             },
             onRelease = { view ->
+                if (scoreViewHolder[0] === view) scoreViewHolder[0] = null
                 (view.tag as? AlphaTabScoreViewState)?.let { state ->
+                    val scrollObserver = state.innerScroll.viewTreeObserver
+                    if (scrollObserver.isAlive) scrollObserver.removeOnScrollChangedListener(state.backToTopListener)
                     state.renderReadiness.release()
                     state.playbackScrollHandler?.close()
                     state.scrollRenderRecovery.close()
@@ -2878,6 +2908,39 @@ private fun AlphaTabScore(
                 view.api.destroy()
             }
         )
+        if (!editMode) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = backToTopVisible,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp),
+            ) {
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = {
+                        val state = scoreViewHolder[0]?.tag as? AlphaTabScoreViewState
+                            ?: return@SmallFloatingActionButton
+                        // The reader takes over: stop any follow animation, then glide up.
+                        state.playbackScrollHandler?.yieldToUser("back to top")
+                        state.innerScroll.smoothScrollTo(0, 0)
+                        Log.i(SCORE_DISPLAY_TAG, "back to top from scrollY=${state.innerScroll.scrollY}")
+                    },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 2.dp,
+                        pressedElevation = 4.dp,
+                    ),
+                ) {
+                    Icon(
+                        MaterialSymbolIcon("vertical_align_top"),
+                        contentDescription = stringResource(R.string.score_back_to_top),
+                    )
+                }
+            }
+        }
+      }
     }
 }
 
