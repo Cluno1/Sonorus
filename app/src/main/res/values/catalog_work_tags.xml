@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- issue 116 / 118: Work tags on lyrics pages, score lyrics pane. -->
 <resources>
-    <string name="work_tags_manage">Manage tags</string>
     <string name="work_tags_cd_manage">Manage this song\'s tags</string>
     <string name="work_tags_empty">No tags yet</string>
-    <string name="work_tags_more">%1$d more</string>
     <string name="work_tags_dialog_title">Manage tags</string>
-    <string name="work_tags_add">Add tag</string>
     <string name="work_tags_remove">Remove tag %1$s</string>
     <string name="work_tags_save">Save</string>
     <string name="work_tags_cancel">Cancel</string>
@@ -24,4 +21,12 @@
     <string name="work_tags_error_generic">Couldn\'t save: %1$s</string>
     <string name="score_lyrics_pane_title">Lyrics</string>
     <string name="score_lyrics_pane_close">Hide lyrics</string>
+    <string name="work_tags_selected">Selected</string>
+    <string name="work_tags_search_or_add">Search or add a tag</string>
+    <string name="work_tags_create">Create “%1$s”</string>
+    <string name="work_tags_add_existing">Add “%1$s”</string>
+    <string name="work_tags_all">All tags</string>
+    <string name="work_tags_catalog_unavailable">Can\'t load existing tags right now. You can still add new ones.</string>
+    <string name="work_tags_no_match">No existing tag matches</string>
+    <string name="work_tags_catalog_item">%1$s · %2$d</string>
 </resources>

@@ -115,4 +115,12 @@ class CatalogWireJsonContractTest {
         val legacy = CatalogDtoMapper.work(gson.fromJson("{$base}", WorkDto::class.java))
         assertEquals(emptyList<String>(), legacy.tags)
     }
+
+    @Test
+    fun `全库标签列表按协议字段解析，坏条目丢弃`() {
+        val json = """{"items":[{"tag_key":"赞美","label":"赞美","work_count":42},
+            {"tag_key":"duet","label":"Duet","work_count":7},{"tag_key":"","label":"x","work_count":1}]}"""
+        val tags = CatalogDtoMapper.libraryTags(gson.fromJson(json, LibraryTagListDto::class.java))
+        assertEquals(listOf("赞美" to 42, "Duet" to 7), tags.map { it.label to it.workCount })
+    }
 }

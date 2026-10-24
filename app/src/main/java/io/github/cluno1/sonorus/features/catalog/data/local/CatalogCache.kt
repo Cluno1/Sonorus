@@ -51,6 +51,15 @@ internal class CatalogCache(context: Context, private val gson: Gson = Gson()) {
         }
     }
 
+    // issue 121: last known tag catalog, so the tag picker still lists tags offline.
+    fun loadLibraryTags(): List<io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag> =
+        read<List<io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag>>(
+            KEY_LIBRARY_TAGS,
+            object : TypeToken<List<io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag>>() {}.type,
+        ).orEmpty()
+    fun saveLibraryTags(tags: List<io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag>) =
+        write(KEY_LIBRARY_TAGS, tags)
+
     fun loadLibraryAlbum(albumId: String): CatalogLibraryAlbum? =
         read(libraryAlbumKey(albumId), CatalogLibraryAlbum::class.java)
 
@@ -89,5 +98,6 @@ internal class CatalogCache(context: Context, private val gson: Gson = Gson()) {
         const val KEY_LIBRARY_SONGS = "library_songs"
         const val KEY_LIBRARY_ALBUMS = "library_albums"
         const val KEY_LIBRARY_SCORE_WORKS = "library_score_works"
+        const val KEY_LIBRARY_TAGS = "library_tags"
     }
 }

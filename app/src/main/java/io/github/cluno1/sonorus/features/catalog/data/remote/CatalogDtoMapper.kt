@@ -156,6 +156,11 @@ internal object CatalogDtoMapper {
         nextCursor = dto.nextCursor?.takeIf(String::isNotBlank),
     )
 
+    /** issue 121: malformed entries are dropped; the picker still works with the rest. */
+    fun libraryTags(dto: LibraryTagListDto): List<CatalogLibraryTag> = dto.items.orEmpty()
+        .mapNotNull { runCatching { libraryTag(it) }.getOrNull() }
+        .distinctBy { it.key }
+
     private fun libraryTag(dto: LibraryTagDto) = CatalogLibraryTag(
         key = text(dto.tagKey, "tag.tag_key"),
         label = text(dto.label, "tag.label"),

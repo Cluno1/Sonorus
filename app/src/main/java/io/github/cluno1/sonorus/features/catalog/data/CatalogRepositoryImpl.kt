@@ -605,6 +605,16 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
         work
     }
 
+    override fun cachedLibraryTags(): List<io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag> =
+        cache.loadLibraryTags()
+
+    override suspend fun listLibraryTags():
+        Result<List<io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag>> = guarded {
+        CatalogDtoMapper.libraryTags(client().api.libraryTags().bodyOrThrow()).also(cache::saveLibraryTags)
+    }.recoverCatching { error ->
+        if (error is CatalogFailure.Unreachable) cache.loadLibraryTags() else throw error
+    }
+
     override suspend fun getChorus(workId: String): Result<ChorusCatalog> = guarded {
         val id = validUuid(workId)
         ChorusDtoMapper.catalog(client().chorusApi.workChorus(id).bodyOrThrow()).also {

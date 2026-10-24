@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
 import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -8,21 +9,29 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,8 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.cluno1.sonorus.R
@@ -49,17 +57,14 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSym
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import kotlinx.coroutines.launch
 
-/** Chips shown before "N more"; the dialog always lists every tag. */
-private const val SUMMARY_TAG_LIMIT = 8
-
 /**
- * issue 116: tag summary of one catalog Work plus the "Manage tags" entry.
+ * issue 116 / 121: tag row of one catalog Work — a single horizontally scrolling line of chips
+ * with an icon-only "manage tags" button, so it costs one short line of the lyrics page.
  *
  * [work] is the Work being read (never the background player's song); while it is null the row
  * shows nothing. Saving goes straight to the server through the tag-only endpoint and, on success,
  * reports the updated Work through [onWorkUpdated] so the page shows the stored tags.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CatalogWorkTagsSection(
     work: WorkSummary?,
@@ -69,17 +74,18 @@ fun CatalogWorkTagsSection(
 ) {
     if (work == null) return
     val tags = work.tags.orEmpty()
-    var showDialog by remember(work.id) { mutableStateOf(false) }
-    val manageDescription = stringResource(R.string.work_tags_cd_manage)
+    var showEditor by remember(work.id) { mutableStateOf(false) }
 
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FlowRow(
-            modifier = Modifier.weight(1f),
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             if (tags.isEmpty()) {
                 Text(
@@ -88,32 +94,26 @@ fun CatalogWorkTagsSection(
                     color = contentColor,
                 )
             } else {
-                tags.take(SUMMARY_TAG_LIMIT).forEach { tag -> WorkTagChip(tag) }
-                if (tags.size > SUMMARY_TAG_LIMIT) {
-                    WorkTagChip(stringResource(R.string.work_tags_more, tags.size - SUMMARY_TAG_LIMIT))
-                }
+                tags.forEach { tag -> WorkTagChip(tag) }
             }
         }
-        Spacer(Modifier.width(8.dp))
-        TextButton(
-            onClick = { showDialog = true },
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .semantics { contentDescription = manageDescription },
-        ) {
-            Icon(MaterialSymbolIcon("sell"), contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.work_tags_manage))
+        IconButton(onClick = { showEditor = true }) {
+            Icon(
+                MaterialSymbolIcon("sell"),
+                contentDescription = stringResource(R.string.work_tags_cd_manage),
+                modifier = Modifier.size(20.dp),
+                tint = contentColor,
+            )
         }
     }
 
-    if (showDialog) {
-        CatalogWorkTagsDialog(
+    if (showEditor) {
+        CatalogWorkTagsEditorSheet(
             work = work,
-            onDismiss = { showDialog = false },
+            onDismiss = { showEditor = false },
             onWorkUpdated = { updated ->
                 onWorkUpdated(updated)
-                showDialog = false
+                showEditor = false
             },
         )
     }
@@ -163,12 +163,14 @@ private fun WorkTagChip(text: String) {
 }
 
 /**
- * Draft editor: changes stay local until "Save", which sends the whole set once (`[]` clears).
- * Cancel writes nothing. Failures keep the draft; a stale revision offers reloading the latest tags
- * instead of overwriting someone else's edit.
+ * issue 121: bottom-sheet tag editor. The draft holds the selected labels; the user picks from
+ * every existing tag (most used first, filtered by the input) or adds a new one from the input.
+ * Nothing is written until "Save", which sends the whole set once (`[]` clears); cancel writes
+ * nothing. A stale revision keeps the draft and offers reloading the Work's latest tags.
  */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun CatalogWorkTagsDialog(
+private fun CatalogWorkTagsEditorSheet(
     work: WorkSummary,
     onDismiss: () -> Unit,
     onWorkUpdated: (WorkSummary) -> Unit,
@@ -176,16 +178,44 @@ private fun CatalogWorkTagsDialog(
     val context = LocalContext.current
     val repository = remember(context) { CatalogModule.repository(context) }
     val scope = rememberCoroutineScope()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var base by remember(work.id) { mutableStateOf(work) }
     val draft = remember(work.id) { mutableStateListOf(*work.tags.orEmpty().toTypedArray()) }
+    var query by remember { mutableStateOf("") }
+    var catalog by remember { mutableStateOf(repository.cachedLibraryTags()) }
+    var catalogFailed by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<Throwable?>(null) }
 
+    LaunchedEffect(Unit) {
+        repository.listLibraryTags()
+            .onSuccess {
+                catalog = it
+                catalogFailed = false
+            }
+            .onFailure { catalogFailed = catalog.isEmpty() }
+    }
+
     val check = CatalogWorkTagsPolicy.check(draft)
     val changed = draft.toList() != base.tags.orEmpty()
+    val selectedKeys = draft.map(CatalogWorkTagsPolicy::key).toSet()
+    val entry = CatalogWorkTagsPolicy.resolveEntry(query, catalog, draft)
+    val visibleCatalog = CatalogWorkTagsPolicy.filterCatalog(catalog, query)
     val savedMessage = stringResource(R.string.work_tags_saved)
 
-    // Reloading only refreshes the dialog draft; the page keeps its tags until a save succeeds.
+    fun addEntry() {
+        val label = entry ?: return
+        if (draft.size >= CatalogWorkTagsPolicy.MAX_TAGS) return
+        draft.add(label)
+        query = ""
+    }
+
+    fun toggle(label: String) {
+        val index = draft.indexOfFirst { CatalogWorkTagsPolicy.key(it) == CatalogWorkTagsPolicy.key(label) }
+        if (index >= 0) draft.removeAt(index) else if (draft.size < CatalogWorkTagsPolicy.MAX_TAGS) draft.add(label)
+    }
+
+    // Reloading only refreshes the sheet's draft; the page keeps its tags until a save succeeds.
     fun reload() {
         saving = true
         scope.launch {
@@ -201,11 +231,40 @@ private fun CatalogWorkTagsDialog(
         }
     }
 
-    AlertDialog(
+    fun save() {
+        val valid = check as? CatalogWorkTagsPolicy.Check.Valid ?: return
+        saving = true
+        failure = null
+        scope.launch {
+            repository.replaceWorkTags(base.id, valid.tags, base.revision)
+                .onSuccess { updated ->
+                    Toast.makeText(context, savedMessage, Toast.LENGTH_SHORT).show()
+                    onWorkUpdated(updated)
+                }
+                .onFailure { failure = it }
+            saving = false
+        }
+    }
+
+    ModalBottomSheet(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = {
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Column {
-                Text(stringResource(R.string.work_tags_dialog_title))
+                Text(
+                    text = stringResource(R.string.work_tags_dialog_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
                 Text(
                     text = work.canonicalTitle,
                     style = MaterialTheme.typography.bodyMedium,
@@ -214,107 +273,141 @@ private fun CatalogWorkTagsDialog(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                val problems = (check as? CatalogWorkTagsPolicy.Check.Invalid)?.problems.orEmpty()
-                draft.forEachIndexed { index, value ->
-                    val problem = problems[index]
-                    OutlinedTextField(
-                        value = value,
-                        onValueChange = { draft[index] = it },
-                        enabled = !saving,
-                        singleLine = true,
-                        isError = problem != null,
-                        supportingText = problem?.let { { Text(problemText(it)) } },
-                        trailingIcon = {
-                            IconButton(onClick = { draft.removeAt(index) }, enabled = !saving) {
+
+            Text(
+                text = stringResource(R.string.work_tags_selected),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            if (draft.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.work_tags_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    draft.toList().forEach { label ->
+                        InputChip(
+                            selected = true,
+                            onClick = { if (!saving) toggle(label) },
+                            label = { Text(label) },
+                            trailingIcon = {
                                 Icon(
                                     RhythmIcons.Close,
-                                    contentDescription = stringResource(R.string.work_tags_remove, value),
+                                    contentDescription = stringResource(R.string.work_tags_remove, label),
+                                    modifier = Modifier.size(16.dp),
                                 )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (draft.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.work_tags_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if ((check as? CatalogWorkTagsPolicy.Check.Invalid)?.tooMany == true) {
-                    Text(
-                        text = stringResource(R.string.work_tags_error_too_many, CatalogWorkTagsPolicy.MAX_TAGS),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                TextButton(
-                    onClick = { draft.add("") },
-                    enabled = !saving && draft.size < CatalogWorkTagsPolicy.MAX_TAGS,
-                ) {
-                    Icon(RhythmIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.work_tags_add))
-                }
-                failure?.let { error ->
-                    Text(
-                        text = failureText(error),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    if (error is CatalogFailure.StaleRevision) {
-                        TextButton(onClick = { reload() }, enabled = !saving) {
-                            Text(stringResource(R.string.work_tags_reload))
-                        }
+                            },
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val valid = check as? CatalogWorkTagsPolicy.Check.Valid ?: return@TextButton
-                    saving = true
-                    failure = null
-                    scope.launch {
-                        repository.replaceWorkTags(base.id, valid.tags, base.revision)
-                            .onSuccess { updated ->
-                                Toast.makeText(context, savedMessage, Toast.LENGTH_SHORT).show()
-                                onWorkUpdated(updated)
-                            }
-                            .onFailure { failure = it }
-                        saving = false
-                    }
-                },
-                enabled = !saving && changed && check is CatalogWorkTagsPolicy.Check.Valid,
-            ) {
-                Text(stringResource(R.string.work_tags_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !saving) {
-                Text(stringResource(R.string.work_tags_cancel))
-            }
-        },
-    )
-}
 
-@Composable
-private fun problemText(problem: CatalogWorkTagsPolicy.Problem): String = when (problem) {
-    CatalogWorkTagsPolicy.Problem.EMPTY -> stringResource(R.string.work_tags_error_empty)
-    CatalogWorkTagsPolicy.Problem.TOO_LONG ->
-        stringResource(R.string.work_tags_error_too_long, CatalogWorkTagsPolicy.MAX_LENGTH)
-    CatalogWorkTagsPolicy.Problem.DUPLICATE -> stringResource(R.string.work_tags_error_duplicate)
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                enabled = !saving,
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.work_tags_search_or_add)) },
+                leadingIcon = { Icon(RhythmIcons.Search, contentDescription = null) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { addEntry() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (entry != null) {
+                val isNew = CatalogWorkTagsPolicy.isNewTag(entry, catalog)
+                AssistChip(
+                    onClick = ::addEntry,
+                    enabled = !saving && draft.size < CatalogWorkTagsPolicy.MAX_TAGS,
+                    label = {
+                        Text(
+                            stringResource(
+                                if (isNew) R.string.work_tags_create else R.string.work_tags_add_existing,
+                                entry,
+                            ),
+                        )
+                    },
+                    leadingIcon = { Icon(RhythmIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                )
+            } else if (CatalogWorkTagsPolicy.normalize(query).codePointCount(0, CatalogWorkTagsPolicy.normalize(query).length) >
+                CatalogWorkTagsPolicy.MAX_LENGTH
+            ) {
+                Text(
+                    text = stringResource(R.string.work_tags_error_too_long, CatalogWorkTagsPolicy.MAX_LENGTH),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            Text(
+                text = stringResource(R.string.work_tags_all),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            when {
+                catalogFailed -> Text(
+                    text = stringResource(R.string.work_tags_catalog_unavailable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                visibleCatalog.isEmpty() && catalog.isNotEmpty() -> Text(
+                    text = stringResource(R.string.work_tags_no_match),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                else -> FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    visibleCatalog.forEach { tag ->
+                        FilterChip(
+                            selected = CatalogWorkTagsPolicy.key(tag.label) in selectedKeys,
+                            onClick = { if (!saving) toggle(tag.label) },
+                            label = { Text(stringResource(R.string.work_tags_catalog_item, tag.label, tag.workCount)) },
+                        )
+                    }
+                }
+            }
+
+            if ((check as? CatalogWorkTagsPolicy.Check.Invalid)?.tooMany == true) {
+                Text(
+                    text = stringResource(R.string.work_tags_error_too_many, CatalogWorkTagsPolicy.MAX_TAGS),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            failure?.let { error ->
+                Text(
+                    text = failureText(error),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (error is CatalogFailure.StaleRevision) {
+                    TextButton(onClick = { reload() }, enabled = !saving) {
+                        Text(stringResource(R.string.work_tags_reload))
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onDismiss, enabled = !saving) {
+                    Text(stringResource(R.string.work_tags_cancel))
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { save() },
+                    enabled = !saving && changed && check is CatalogWorkTagsPolicy.Check.Valid,
+                ) {
+                    Text(stringResource(R.string.work_tags_save))
+                }
+            }
+        }
+    }
 }
 
 @Composable

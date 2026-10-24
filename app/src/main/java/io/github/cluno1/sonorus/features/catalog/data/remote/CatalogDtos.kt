@@ -182,6 +182,11 @@ internal data class LibrarySearchDto(
     @SerializedName("tag_items") val tagItems: List<LibraryTagDto>? = null,
 )
 
+/** `GET /v2/library/tags` response (issue 121): every tag on active Works, most used first. */
+internal data class LibraryTagListDto(
+    @SerializedName("items") val items: List<LibraryTagDto>?,
+)
+
 internal data class LibraryTagDto(
     @SerializedName("tag_key") val tagKey: String?,
     @SerializedName("label") val label: String?,

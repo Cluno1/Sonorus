@@ -1,5 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
 import java.text.Normalizer
 import java.util.Locale
 
@@ -29,6 +30,33 @@ object CatalogWorkTagsPolicy {
 
     /** Case-insensitive identity, like Python `casefold()` for the scripts tags use. */
     fun key(value: String): String = normalize(value).lowercase(Locale.ROOT)
+
+    /**
+     * issue 121: catalog tags matching [query] (case-insensitive substring on the normalized
+     * label), keeping the server order (most used first). An empty query returns everything.
+     */
+    fun filterCatalog(catalog: List<CatalogLibraryTag>, query: String): List<CatalogLibraryTag> {
+        val needle = key(query)
+        return if (needle.isEmpty()) catalog else catalog.filter { key(it.label).contains(needle) }
+    }
+
+    /**
+     * issue 121: what typing [query] and confirming should add. An existing tag with the same key
+     * (case / whitespace only, like the backend `tag_key`) is reused with its stored label so no
+     * near-duplicate is created; otherwise the normalized new label. Null when empty, too long or
+     * already selected.
+     */
+    fun resolveEntry(query: String, catalog: List<CatalogLibraryTag>, selected: List<String>): String? {
+        val label = normalize(query)
+        if (label.isEmpty() || label.codePointCount(0, label.length) > MAX_LENGTH) return null
+        val wanted = key(label)
+        if (selected.any { key(it) == wanted }) return null
+        return catalog.firstOrNull { key(it.label) == wanted }?.label ?: label
+    }
+
+    /** issue 121: true when [label] is not an existing catalog tag, i.e. adding it creates one. */
+    fun isNewTag(label: String, catalog: List<CatalogLibraryTag>): Boolean =
+        catalog.none { key(it.label) == key(label) }
 
     fun check(draft: List<String>): Check {
         val problems = linkedMapOf<Int, Problem>()

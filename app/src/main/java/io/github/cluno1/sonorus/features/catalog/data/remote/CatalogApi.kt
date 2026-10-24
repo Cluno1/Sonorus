@@ -51,6 +51,10 @@ internal interface CatalogApi {
         @Query("limit") limit: Int = 50,
     ): Response<LibrarySearchDto>
 
+    /** issue 121: all existing Work tags for the tag picker. */
+    @GET("v2/library/tags")
+    suspend fun libraryTags(@Query("limit") limit: Int = 500): Response<LibraryTagListDto>
+
     @GET("v2/library/tag-works")
     suspend fun tagWorks(
         @Query("tag") tagKey: String,

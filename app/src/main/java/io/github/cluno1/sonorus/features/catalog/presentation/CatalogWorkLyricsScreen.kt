@@ -20,9 +20,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -98,6 +100,7 @@ fun CatalogWorkLyricsScreen(
     val displayingImages = showSourceImages && sourceImages.isNotEmpty()
     val bottomPadding = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding()
     val tablet = isTabletLyricsLayout()
+    val phoneNumbersLine = remember(work) { formatWorkNumbers(work?.numberMeta.orEmpty()) }
 
     // Tablet only: back first hides the left-pane images, then leaves. Phones keep their old back.
     BackHandler(enabled = tablet && displayingImages) { showSourceImages = false }
@@ -107,11 +110,33 @@ fun CatalogWorkLyricsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = stringResource(R.string.work_lyrics_title),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (tablet) {
+                        Text(
+                            text = stringResource(R.string.work_lyrics_title),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else {
+                        // issue 121: on a phone the Work title and hymnal numbers live in the bar,
+                        // so the body has no separate title block.
+                        Column {
+                            Text(
+                                text = work?.canonicalTitle ?: initialTitle,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (phoneNumbersLine.isNotEmpty()) {
+                                Text(
+                                    text = phoneNumbersLine,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -207,29 +232,75 @@ fun CatalogWorkLyricsScreen(
                 },
             )
         } else {
-            Column(
+            // issue 121: phone — nothing fixed above the lyrics except the top bar. The tag row
+            // scrolls away with the lyrics; play/score are small floating icon buttons.
+            val playSong = playableSongs.firstOrNull()
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
             ) {
-                header()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                ) {
-                    if (state.bundle != null && displayingImages) {
-                        CatalogLyricSourceImagesView(
-                            images = sourceImages,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        CatalogWorkLyricsBody(
-                            state = state,
-                            selectedVariant = selectedVariant,
-                            bottomPadding = bottomPadding,
-                            onBack = onBack,
-                        )
+                if (state.bundle != null && displayingImages) {
+                    CatalogLyricSourceImagesView(
+                        images = sourceImages,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    CatalogWorkLyricsBody(
+                        state = state,
+                        selectedVariant = selectedVariant,
+                        // Room so the last lines can scroll clear of the floating buttons.
+                        bottomPadding = bottomPadding + if (playSong != null || onOpenScore != null) 112.dp else 0.dp,
+                        onBack = onBack,
+                        leading = {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 24.dp, end = 12.dp),
+                            ) {
+                                CatalogWorkTagsSection(work = work, onWorkUpdated = state::updateWork)
+                                if (state.error != null && state.bundle != null) {
+                                    Text(
+                                        text = stringResource(R.string.work_lyrics_offline_cached),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
+                // Playback/score rule: unavailable entries are not composed at all.
+                if (playSong != null || onOpenScore != null) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = bottomPadding - 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        onOpenScore?.let { openScore ->
+                            SmallFloatingActionButton(
+                                onClick = openScore,
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            ) {
+                                Icon(
+                                    RhythmIcons.ScoreFilled,
+                                    contentDescription = stringResource(R.string.work_lyrics_open_score),
+                                )
+                            }
+                        }
+                        playSong?.let { song ->
+                            FloatingActionButton(
+                                onClick = { onPlaySong(song) },
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            ) {
+                                Icon(
+                                    RhythmIcons.Play,
+                                    contentDescription = stringResource(R.string.work_lyrics_play_song),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -409,6 +480,8 @@ fun CatalogWorkLyricsBody(
     selectedVariant: CatalogLyricsVariant?,
     bottomPadding: Dp,
     onBack: () -> Unit,
+    // issue 121: content that scrolls with the lyrics (the phone tag row).
+    leading: @Composable () -> Unit = {},
 ) {
     when {
         state.bundle == null && state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -421,27 +494,36 @@ fun CatalogWorkLyricsBody(
         )
         selectedVariant != null -> {
             val text = remember(selectedVariant) { workLyricsDisplayText(selectedVariant.lyrics) }
-            Text(
-                text = text,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    lineHeight = MaterialTheme.typography.titleMedium.lineHeight * 1.5f,
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = bottomPadding)),
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                leading()
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        lineHeight = MaterialTheme.typography.titleMedium.lineHeight * 1.5f,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 12.dp, bottom = bottomPadding)),
+                )
+            }
+        }
+        else -> Column(Modifier.fillMaxWidth()) {
+            leading()
+            Text(
+                text = stringResource(R.string.work_lyrics_empty),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             )
         }
-        else -> Text(
-            text = stringResource(R.string.work_lyrics_empty),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-        )
     }
 }
 

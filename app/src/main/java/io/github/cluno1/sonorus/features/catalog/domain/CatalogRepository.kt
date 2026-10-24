@@ -36,6 +36,12 @@ interface CatalogRepository {
         expectedRevision: Int,
     ): Result<WorkSummary> = Result.failure(CatalogFailure.Server(404))
 
+    /** issue 121: every existing Work tag, most used first; falls back to the cached list offline. */
+    suspend fun listLibraryTags(): Result<List<CatalogLibraryTag>> = Result.failure(CatalogFailure.Server(404))
+
+    /** issue 121: the last tag catalog fetched, for an instant first frame. */
+    fun cachedLibraryTags(): List<CatalogLibraryTag> = emptyList()
+
     fun connection(): CatalogConnection
     fun cachedWorks(): List<WorkSummary>
     fun cachedBundle(workId: String): WorkBundle?

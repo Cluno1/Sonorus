@@ -46,3 +46,41 @@ class CatalogWorkTagsPolicyTest {
         assertTrue(result is Check.Invalid && result.tooMany)
     }
 }
+
+class CatalogWorkTagsPickerTest {
+    private val catalog = listOf(
+        io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag("赞美", "赞美", 42),
+        io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag("duet", "Duet", 7),
+        io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag("多声部", "多声部", 3),
+    )
+
+    @Test
+    fun `空关键字列出全部且保持常用顺序`() {
+        assertEquals(listOf("赞美", "Duet", "多声部"), CatalogWorkTagsPolicy.filterCatalog(catalog, " ").map { it.label })
+    }
+
+    @Test
+    fun `关键字忽略大小写做子串筛选`() {
+        assertEquals(listOf("Duet"), CatalogWorkTagsPolicy.filterCatalog(catalog, "UE").map { it.label })
+        assertEquals(listOf("多声部"), CatalogWorkTagsPolicy.filterCatalog(catalog, "声").map { it.label })
+    }
+
+    @Test
+    fun `输入与已有标签只差大小写时复用已有写法，不新建近似重复`() {
+        assertEquals("Duet", CatalogWorkTagsPolicy.resolveEntry(" duet ", catalog, selected = emptyList()))
+        org.junit.Assert.assertFalse(CatalogWorkTagsPolicy.isNewTag("DUET", catalog))
+    }
+
+    @Test
+    fun `全新标签按规范化后的写法新增`() {
+        assertEquals("安静 敬拜", CatalogWorkTagsPolicy.resolveEntry("  安静   敬拜 ", catalog, emptyList()))
+        assertTrue(CatalogWorkTagsPolicy.isNewTag("安静 敬拜", catalog))
+    }
+
+    @Test
+    fun `已选、空白或超长时不产生新条目`() {
+        assertEquals(null, CatalogWorkTagsPolicy.resolveEntry("赞美", catalog, selected = listOf("赞美")))
+        assertEquals(null, CatalogWorkTagsPolicy.resolveEntry("   ", catalog, emptyList()))
+        assertEquals(null, CatalogWorkTagsPolicy.resolveEntry("字".repeat(41), catalog, emptyList()))
+    }
+}
