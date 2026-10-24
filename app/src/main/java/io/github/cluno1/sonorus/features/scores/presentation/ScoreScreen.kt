@@ -2780,12 +2780,18 @@ private fun AlphaTabScore(
                         renderSurfaceLayoutListener = View.OnLayoutChangeListener {
                                 _, _, top, _, bottom, _, oldTop, _, oldBottom ->
                             if (bottom - top != oldBottom - oldTop) {
-                                updateScorePlaybackCanvasLayout(
-                                    renderSurface = renderSurface,
-                                    renderWrapper = renderWrapper,
-                                    playbackOverlay = playbackOverlay,
-                                    innerScroll = innerScroll,
-                                )
+                                // issue 119: this runs inside a layout pass. Changing layout
+                                // params / minimumHeight here issues requestLayout() during layout,
+                                // which can be lost and leave alphaTab's surface waiting for a
+                                // layout forever (white partials). Apply it on the next frame.
+                                renderSurface.post {
+                                    updateScorePlaybackCanvasLayout(
+                                        renderSurface = renderSurface,
+                                        renderWrapper = renderWrapper,
+                                        playbackOverlay = playbackOverlay,
+                                        innerScroll = innerScroll,
+                                    )
+                                }
                             }
                         }
                         outerScroll.setBackgroundColor(AndroidColor.WHITE)

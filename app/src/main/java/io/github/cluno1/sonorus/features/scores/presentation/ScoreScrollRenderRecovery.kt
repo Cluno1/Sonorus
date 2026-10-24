@@ -40,11 +40,25 @@ internal class ScoreScrollSettleDetector(private val requiredStableFrames: Int =
 }
 
 /**
- * Gives alphaTab's Android lazy-render surface one final layout pass after a fling settles.
+ * Makes alphaTab's Android lazy-render surface restore the partials of the current viewport.
  *
- * AlphaTab recycles bitmap partials outside the viewport. During a fast reverse fling its
- * single scroll listener can coalesce the final scroll event while a previous layout is still
- * pending, leaving the final viewport without a request to restore its recycled partials.
+ * Invariants (issue 43 / 119):
+ * - alphaTab's AlphaTabRenderSurface ignores every scroll while `_layoutDirty` is true and only
+ *   clears it in onLayout(); partials outside the viewport are recycled and are re-requested only
+ *   from onLayout(). If a layout never runs, scrolling back shows white forever.
+ * - A requestLayout() can be lost: when it is issued while an ancestor already carries a pending
+ *   layout flag that no traversal will service (e.g. a requestLayout made during a layout pass),
+ *   View.requestLayout() stops propagating at that ancestor. So after the viewport settles this
+ *   class does not ask for a layout — it runs the surface's measure + layout itself, and if an
+ *   ancestor still claims a pending layout it asks the window root for a full traversal.
+ * - Only this ScrollView's own scrollY changes start a settle check; the ViewTreeObserver fires
+ *   for any scroll in the window and used to force a layout every 50 ms at a constant position.
+ *
+ * Why: issue 119 logs on iQOO Debug 82 showed the surface still `layoutRequested=true` when the
+ * reader stopped scrolling, then no further partial requests: a white score at scrollY=0.
+ *
+ * Rejected: requestLayout()/invalidate() only (can be lost, the original fix); re-rendering the
+ * whole score (reloads every partial, resets nothing useful); disabling lazy rendering (memory).
  */
 internal class ScoreScrollRenderRecovery(
     private val renderSurface: View,
@@ -56,6 +70,7 @@ internal class ScoreScrollRenderRecovery(
     private val settleDetector = ScoreScrollSettleDetector()
     private var started = false
     private var monitoringSettle = false
+    private var lastCheckedScrollY = Int.MIN_VALUE
 
     private val settleRunnable = object : Runnable {
         override fun run() {
@@ -80,7 +95,8 @@ internal class ScoreScrollRenderRecovery(
     }
 
     override fun onScrollChanged() {
-        if (!started || monitoringSettle) return
+        // Window-wide callback: ignore it unless this score's own viewport actually moved.
+        if (!started || monitoringSettle || scrollView.scrollY == lastCheckedScrollY) return
         monitoringSettle = true
         settleDetector.reset()
         scrollView.postOnAnimation(settleRunnable)
@@ -104,16 +120,43 @@ internal class ScoreScrollRenderRecovery(
 
     private fun forceVisiblePartialCheck(reason: String) {
         if (!renderSurface.isAttachedToWindow) return
+        lastCheckedScrollY = scrollView.scrollY
+        val surfaceLayoutPending = renderSurface.isLayoutRequested
+        val stuckAncestors = pendingLayoutAncestors()
+        // Run alphaTab's onMeasure (marks its visible rect dirty) and onLayout (refreshes the
+        // visible rect, requests missing partials, clears _layoutDirty) right now, with the
+        // surface's current geometry, instead of waiting for a traversal that may never come.
+        if (renderSurface.width > 0 && renderSurface.height > 0) {
+            renderSurface.forceLayout()
+            renderSurface.measure(
+                View.MeasureSpec.makeMeasureSpec(renderSurface.measuredWidth, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(renderSurface.measuredHeight, View.MeasureSpec.EXACTLY),
+            )
+            renderSurface.layout(renderSurface.left, renderSurface.top, renderSurface.right, renderSurface.bottom)
+        }
+        if (stuckAncestors > 0) {
+            // A pending flag nobody will service blocks every later requestLayout(); a full
+            // traversal from the window root lays those ancestors out and clears it.
+            scrollView.rootView.parent?.requestLayout()
+        }
+        renderSurface.postInvalidateOnAnimation()
         // Bounded diagnostics: one line per settle / stop event, never per frame.
         Log.i(
             "ScoreRenderRecovery",
-            "partial check ($reason): scrollY=${scrollView.scrollY} viewport=${scrollView.height} " +
-                "surface=${renderSurface.width}x${renderSurface.height} layoutRequested=${renderSurface.isLayoutRequested}",
+            "partial check ($reason): scrollY=$lastCheckedScrollY viewport=${scrollView.height} " +
+                "surface=${renderSurface.width}x${renderSurface.height} " +
+                "surfaceLayoutPending=$surfaceLayoutPending stuckAncestors=$stuckAncestors",
         )
-        // forceLayout guarantees AlphaTabRenderSurface.onMeasure() refreshes its private
-        // visible-rect dirty flag before onLayout() requests any missing lazy partials.
-        renderSurface.forceLayout()
-        renderSurface.requestLayout()
-        renderSurface.postInvalidateOnAnimation()
+    }
+
+    /** Ancestors (up to the window root) still flagged for a layout after the viewport settled. */
+    private fun pendingLayoutAncestors(): Int {
+        var count = 0
+        var parent = renderSurface.parent
+        while (parent is View) {
+            if (parent.isLayoutRequested) count++
+            parent = parent.parent
+        }
+        return count
     }
 }
