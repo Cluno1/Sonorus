@@ -39,4 +39,31 @@ class ScoreScrollRenderRecoveryTest {
         val slowAnimation = listOf(500, 500, 501, 501, 502, 502, 503, 503, 504)
         assertTrue(slowAnimation.none(detector::observe))
     }
+
+    @Test
+    fun `正常的布局请求当帧就被处理，不触发滚动中补跑`() {
+        val detector = ScoreStuckLayoutDetector()
+        val healthyScroll = listOf(true, false, true, false, false, true, false)
+        assertTrue(healthyScroll.none(detector::observe))
+    }
+
+    @Test
+    fun `布局请求连续两帧未处理即在滚动中补跑一次`() {
+        val detector = ScoreStuckLayoutDetector()
+        assertFalse(detector.observe(true))
+        assertTrue(detector.observe(true))
+        // Consumed: a still-stuck request needs two more frames, so a long drag repairs at most
+        // every other frame instead of on every one.
+        assertFalse(detector.observe(true))
+        assertTrue(detector.observe(true))
+    }
+
+    @Test
+    fun `新一次滚动开始时清零挂起帧数`() {
+        val detector = ScoreStuckLayoutDetector()
+        assertFalse(detector.observe(true))
+        detector.reset()
+        assertFalse(detector.observe(true))
+        assertTrue(detector.observe(true))
+    }
 }
