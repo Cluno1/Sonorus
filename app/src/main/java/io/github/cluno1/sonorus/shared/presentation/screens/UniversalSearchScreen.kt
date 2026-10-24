@@ -28,6 +28,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -3132,6 +3134,7 @@ private fun LazyListScope.universalCatalogTextSearchItems(
             onOpenLyrics = { onOpenLyrics(item) },
             onOpenScore = { onOpenScore(item) },
             onOpenSong = { song -> onOpenSong(item, song) },
+            kind = CatalogWorkEntryKind.HYMNAL_NUMBER,
         )
     }
     universalCatalogTagSection(
@@ -3142,6 +3145,7 @@ private fun LazyListScope.universalCatalogTextSearchItems(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 private fun LazyListScope.universalCatalogTagSection(
     state: UniversalCatalogTextSearchState,
     expanded: Boolean,
@@ -3174,13 +3178,15 @@ private fun LazyListScope.universalCatalogTagSection(
                             modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
                         )
                     }
-                    Column(
+                    // issue 122: tags are compact wrapping chips, visibly not work cards.
+                    FlowRow(
                         modifier = Modifier.padding(horizontal = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         val visible = if (expanded) tags else tags.take(CATALOG_TEXT_SEARCH_PREVIEW_COUNT)
                         visible.forEach { tag ->
-                            key(tag.key) { UniversalCatalogTagRow(tag, onClick = { onOpenTag(tag) }) }
+                            key(tag.key) { UniversalCatalogTagChip(tag, onClick = { onOpenTag(tag) }) }
                         }
                     }
                     if (tags.size > CATALOG_TEXT_SEARCH_PREVIEW_COUNT) {
@@ -3200,29 +3206,43 @@ private fun LazyListScope.universalCatalogTagSection(
     }
 }
 
+/**
+ * issue 122: one tag result as a navigation chip — a real tag icon (not the "#" glyph), the label
+ * first and the work count de-emphasized, on tertiaryContainer so it reads as a tag collection
+ * rather than a work. No selected state and no ×: tapping always opens the tag's work list.
+ */
 @Composable
-private fun UniversalCatalogTagRow(tag: CatalogLibraryTag, onClick: () -> Unit) {
+private fun UniversalCatalogTagChip(tag: CatalogLibraryTag, onClick: () -> Unit) {
+    val countText = stringResource(R.string.search_tag_work_count, tag.workCount)
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = "${tag.label}, $countText"
+        },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(start = 10.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(MaterialSymbolIcon("tag"), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(tag.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    stringResource(R.string.search_tag_work_count, tag.workCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Icon(RhythmIcons.Back, contentDescription = null, modifier = Modifier.graphicsLayer { rotationZ = 180f })
+            Icon(MaterialSymbolIcon("label"), contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = tag.label,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 220.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = countText,
+                style = MaterialTheme.typography.labelMedium,
+                color = LocalContentColor.current.copy(alpha = 0.72f),
+                maxLines = 1,
+            )
         }
     }
 }
@@ -3374,6 +3394,12 @@ private fun UniversalLyricsSearchRow(
     }
 }
 
+/**
+ * issue 122: what the leading badge of a work row says. A number-search hit is about a hymnal
+ * entry (book icon); everywhere else the row is simply a work (music note). Never the "#" glyph.
+ */
+internal enum class CatalogWorkEntryKind { HYMNAL_NUMBER, WORK }
+
 @Composable
 internal fun CatalogWorkEntryRow(
     item: CatalogLibrarySearchItem,
@@ -3381,14 +3407,13 @@ internal fun CatalogWorkEntryRow(
     onOpenScore: () -> Unit,
     onOpenSong: (CatalogLibrarySearchSong) -> Unit,
     tagLabel: String? = null,
+    kind: CatalogWorkEntryKind = CatalogWorkEntryKind.WORK,
 ) {
     val numberLabel = remember(item.matchedNumber, item.numbers) {
         item.matchedNumber?.displayLabel() ?: formatWorkNumbers(item.numbers)
     }
     val showScore = item.defaultScoreId != null
     val showSongs = item.songs.isNotEmpty()
-    val subtitle = listOfNotNull(tagLabel?.takeIf(String::isNotBlank), numberLabel.takeIf(String::isNotBlank))
-        .joinToString(" · ")
     val onRowClick: (() -> Unit)? = when {
         item.hasLyrics -> onOpenLyrics
         showScore -> onOpenScore
@@ -3402,27 +3427,74 @@ internal fun CatalogWorkEntryRow(
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = MaterialSymbolIcon("tag"),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
-                )
+                // issue 122: a soft rounded badge instead of a bare primary "#".
+                val hymnal = kind == CatalogWorkEntryKind.HYMNAL_NUMBER
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (hymnal) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    },
+                    contentColor = if (hymnal) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (hymnal) MaterialSymbolIcon("menu_book") else RhythmIcons.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (subtitle.isNotEmpty()) {
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                    val tag = tagLabel?.takeIf(String::isNotBlank)
+                    if (tag != null || numberLabel.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            tag?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                            }
+                            if (numberLabel.isNotBlank()) {
+                                // Hymnal + number as a light badge; informational, not a button.
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                ) {
+                                    Text(
+                                        text = numberLabel,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
