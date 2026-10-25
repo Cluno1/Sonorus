@@ -5265,6 +5265,15 @@ private fun LocalNavigationRail(
             }
         ),
         LocalNavRailItem(
+            route = Screen.Rooms.route,
+            title = stringResource(R.string.rooms_title),
+            selectedIcon = MaterialSymbolIcon("meeting_room", filled = true),
+            unselectedIcon = MaterialSymbolIcon("meeting_room"),
+            onClick = {
+                navigateToTopLevel(Screen.Rooms.route)
+            }
+        ),
+        LocalNavRailItem(
             route = Screen.RhythmStats.route,
             title = stringResource(R.string.localnavigation_stats),
             selectedIcon = MaterialSymbolIcon("auto_graph", filled = true),
@@ -5323,6 +5332,7 @@ private fun LocalNavigationRail(
                         val isSelected = when {
                             item.route == Screen.Home.route -> currentRoute == Screen.Home.route
                             item.route.substringBefore("?") == Screen.Library.route.substringBefore("?") -> currentRoute.startsWith("library")
+                            item.route == Screen.Rooms.route -> currentRoute == Screen.Rooms.route
                             item.route == Screen.Search.route -> currentRoute == Screen.Search.route
                             item.route == Screen.RhythmStats.route -> currentRoute == Screen.RhythmStats.route
                             item.route == Screen.Settings.route -> currentRoute == Screen.Settings.route
@@ -5368,6 +5378,7 @@ private fun LocalNavigationRail(
                         val isSelected = when {
                             item.route == Screen.Home.route -> currentRoute == Screen.Home.route
                             item.route.substringBefore("?") == Screen.Library.route.substringBefore("?") -> currentRoute.startsWith("library")
+                            item.route == Screen.Rooms.route -> currentRoute == Screen.Rooms.route
                             item.route == Screen.Search.route -> currentRoute == Screen.Search.route
                             item.route == Screen.RhythmStats.route -> currentRoute == Screen.RhythmStats.route
                             else -> false
