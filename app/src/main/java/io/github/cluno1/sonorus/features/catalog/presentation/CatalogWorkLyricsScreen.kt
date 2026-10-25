@@ -204,7 +204,13 @@ fun CatalogWorkLyricsScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
                 leftOverlay = if (displayingImages) {
-                    { CatalogLyricSourceImagesView(images = sourceImages, modifier = Modifier.fillMaxSize()) }
+                    {
+                        CatalogLyricSourceImagesView(
+                            images = sourceImages,
+                            modifier = Modifier.fillMaxSize(),
+                            shareTitle = work?.canonicalTitle ?: initialTitle,
+                        )
+                    }
                 } else {
                     null
                 },
@@ -244,6 +250,7 @@ fun CatalogWorkLyricsScreen(
                     CatalogLyricSourceImagesView(
                         images = sourceImages,
                         modifier = Modifier.fillMaxSize(),
+                        shareTitle = work?.canonicalTitle ?: initialTitle,
                     )
                 } else {
                     CatalogWorkLyricsBody(

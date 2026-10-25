@@ -684,6 +684,7 @@ fun FullScreenLyricsView(
                     ) {
                         CatalogLyricSourceImagesView(
                             images = catalogLyricSourceImages,
+                            shareTitle = song?.title,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -734,6 +735,7 @@ fun FullScreenLyricsView(
                         showCatalogSourceImages && !sourceImagesCoverLeftPane -> {
                             CatalogLyricSourceImagesView(
                                 images = catalogLyricSourceImages,
+                                shareTitle = song?.title,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -1094,6 +1096,7 @@ fun FullScreenLyricsView(
                         showCatalogSourceImages -> {
                             CatalogLyricSourceImagesView(
                                 images = catalogLyricSourceImages,
+                                shareTitle = song?.title,
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -1610,181 +1613,7 @@ internal fun CatalogLyricSourceToggleButton(
     }
 }
 
-@Composable
-internal fun CatalogLyricSourceImagesView(
-    images: List<CatalogLyricSourceImage>,
-    modifier: Modifier = Modifier,
-) {
-    val documents = remember(images) {
-        images.distinctBy(CatalogLyricSourceImage::documentId)
-    }
-    var selectedDocumentId by remember(documents) {
-        mutableStateOf(documents.firstOrNull()?.documentId)
-    }
-    val selectedPages = remember(images, selectedDocumentId) {
-        images.filter { it.documentId == selectedDocumentId }
-            .sortedWith(compareBy(CatalogLyricSourceImage::displayOrder).thenBy {
-                it.physicalPageNumber
-            })
-    }
-
-    Column(modifier = modifier) {
-        if (documents.size > 1) {
-            var expanded by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                FilledTonalButton(
-                    onClick = { expanded = true },
-                    modifier = Modifier.align(Alignment.Center),
-                ) {
-                    Icon(
-                        imageVector = MaterialSymbolIcon("menu_book"),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = selectedPages.firstOrNull()?.documentTitle.orEmpty(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(
-                        imageVector = MaterialSymbolIcon("arrow_drop_down"),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    modifier = Modifier.align(Alignment.Center),
-                ) {
-                    documents.forEach { document ->
-                        DropdownMenuItem(
-                            text = { Text(document.documentTitle) },
-                            onClick = {
-                                expanded = false
-                                selectedDocumentId = document.documentId
-                            },
-                            trailingIcon = if (document.documentId == selectedDocumentId) {
-                                {
-                                    Icon(
-                                        imageVector = MaterialSymbolIcon("check"),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            } else null,
-                        )
-                    }
-                }
-            }
-        }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(selectedPages, key = CatalogLyricSourceImage::sourcePageId) { page ->
-                val pageLabel = page.displayLabel
-                    ?: stringResource(R.string.lyrics_source_pdf_page, page.physicalPageNumber)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = buildString {
-                            append(page.documentTitle)
-                            append(" · ")
-                            append(pageLabel)
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                    ZoomableLyricSourcePage(page)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun ZoomableLyricSourcePage(page: CatalogLyricSourceImage) {
-    var scale by remember(page.sourcePageId) { mutableFloatStateOf(1f) }
-    var offset by remember(page.sourcePageId) { mutableStateOf(Offset.Zero) }
-    var loadFailed by remember(page.sourcePageId) { mutableStateOf(false) }
-    var retryKey by remember(page.sourcePageId) { mutableIntStateOf(0) }
-    val transformState = rememberTransformableState { _, zoomChange, panChange, _ ->
-        val newScale = (scale * zoomChange).coerceIn(1f, 4f)
-        scale = newScale
-        offset = if (newScale == 1f) Offset.Zero else offset + panChange
-    }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(page.widthPx.toFloat() / page.heightPx.toFloat()),
-        shape = RoundedCornerShape(8.dp),
-        color = Color.White,
-        tonalElevation = 2.dp,
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            key(retryKey) {
-                AsyncImage(
-                    model = Uri.parse(CatalogArtworkPolicy.uri(page.imageAssetId)),
-                    contentDescription = stringResource(
-                        R.string.lyrics_source_page_description,
-                        page.documentTitle,
-                        page.physicalPageNumber,
-                    ),
-                    contentScale = ContentScale.Fit,
-                    onSuccess = { loadFailed = false },
-                    onError = { loadFailed = true },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                            translationX = offset.x
-                            translationY = offset.y
-                        }
-                        .transformable(
-                            state = transformState,
-                            canPan = { scale > 1f },
-                        )
-                        .pointerInput(page.sourcePageId) {
-                            detectTapGestures(
-                                onDoubleTap = {
-                                    if (scale > 1f) {
-                                        scale = 1f
-                                        offset = Offset.Zero
-                                    } else {
-                                        scale = 2f
-                                    }
-                                },
-                            )
-                        },
-                )
-            }
-            if (loadFailed) {
-                FilledTonalButton(
-                    onClick = {
-                        loadFailed = false
-                        retryKey += 1
-                    },
-                ) {
-                    Icon(
-                        imageVector = RhythmIcons.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.updates_retry))
-                }
-            }
-        }
-    }
-}
+// issue 123: CatalogLyricSourceImagesView (bounded canvas + share) lives in CatalogLyricSourceCanvas.kt.
 
 @Composable
 internal fun CatalogLyricsLanguageMenu(

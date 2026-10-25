@@ -10,4 +10,7 @@
     
     <!-- External cache directory -->
     <external-cache-path name="external_cache" path="." />
+
+    <!-- issue 123: source pages prepared for the share sheet (cleared on every share) -->
+    <cache-path name="shared_lyric_sources" path="shared-lyric-sources/" />
 </paths> 
