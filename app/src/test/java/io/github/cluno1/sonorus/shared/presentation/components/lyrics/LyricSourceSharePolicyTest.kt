@@ -47,49 +47,74 @@ class LyricSourceSharePolicyTest {
 
     @Test
     fun `文件名去掉非法字符并有兜底`() {
-        assertEquals("祂的慈爱 _永远_ 长存",LyricSourceSharePolicy.fileBaseName("  祂的慈爱 /永远:\n长存. "))
+        assertEquals("祂的慈爱 _永远_ 长存", LyricSourceSharePolicy.fileBaseName("  祂的慈爱 /永远:\n长存. "))
         assertEquals("Heaven Song 103", LyricSourceSharePolicy.fileBaseName("Heaven   Song\t103"))
         assertEquals("lyrics-source", LyricSourceSharePolicy.fileBaseName(" ?* "))
         assertEquals(60, LyricSourceSharePolicy.fileBaseName("长".repeat(200)).length)
-        assertEquals("歌-p12.png", LyricSourceSharePolicy.imageFileName("歌", 12, "image/png"))
-        assertEquals("歌-p3.jpg", LyricSourceSharePolicy.imageFileName("歌", 3, "image/jpeg; charset=binary"))
-        assertEquals("歌.pdf", LyricSourceSharePolicy.pdfFileName("歌"))
-    }
-
-    @Test
-    fun `一个文件用 SEND，多个文件用 SEND_MULTIPLE 和最窄的公共类型`() {
-        val single = LyricSourceSharePolicy.intentSpec(listOf("application/pdf"), caption = null)
-        assertEquals(Intent.ACTION_SEND, single.action)
-        assertEquals("application/pdf", single.mimeType)
-
-        val samePng = LyricSourceSharePolicy.intentSpec(listOf("image/png", "image/png"), caption = null)
-        assertEquals(Intent.ACTION_SEND_MULTIPLE, samePng.action)
-        assertEquals("image/png", samePng.mimeType)
-
-        val mixedImages = LyricSourceSharePolicy.intentSpec(listOf("image/png", "image/jpeg"), caption = null)
-        assertEquals("image/*", mixedImages.mimeType)
+        assertEquals("歌.png", LyricSourceSharePolicy.fileName("歌", "image/png"))
+        assertEquals("歌.jpg", LyricSourceSharePolicy.fileName("歌", "image/jpeg; charset=binary"))
     }
 
     @Test
     fun `当前不附带任何说明文字，未来的说明会进入 EXTRA_TEXT`() {
         // issue 123 decision: share the files only.
         assertNull(LyricSourceSharePolicy.caption("祂的慈爱永远长存", listOf(page("a", 1, 1))))
-        assertNull(LyricSourceSharePolicy.intentSpec(listOf("image/png"), caption = null).text)
-        assertNull(LyricSourceSharePolicy.intentSpec(listOf("image/png"), caption = "  ").text)
-        assertEquals("来源：某歌本", LyricSourceSharePolicy.intentSpec(listOf("image/png"), caption = "来源：某歌本").text)
+        val spec = LyricSourceSharePolicy.intentSpec("image/png", caption = null)
+        assertEquals(Intent.ACTION_SEND, spec.action)
+        assertEquals("image/png", spec.mimeType)
+        assertNull(spec.text)
+        assertNull(LyricSourceSharePolicy.intentSpec("image/png", caption = "  ").text)
+        assertEquals("来源：某歌本", LyricSourceSharePolicy.intentSpec("image/png", caption = "来源：某歌本").text)
     }
 
     @Test
-    fun `PDF 页按扫描 DPI 换算成实际尺寸`() {
-        // 1240 x 1754 px at 150 dpi is an A4 page: 595 x 842 pt.
-        assertEquals(595 to 842, LyricSourceSharePolicy.pdfPageSizePoints(1240, 1754, 150))
+    fun `两页合成一张时左右并排，宽度统一为较窄页`() {
+        val gap = LyricSourceSharePolicy.COMBINED_GAP_PX
+        val layout = LyricSourceSharePolicy.combinedLayout(listOf(1240 to 1754, 1500 to 1500))
+        assertEquals(
+            listOf(
+                LyricSourceShareCell(left = gap, top = gap, width = 1240, height = 1754),
+                LyricSourceShareCell(left = gap + 1240 + gap, top = gap, width = 1240, height = 1240),
+            ),
+            layout.cells,
+        )
+        assertEquals(gap + 2 * (1240 + gap), layout.width)
+        // The row is as tall as its tallest page.
+        assertEquals(gap + 1754 + gap, layout.height)
     }
 
     @Test
-    fun `大图按二的幂降采样到宽度上限以内`() {
-        assertEquals(1, LyricSourceSharePolicy.decodeSampleSize(2480))
-        assertEquals(2, LyricSourceSharePolicy.decodeSampleSize(2481))
-        assertEquals(4, LyricSourceSharePolicy.decodeSampleSize(9000))
+    fun `三页按每行两页排列，第三页换行靠左`() {
+        val gap = LyricSourceSharePolicy.COMBINED_GAP_PX
+        val layout = LyricSourceSharePolicy.combinedLayout(List(3) { 1000 to 1400 })
+        assertEquals(gap, layout.cells[2].left)
+        assertEquals(gap + 1400 + gap, layout.cells[2].top)
+        assertEquals(gap + 2 * (1400 + gap), layout.height)
+        // Close to square, so a messenger shrinking the long edge keeps each page readable.
+        assertTrue(layout.height.toFloat() / layout.width < 1.5f)
+    }
+
+    @Test
+    fun `高分辨率页图的单元宽度不超过上限`() {
+        val layout = LyricSourceSharePolicy.combinedLayout(listOf(4000 to 5000, 4000 to 5000))
+        assertTrue(layout.cells.all { it.width == LyricSourceSharePolicy.COMBINED_MAX_CELL_WIDTH_PX })
+    }
+
+    @Test
+    fun `页数很多时整体缩小以守住像素上限`() {
+        val layout = LyricSourceSharePolicy.combinedLayout(List(12) { 1600 to 2263 })
+        assertTrue(layout.width.toLong() * layout.height <= LyricSourceSharePolicy.COMBINED_MAX_PIXELS)
+        assertTrue(layout.cells.first().width < LyricSourceSharePolicy.COMBINED_MAX_CELL_WIDTH_PX)
+        assertEquals(12, layout.cells.size)
+        // Cells never overlap within a row.
+        assertTrue(layout.cells[1].left >= layout.cells[0].left + layout.cells[0].width)
+    }
+
+    @Test
+    fun `解码采样不会把页图缩到单元宽度以下`() {
+        assertEquals(1, LyricSourceSharePolicy.decodeSampleSize(1240, 1240))
+        assertEquals(2, LyricSourceSharePolicy.decodeSampleSize(5000, 1600))
+        assertEquals(4, LyricSourceSharePolicy.decodeSampleSize(6400, 1600))
     }
 
     @Test

@@ -101,8 +101,8 @@ private const val FLING_MIN_VELOCITY = 50f
  * [LyricSourceCanvasBounds]; double tap or the "fit width" button brings it back. The same view
  * is used on phones (the whole lyrics area) and tablets (the left pane).
  *
- * The share button offers the selected document's pages as images or as one small PDF
- * ([LyricSourceSharer]); [shareTitle] names the files (falls back to the document title).
+ * The share button sends the selected document's pages as one image — the page itself, or all
+ * pages combined ([LyricSourceSharer]); [shareTitle] names the file (falls back to the document title).
  *
  * Only pages near the viewport are composed, so long documents keep a bounded number of decoded
  * bitmaps; transforms only change the draw matrix and never re-decode.
@@ -263,21 +263,23 @@ private fun LyricSourceShareButton(pages: List<CatalogLyricSourceImage>, title: 
     val scope = rememberCoroutineScope()
     val gate = remember { LyricSourceShareGate() }
     var preparing by remember { mutableStateOf(false) }
-    var menuOpen by remember { mutableStateOf(false) }
     val chooserTitle = stringResource(R.string.lyric_source_share_chooser)
     val failedMessage = stringResource(R.string.lyric_source_share_failed)
 
-    fun share(format: LyricSourceShareFormat) {
-        menuOpen = false
+    // One tap shares one image straight away: the page, or all pages combined (no menu).
+    fun share() {
         if (!gate.tryStart()) return
         preparing = true
-        val caption = LyricSourceSharePolicy.caption(title, pages)
-        val request = LyricSourceShareRequest(title = title, pages = pages, format = format, caption = caption)
+        val request = LyricSourceShareRequest(
+            title = title,
+            pages = pages,
+            caption = LyricSourceSharePolicy.caption(title, pages),
+        )
         val sharer = LyricSourceSharer(context)
         scope.launch {
             try {
                 sharer.prepare(request).fold(
-                    onSuccess = { files -> sharer.launch(files, request.caption, chooserTitle) },
+                    onSuccess = { file -> sharer.launch(file, request.caption, chooserTitle) },
                     onFailure = { Toast.makeText(context, failedMessage, Toast.LENGTH_SHORT).show() },
                 )
             } finally {
@@ -287,31 +289,17 @@ private fun LyricSourceShareButton(pages: List<CatalogLyricSourceImage>, title: 
         }
     }
 
-    Box {
-        LyricSourceToolbarButton(
-            icon = "share",
-            description = stringResource(R.string.lyric_source_share),
-            onClick = { menuOpen = true },
-            enabled = !preparing,
-            content = if (preparing) {
-                { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) }
-            } else {
-                null
-            },
-        )
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.lyric_source_share_images)) },
-                leadingIcon = { Icon(MaterialSymbolIcon("image"), contentDescription = null) },
-                onClick = { share(LyricSourceShareFormat.IMAGES) },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.lyric_source_share_pdf)) },
-                leadingIcon = { Icon(MaterialSymbolIcon("picture_as_pdf"), contentDescription = null) },
-                onClick = { share(LyricSourceShareFormat.PDF) },
-            )
-        }
-    }
+    LyricSourceToolbarButton(
+        icon = "share",
+        description = stringResource(R.string.lyric_source_share),
+        onClick = ::share,
+        enabled = !preparing,
+        content = if (preparing) {
+            { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) }
+        } else {
+            null
+        },
+    )
 }
 
 /** Transform state of one canvas, plus its settle / fling / reset animations. */

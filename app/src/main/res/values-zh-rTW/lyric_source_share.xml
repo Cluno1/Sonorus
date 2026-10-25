@@ -2,8 +2,6 @@
 <!-- issue 123: sharing and the bounded canvas of lyric source pages -->
 <resources>
     <string name="lyric_source_share">分享</string>
-    <string name="lyric_source_share_images">以圖片分享</string>
-    <string name="lyric_source_share_pdf">以 PDF 分享</string>
     <string name="lyric_source_share_chooser">分享來源頁</string>
     <string name="lyric_source_share_failed">來源頁準備失敗，未能分享</string>
     <string name="lyric_source_fit_width">適應寬度</string>

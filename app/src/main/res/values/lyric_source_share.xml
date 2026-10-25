@@ -2,9 +2,7 @@
 <!-- issue 123: sharing and the bounded canvas of lyric source pages -->
 <resources>
     <string name="lyric_source_share">Share</string>
-    <string name="lyric_source_share_images">Share as images</string>
-    <string name="lyric_source_share_pdf">Share as PDF</string>
-    <string name="lyric_source_share_chooser">Share source pages</string>
+    <string name="lyric_source_share_chooser">Share source page</string>
     <string name="lyric_source_share_failed">Couldn\'t prepare the source pages for sharing</string>
     <string name="lyric_source_fit_width">Fit width</string>
 </resources>
