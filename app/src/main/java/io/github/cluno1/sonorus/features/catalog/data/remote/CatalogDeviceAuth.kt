@@ -309,7 +309,10 @@ internal class CatalogDeviceAuthClient(
         // issue 116: the only Work write a device may sign is the narrow tag endpoint.
         val isWorkTagWrite = request.method == "PATCH" &&
             request.url.encodedPath.matches(Regex("^/v2/works/[^/]+/tags$"))
-        require(isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite) {
+        require(
+            isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite ||
+                isCatalogRoomWrite(request.method, request.url.encodedPath),
+        ) {
             "public Catalog only signs reads and narrow owned writes"
         }
         // A mark left by an access-token 401 is retried once through the existing session; only a
@@ -437,6 +440,18 @@ internal class CatalogDeviceAuthClient(
 }
 
 private const val TAG = "CatalogDeviceAuth"
+
+/** issue 124: the room writes a device may sign — the same five routes the public gateway allows. */
+private val CATALOG_ROOM_WRITES = listOf(
+    "POST" to Regex("^/v2/rooms$"),
+    "DELETE" to Regex("^/v2/rooms/[^/]+$"),
+    "POST" to Regex("^/v2/rooms/[^/]+/items$"),
+    "DELETE" to Regex("^/v2/rooms/[^/]+/items/[^/]+$"),
+    "PUT" to Regex("^/v2/rooms/[^/]+/order$"),
+)
+
+internal fun isCatalogRoomWrite(method: String, encodedPath: String): Boolean =
+    CATALOG_ROOM_WRITES.any { (verb, path) -> verb == method && path.matches(encodedPath) }
 
 internal fun catalogHttpFailure(statusCode: Int): IOException = when (statusCode) {
     401 -> CatalogFailure.InvalidCredentials()

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 124: rooms for picking and ordering a gathering's songs together -->
+<resources>
+    <string name="rooms_title">Rooms</string>
+    <string name="rooms_empty">No rooms yet</string>
+    <string name="rooms_empty_hint">Create a room to pick the songs for a gathering together.</string>
+    <string name="rooms_create">New room</string>
+    <string name="rooms_create_name">Room name</string>
+    <string name="rooms_create_date">Gathering date</string>
+    <string name="rooms_create_date_hint">Visible all that day, removed from the next day</string>
+    <string name="rooms_create_confirm">Create</string>
+    <string name="rooms_cancel">Cancel</string>
+    <string name="rooms_ok">OK</string>
+    <string name="rooms_date_pattern" formatted="false">EEE, MMM d</string>
+    <string name="rooms_song_count">%1$d songs</string>
+    <string name="rooms_created_by">Created by %1$s</string>
+    <string name="rooms_added_by">Added by %1$s</string>
+    <string name="rooms_user_fallback">User</string>
+    <string name="rooms_load_failed">Couldn\'t load rooms</string>
+    <string name="rooms_retry">Retry</string>
+    <string name="rooms_room_gone">This room no longer exists or has expired</string>
+    <string name="rooms_stale">Someone else changed the list; it has been refreshed</string>
+    <string name="rooms_move_up">Move up</string>
+    <string name="rooms_move_down">Move down</string>
+    <string name="rooms_remove">Remove</string>
+    <string name="rooms_more">More</string>
+    <string name="rooms_delete">Delete room</string>
+    <string name="rooms_delete_confirm_title">Delete “%1$s”?</string>
+    <string name="rooms_delete_confirm_text">The room and its song list are deleted for everyone.</string>
+    <string name="rooms_delete_confirm">Delete</string>
+    <string name="rooms_refresh">Refresh</string>
+    <string name="rooms_detail_empty">No songs yet. Open a song\'s lyrics and tap “Add to room”.</string>
+    <string name="rooms_reorder_hint">Long-press a song and drag to reorder</string>
+    <string name="rooms_drag_handle">Drag to reorder</string>
+    <string name="rooms_add_to_room">Add to room</string>
+    <string name="rooms_add_sheet_empty">No rooms yet — create one first</string>
+    <string name="rooms_already_added">Added · by %1$s (No. %2$d)</string>
+    <string name="rooms_added_toast">Added to “%1$s” (No. %2$d)</string>
+    <string name="rooms_already_in_room">Already in this room, added by %1$s</string>
+    <string name="rooms_assigned_to_me">You lead: %1$s</string>
+    <string name="rooms_section_assignee">%1$s · led by %2$s</string>
+    <string name="rooms_section_untitled">Section %1$d</string>
+    <string name="rooms_action_failed">Something went wrong, please try again</string>
+</resources>

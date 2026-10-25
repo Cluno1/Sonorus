@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 124: rooms for picking and ordering a gathering's songs together -->
+<resources>
+    <string name="rooms_title">房間</string>
+    <string name="rooms_empty">還沒有房間</string>
+    <string name="rooms_empty_hint">新建一個房間，和大家一起挑選這次聚會要唱的詩歌。</string>
+    <string name="rooms_create">新建房間</string>
+    <string name="rooms_create_name">房間名稱</string>
+    <string name="rooms_create_date">聚會日期</string>
+    <string name="rooms_create_date_hint">當天全天可見，次日起自動消失</string>
+    <string name="rooms_create_confirm">建立</string>
+    <string name="rooms_cancel">取消</string>
+    <string name="rooms_ok">確定</string>
+    <string name="rooms_date_pattern" formatted="false">M月d日 EEEE</string>
+    <string name="rooms_song_count">%1$d 首</string>
+    <string name="rooms_created_by">建立人：%1$s</string>
+    <string name="rooms_added_by">由 %1$s 新增</string>
+    <string name="rooms_user_fallback">用戶</string>
+    <string name="rooms_load_failed">房間載入失敗</string>
+    <string name="rooms_retry">重試</string>
+    <string name="rooms_room_gone">房間已不存在或已過期</string>
+    <string name="rooms_stale">列表已被他人更新，已重新整理</string>
+    <string name="rooms_move_up">上移</string>
+    <string name="rooms_move_down">下移</string>
+    <string name="rooms_remove">移除</string>
+    <string name="rooms_more">更多</string>
+    <string name="rooms_delete">銷毀房間</string>
+    <string name="rooms_delete_confirm_title">銷毀「%1$s」？</string>
+    <string name="rooms_delete_confirm_text">房間和其中的歌曲列表會被刪除，所有人都將看不到。</string>
+    <string name="rooms_delete_confirm">銷毀</string>
+    <string name="rooms_refresh">重新整理</string>
+    <string name="rooms_detail_empty">還沒有歌曲。在歌詞頁點「加入房間」把歌加進來。</string>
+    <string name="rooms_reorder_hint">長按歌曲拖動可調整順序</string>
+    <string name="rooms_drag_handle">拖動排序</string>
+    <string name="rooms_add_to_room">加入房間</string>
+    <string name="rooms_add_sheet_empty">還沒有房間，先新建一個</string>
+    <string name="rooms_already_added">已加入 · 由 %1$s（第 %2$d 首）</string>
+    <string name="rooms_added_toast">已加入「%1$s」（第 %2$d 首）</string>
+    <string name="rooms_already_in_room">這首歌已在房間裡，由 %1$s 新增</string>
+    <string name="rooms_assigned_to_me">你負責：%1$s</string>
+    <string name="rooms_section_assignee">%1$s · 負責人 %2$s</string>
+    <string name="rooms_section_untitled">第 %1$d 段</string>
+    <string name="rooms_action_failed">操作失敗，請重試</string>
+</resources>

@@ -167,7 +167,7 @@ internal object CatalogDtoMapper {
         workCount = nonNegative(dto.workCount, "tag.work_count"),
     )
 
-    private fun librarySearchItem(dto: LibrarySearchItemDto) = CatalogLibrarySearchItem(
+    internal fun librarySearchItem(dto: LibrarySearchItemDto) = CatalogLibrarySearchItem(
         workId = uuid(dto.workId, "search_item.work_id"),
         title = text(dto.title, "search_item.title"),
         matchField = dto.matchField?.trim()?.takeIf(String::isNotEmpty),

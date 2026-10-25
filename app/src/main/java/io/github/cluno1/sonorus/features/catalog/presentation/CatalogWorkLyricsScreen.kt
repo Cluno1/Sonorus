@@ -56,6 +56,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.lyricsVariants
 import io.github.cluno1.sonorus.features.catalog.domain.selectCatalogLyricsVariant
 import io.github.cluno1.sonorus.shared.presentation.components.common.M3CircularLoader
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
+import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.CatalogLyricSourceImagesView
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.CatalogLyricSourceToggleButton
@@ -74,6 +75,7 @@ import java.util.Locale
  * (a Work read from search never borrows the background player) and the source images cover only
  * that pane, so the lyrics on the right stay readable. Phones keep the single column.
  * issue 116: the Work's tags and the "Manage tags" entry sit under the title.
+ * issue 124: the top bar's "add to room" puts this Work into a gathering's room.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,6 +99,8 @@ fun CatalogWorkLyricsScreen(
     val selectedVariant = variants.firstOrNull { it.language.equals(selectedLanguage, ignoreCase = true) }
         ?: variants.firstOrNull()
     var showSourceImages by remember(workId) { mutableStateOf(false) }
+    // issue 124: "add to room" sheet.
+    var addingToRoom by remember(workId) { mutableStateOf(false) }
     val displayingImages = showSourceImages && sourceImages.isNotEmpty()
     val bottomPadding = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding()
     val tablet = isTabletLyricsLayout()
@@ -144,6 +148,14 @@ fun CatalogWorkLyricsScreen(
                     }
                 },
                 actions = {
+                    if (work != null) {
+                        IconButton(onClick = { addingToRoom = true }) {
+                            Icon(
+                                MaterialSymbolIcon("playlist_add"),
+                                contentDescription = stringResource(R.string.rooms_add_to_room),
+                            )
+                        }
+                    }
                     CatalogLyricsLanguageMenu(
                         languages = variants.map { it.language },
                         selectedLanguage = selectedVariant?.language,
@@ -312,6 +324,10 @@ fun CatalogWorkLyricsScreen(
                 }
             }
         }
+    }
+
+    if (addingToRoom) {
+        CatalogAddToRoomSheet(workId = workId, onDismiss = { addingToRoom = false })
     }
 }
 

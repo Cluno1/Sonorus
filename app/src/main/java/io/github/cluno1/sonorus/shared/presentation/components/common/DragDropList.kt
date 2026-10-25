@@ -59,6 +59,9 @@ fun <T> DragDropLazyColumn(
     animateItemPlacement: Boolean = false,
     dragTopInset: Dp = 0.dp,
     dragBottomInset: Dp = 0.dp,
+    // issue 124: called once when a drag that moved at least one slot is dropped, so callers can
+    // commit the final order instead of every intermediate onMove.
+    onDragFinished: (() -> Unit)? = null,
     itemContent: @Composable (item: T, isDragging: Boolean, index: Int) -> Unit
 ) {
     val edgeThresholdPx = 84f
@@ -72,6 +75,7 @@ fun <T> DragDropLazyColumn(
 
     val currentItems = rememberUpdatedState(items)
     val currentOnMove = rememberUpdatedState(onMove)
+    val currentOnDragFinished = rememberUpdatedState(onDragFinished)
     val currentReorderable = rememberUpdatedState(isReorderableItem)
 
     var isDragging by remember { mutableStateOf(false) }
@@ -151,6 +155,7 @@ fun <T> DragDropLazyColumn(
         if (reorderMoved) {
             HapticUtils.performHapticFeedback(context, haptic, HapticType.MEDIUM)
             reorderMoved = false
+            currentOnDragFinished.value?.invoke()
         }
     }
 

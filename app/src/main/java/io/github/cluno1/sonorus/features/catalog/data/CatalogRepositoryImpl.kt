@@ -45,6 +45,14 @@ import io.github.cluno1.sonorus.features.catalog.domain.PlaybackDescriptor
 import io.github.cluno1.sonorus.features.catalog.domain.ScoreRevision
 import io.github.cluno1.sonorus.features.catalog.domain.WorkBundle
 import io.github.cluno1.sonorus.features.catalog.domain.WorkSummary
+import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogRoomMapper
+import io.github.cluno1.sonorus.features.catalog.data.remote.RoomConflictDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.RoomCreateDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.RoomItemCreateDto
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoom
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSectionOrder
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSummary
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Response
@@ -56,7 +64,7 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
 
-class CatalogRepositoryImpl(context: Context) : CatalogRepository {
+class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsRepository {
     private val applicationContext = context.applicationContext
     private val credentials = CatalogCredentialsStore(context)
     private val cache = CatalogCache(context)
@@ -813,6 +821,100 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
         return Uri.fromFile(destination).toString()
     }
 
+    // ---- issue 124: rooms ----
+
+    override suspend fun listRooms(workId: String?): Result<List<CatalogRoomSummary>> = guarded {
+        CatalogRoomMapper.rooms(client().roomsApi.rooms(workId?.let(::validUuid)).roomBodyOrThrow())
+    }
+
+    override suspend fun room(roomId: String): Result<CatalogRoom> = guarded {
+        CatalogRoomMapper.room(client().roomsApi.room(validUuid(roomId)).roomBodyOrThrow())
+    }
+
+    override suspend fun createRoom(
+        name: String,
+        serviceDate: java.time.LocalDate,
+        idempotencyKey: String,
+    ): Result<CatalogRoom> = guarded {
+        val trimmed = name.trim()
+        require(trimmed.isNotEmpty() && trimmed.length <= 60) { "room name must be 1..60 characters" }
+        val room = CatalogRoomMapper.room(
+            client().roomsApi.createRoom(idempotencyKey, RoomCreateDto(trimmed, serviceDate.toString()))
+                .roomBodyOrThrow(),
+        )
+        android.util.Log.i(ROOMS_TAG, "room created (room=${room.id}, date=${room.serviceDate})")
+        room
+    }
+
+    override suspend fun addRoomSong(
+        roomId: String,
+        workId: String,
+        sectionId: String?,
+        idempotencyKey: String,
+    ): Result<CatalogRoom> = guarded {
+        val response = client().roomsApi.addSong(
+            validUuid(roomId),
+            idempotencyKey,
+            RoomItemCreateDto(validUuid(workId), sectionId?.let(::validUuid)),
+        )
+        if (response.code() == 409) {
+            val conflict = runCatching {
+                com.google.gson.Gson().fromJson(response.errorBody()?.string().orEmpty(), RoomConflictDto::class.java)
+            }.getOrNull()
+            throw CatalogFailure.RoomSongAlreadyAdded(
+                conflict?.addedBy?.let { runCatching { CatalogRoomMapper.user(it, "added_by") }.getOrNull() },
+            )
+        }
+        val room = CatalogRoomMapper.room(response.roomBodyOrThrow())
+        android.util.Log.i(ROOMS_TAG, "room song added (room=${room.id}, work=$workId, revision=${room.revision})")
+        room
+    }
+
+    override suspend fun removeRoomSong(roomId: String, itemId: String): Result<CatalogRoom> = guarded {
+        val room = CatalogRoomMapper.room(
+            client().roomsApi.removeSong(validUuid(roomId), validUuid(itemId)).roomBodyOrThrow(),
+        )
+        android.util.Log.i(ROOMS_TAG, "room song removed (room=${room.id}, item=$itemId, revision=${room.revision})")
+        room
+    }
+
+    override suspend fun reorderRoom(
+        roomId: String,
+        order: List<CatalogRoomSectionOrder>,
+        expectedRevision: Int,
+    ): Result<CatalogRoom> = guarded {
+        require(expectedRevision > 0) { "room revision must be positive" }
+        val response = client().roomsApi.reorder(
+            validUuid(roomId),
+            "\"rev-$expectedRevision\"",
+            CatalogRoomMapper.order(order),
+        )
+        if (response.code() == 412) {
+            android.util.Log.w(ROOMS_TAG, "room reorder rejected as stale (room=$roomId, expected=$expectedRevision)")
+            throw CatalogFailure.StaleRevision(null)
+        }
+        val room = CatalogRoomMapper.room(response.roomBodyOrThrow())
+        android.util.Log.i(ROOMS_TAG, "room reordered (room=${room.id}, revision=${room.revision})")
+        room
+    }
+
+    override suspend fun deleteRoom(roomId: String): Result<Unit> = guarded {
+        val response = client().roomsApi.deleteRoom(validUuid(roomId))
+        if (!response.isSuccessful) throw roomFailure(response.code())
+        android.util.Log.i(ROOMS_TAG, "room deleted (room=$roomId)")
+    }
+
+    private fun <T> Response<T>.roomBodyOrThrow(): T {
+        if (!isSuccessful) throw roomFailure(code())
+        return body() ?: throw CatalogFailure.InvalidData("服务器返回空响应")
+    }
+
+    /** A room that expired or was deleted answers 404; everything else keeps the shared mapping. */
+    private fun roomFailure(code: Int): CatalogFailure {
+        if (code == 403 || code >= 500) android.util.Log.w(ROOMS_TAG, "room request failed (status=$code)")
+        return if (code == 404) CatalogFailure.RoomUnavailable() else httpFailure(code)
+    }
+
     private fun client(): CatalogApiClient {
         val server = credentials.loadServerUrl() ?: throw CatalogFailure.NotConfigured()
         // Device credentials go on: CatalogDeviceAuthClient.proof() retries their existing session.
@@ -884,3 +986,5 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository {
         else -> CatalogFailure.Server(code)
     }
 }
+
+private const val ROOMS_TAG = "CatalogRooms"

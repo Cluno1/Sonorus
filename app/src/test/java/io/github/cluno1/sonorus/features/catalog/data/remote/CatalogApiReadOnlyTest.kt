@@ -38,4 +38,20 @@ class CatalogApiReadOnlyTest {
         val patch = methods.single().getAnnotation(PATCH::class.java)
         assertTrue(patch != null && patch.value == "v2/works/{id}/tags")
     }
+
+    @Test
+    fun roomsApiOnlyTouchesRoomPaths() {
+        // issue 124: the rooms surface must not become a general write channel.
+        val methods = CatalogRoomsApi::class.java.declaredMethods.filterNot { it.name.endsWith("\$default") }
+        assertTrue(methods.size == 7)
+        methods.forEach { method ->
+            val path = method.getAnnotation(GET::class.java)?.value
+                ?: method.getAnnotation(POST::class.java)?.value
+                ?: method.getAnnotation(PUT::class.java)?.value
+                ?: method.getAnnotation(DELETE::class.java)?.value
+            assertTrue("${method.name} must declare a verb", path != null)
+            assertTrue("${method.name} path $path must stay under v2/rooms", path!!.startsWith("v2/rooms"))
+            assertTrue("${method.name} must not PATCH", method.getAnnotation(PATCH::class.java) == null)
+        }
+    }
 }

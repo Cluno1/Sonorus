@@ -153,6 +153,8 @@ import io.github.cluno1.sonorus.features.chorus.presentation.ChorusScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogViewModel
 import io.github.cluno1.sonorus.features.catalog.presentation.currentScoreOption
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkLyricsScreen
+import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRoomDetailScreen
+import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRoomsScreen
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
 import io.github.cluno1.sonorus.shared.presentation.screens.CatalogTagWorksScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.decodeWorkLyricsSongs
@@ -311,6 +313,11 @@ sealed class Screen(val route: String) {
     object ChorusRecording : Screen("chorus_record/{projectId}/{revisionId}?title={title}") {
         fun createRoute(projectId: String, revisionId: String, title: String) =
             "chorus_record/${Uri.encode(projectId)}/${Uri.encode(revisionId)}?title=${Uri.encode(title)}"
+    }
+    /** issue 124: rooms where several people pick and order a gathering's songs. */
+    object Rooms : Screen("rooms")
+    object RoomDetail : Screen("room/{roomId}?name={name}") {
+        fun createRoute(roomId: String, name: String) = "room/${Uri.encode(roomId)}?name=${Uri.encode(name)}"
     }
     object AddToPlaylist : Screen("add_to_playlist")
     object PlaylistDetail : Screen("playlist/{playlistId}") {
@@ -700,16 +707,18 @@ fun LocalNavigation(
     val showNavBar = remember(currentRoute) {
         currentRoute == Screen.Home.route ||
             isLibraryRoute ||
+            currentRoute == Screen.Rooms.route ||
             currentRoute == Screen.Search.route ||
             currentRoute == Screen.Settings.route ||
             currentRoute == Screen.RhythmStats.route
     }
     val showBottomNav = remember(currentRoute, floatingNavigationBar) {
         if (floatingNavigationBar) {
-            currentRoute == Screen.Home.route || isLibraryRoute
+            currentRoute == Screen.Home.route || isLibraryRoute || currentRoute == Screen.Rooms.route
         } else {
             currentRoute == Screen.Home.route ||
                 isLibraryRoute ||
+                currentRoute == Screen.Rooms.route ||
                 currentRoute == Screen.Settings.route
         }
     }
@@ -1878,6 +1887,11 @@ private fun LocalNavigationContent(
                                              Triple(
                                                  libraryRoute, context.getString(R.string.common_library),
                                                  Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
+                                             ),
+                                             // issue 124
+                                             Triple(
+                                                 Screen.Rooms.route, context.getString(R.string.rooms_title),
+                                                 Pair(MaterialSymbolIcon("meeting_room", filled = true), MaterialSymbolIcon("meeting_room"))
                                              )
                                          )
 
@@ -1885,6 +1899,7 @@ private fun LocalNavigationContent(
                                              val isSelected = when (route) {
                                                  Screen.Home.route -> currentRoute == Screen.Home.route
                                                  libraryRoute -> currentRoute.startsWith("library")
+                                                 Screen.Rooms.route -> currentRoute == Screen.Rooms.route
                                                  else -> false
                                              }
 
@@ -2094,6 +2109,12 @@ private fun LocalNavigationContent(
                                 context.getString(R.string.common_library),
                                 Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
                             ),
+                            // issue 124
+                            Triple(
+                                Screen.Rooms.route,
+                                context.getString(R.string.rooms_title),
+                                Pair(MaterialSymbolIcon("meeting_room", filled = true), MaterialSymbolIcon("meeting_room"))
+                            ),
                             Triple(
                                 Screen.Search.route,
                                 stringResource(R.string.cd_search),
@@ -2164,6 +2185,7 @@ private fun LocalNavigationContent(
                                     val isSelected = when (route) {
                                         Screen.Home.route -> currentRoute == Screen.Home.route
                                         libraryRoute -> currentRoute.startsWith("library")
+                                        Screen.Rooms.route -> currentRoute == Screen.Rooms.route
                                         Screen.Search.route -> currentRoute == Screen.Search.route
                                         Screen.Settings.route -> currentRoute == Screen.Settings.route
                                         else -> false
@@ -2716,6 +2738,32 @@ private fun LocalNavigationContent(
                         tagKey = backStackEntry.arguments?.getString("tagKey")?.let(Uri::decode).orEmpty(),
                         initialLabel = backStackEntry.arguments?.getString("label")?.let(Uri::decode).orEmpty(),
                         viewModel = catalogViewModel,
+                        onBack = { navController.popBackStack() },
+                        onOpenLyrics = { item -> openCatalogWorkLyrics(item.workId, item.title, item.songs) },
+                        onOpenScore = { item -> openCatalogWorkScore(item.workId) },
+                        onOpenSong = openCatalogWorkSong,
+                    )
+                }
+
+                // issue 124
+                composable(Screen.Rooms.route) {
+                    CatalogRoomsScreen(
+                        onOpenRoom = { roomId, name ->
+                            navController.navigate(Screen.RoomDetail.createRoute(roomId, name))
+                        },
+                    )
+                }
+
+                composable(
+                    route = Screen.RoomDetail.route,
+                    arguments = listOf(
+                        navArgument("roomId") { type = NavType.StringType },
+                        navArgument("name") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) { backStackEntry ->
+                    CatalogRoomDetailScreen(
+                        roomId = backStackEntry.arguments?.getString("roomId")?.let(Uri::decode).orEmpty(),
+                        initialName = backStackEntry.arguments?.getString("name")?.let(Uri::decode).orEmpty(),
                         onBack = { navController.popBackStack() },
                         onOpenLyrics = { item -> openCatalogWorkLyrics(item.workId, item.title, item.songs) },
                         onOpenScore = { item -> openCatalogWorkScore(item.workId) },
