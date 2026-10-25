@@ -75,7 +75,7 @@ import java.util.Locale
  * (a Work read from search never borrows the background player) and the source images cover only
  * that pane, so the lyrics on the right stay readable. Phones keep the single column.
  * issue 116: the Work's tags and the "Manage tags" entry sit under the title.
- * issue 124: the top bar's "add to room" puts this Work into a gathering's room.
+ * issue 124: "add to room" heads the bottom-right floating column (phone) / corner (tablet).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,14 +148,6 @@ fun CatalogWorkLyricsScreen(
                     }
                 },
                 actions = {
-                    if (work != null) {
-                        IconButton(onClick = { addingToRoom = true }) {
-                            Icon(
-                                MaterialSymbolIcon("playlist_add"),
-                                contentDescription = stringResource(R.string.rooms_add_to_room),
-                            )
-                        }
-                    }
                     CatalogLyricsLanguageMenu(
                         languages = variants.map { it.language },
                         selectedLanguage = selectedVariant?.language,
@@ -242,9 +234,24 @@ fun CatalogWorkLyricsScreen(
                             CatalogWorkLyricsBody(
                                 state = state,
                                 selectedVariant = selectedVariant,
-                                bottomPadding = bottomPadding,
+                                bottomPadding = bottomPadding + if (work != null) 56.dp else 0.dp,
                                 onBack = onBack,
                             )
+                            // issue 124: same bottom-right corner as the phone and the player lyrics.
+                            if (work != null) {
+                                SmallFloatingActionButton(
+                                    onClick = { addingToRoom = true },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(end = 16.dp, bottom = bottomPadding - 8.dp),
+                                ) {
+                                    Icon(
+                                        MaterialSymbolIcon("playlist_add"),
+                                        contentDescription = stringResource(R.string.rooms_add_to_room),
+                                    )
+                                }
+                            }
                         }
                     }
                 },
@@ -269,7 +276,11 @@ fun CatalogWorkLyricsScreen(
                         state = state,
                         selectedVariant = selectedVariant,
                         // Room so the last lines can scroll clear of the floating buttons.
-                        bottomPadding = bottomPadding + if (playSong != null || onOpenScore != null) 112.dp else 0.dp,
+                        bottomPadding = bottomPadding + when {
+                            playSong != null && onOpenScore != null -> 168.dp
+                            playSong != null || onOpenScore != null -> 112.dp
+                            else -> 56.dp
+                        },
                         onBack = onBack,
                         leading = {
                             Column(
@@ -290,7 +301,8 @@ fun CatalogWorkLyricsScreen(
                     )
                 }
                 // Playback/score rule: unavailable entries are not composed at all.
-                if (playSong != null || onOpenScore != null) {
+                // issue 124: "add to room" heads the same bottom-right column as the player lyrics.
+                if (work != null || playSong != null || onOpenScore != null) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -298,6 +310,17 @@ fun CatalogWorkLyricsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
+                        if (work != null) {
+                            SmallFloatingActionButton(
+                                onClick = { addingToRoom = true },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            ) {
+                                Icon(
+                                    MaterialSymbolIcon("playlist_add"),
+                                    contentDescription = stringResource(R.string.rooms_add_to_room),
+                                )
+                            }
+                        }
                         onOpenScore?.let { openScore ->
                             SmallFloatingActionButton(
                                 onClick = openScore,

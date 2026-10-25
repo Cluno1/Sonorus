@@ -234,6 +234,8 @@ import androidx.compose.ui.res.stringResource
 @Composable
 fun MaterialPlayerScreen(
     song: Song?,
+    // issue 124: "add to room" in the More sheet; null for songs without a catalog Work.
+    onAddToRoom: (() -> Unit)? = null,
     isPlaying: Boolean,
     progress: () -> Float,
     location: PlaybackLocation?,
@@ -1236,6 +1238,7 @@ fun MaterialPlayerScreen(
             sleepTimerRemainingSeconds = sleepTimerRemainingSeconds,
             lyrics = lyrics,
             onAddToPlaylist = onAddToPlaylist,
+            onAddToRoom = onAddToRoom,
             onPlaybackSpeed = { showPlaybackSpeedDialog = true },
             onPlaybackPitch = { showPlaybackPitchDialog = true },
             onEqualizer = { navController.navigate(Screen.Equalizer.route) },

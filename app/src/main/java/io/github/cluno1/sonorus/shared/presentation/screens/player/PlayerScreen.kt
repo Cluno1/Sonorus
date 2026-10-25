@@ -284,6 +284,9 @@ fun PlayerScreen(
     val catalogLyricsLanguages by musicViewModel.catalogLyricsLanguages.collectAsState()
     val selectedCatalogLyricsLanguage by musicViewModel.catalogLyricsLanguage.collectAsState()
     val catalogNowPlaying by musicViewModel.catalogNowPlaying.collectAsState()
+    // issue 124: "add to room" for the playing catalog Work (More sheet and full-screen lyrics).
+    var addToRoomWorkId by remember { mutableStateOf<String?>(null) }
+    val onAddToRoom: (() -> Unit)? = catalogNowPlaying?.workId?.let { workId -> { addToRoomWorkId = workId } }
     val editorPlaybackSpeed by musicViewModel.playbackSpeed.collectAsState()
 
     // The player is already a NavHost destination. Let NavHost be the sole owner of ordinary
@@ -809,6 +812,7 @@ fun PlayerScreen(
                 onDevice = { showDeviceOutputSheet = true },
                 onQueue = { showQueueSheet = true },
                 onAddToPlaylist = { showAddToPlaylistSheetInternal = true },
+                onAddToRoom = onAddToRoom,
                 onEditControls = { showExpressiveBottomButtonsSheet = true },
                 onPlaybackSpeed = { showPlaybackSpeedDialog = true },
                 onPlaybackPitch = { showPlaybackPitchDialog = true },
@@ -961,6 +965,7 @@ fun PlayerScreen(
         }
     } else {
         MaterialPlayerScreen(
+            onAddToRoom = onAddToRoom,
             song = song,
             onEditTags = editLanTags,
             isPlaying = isPlaying,
@@ -1090,6 +1095,7 @@ fun PlayerScreen(
             onCatalogLyricsLanguageSelect = musicViewModel::selectCatalogLyricsLanguage,
             catalogLyricSourceImages = catalogNowPlaying?.lyricsSourceImages.orEmpty(),
             // issue 116: tags of the playing catalog Work; DEVICE/LAN songs have no Work and no row.
+            onAddToRoom = onAddToRoom,
             catalogWorkHeader = catalogNowPlaying?.workId?.let { workId ->
                 {
                     io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkTagsForWork(
@@ -1100,6 +1106,13 @@ fun PlayerScreen(
             canvasArtwork = canvasArtwork,
             canvasLoading = canvasLoading,
             modifier = Modifier.fillMaxSize()
+        )
+    }
+
+    addToRoomWorkId?.let { workId ->
+        io.github.cluno1.sonorus.features.catalog.presentation.CatalogAddToRoomSheet(
+            workId = workId,
+            onDismiss = { addToRoomWorkId = null },
         )
     }
 

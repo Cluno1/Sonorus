@@ -111,6 +111,8 @@ fun FullScreenLyricsView(
     catalogLyricSourceImages: List<CatalogLyricSourceImage> = emptyList(),
     // issue 116: tag row of the catalog Work being played (null when the song has no Work).
     catalogWorkHeader: (@Composable () -> Unit)? = null,
+    // issue 124: "add to room" for the playing catalog Work; null for songs without a Work.
+    onAddToRoom: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     canvasArtwork: CanvasArtwork? = null,
     canvasLoading: Boolean = false
@@ -870,98 +872,38 @@ fun FullScreenLyricsView(
                         }
                     }
 
-                    // Floating Romanization and Translation Stack (on the right)
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = catalogLyricsLanguages.isEmpty() &&
-                            (isLoadingLyrics || !autoHideLyricsControls || controlsVisible),
-                        enter = fadeIn() + scaleIn(),
-                        exit = fadeOut() + scaleOut(),
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(bottom = 16.dp, end = 4.dp)
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Quick Toggle Romanization
-                            FilledTonalIconToggleButton(
-                                checked = showRomanization,
-                                onCheckedChange = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    appSettings.setShowLyricsRomanization(it)
-                                },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MaterialSymbolIcon("translate"),
-                                    contentDescription = stringResource(R.string.fullscreenlyricsview_romanization),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-
-                            // Quick Toggle Translation
-                            FilledTonalIconToggleButton(
-                                checked = showTranslation,
-                                onCheckedChange = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    appSettings.setShowLyricsTranslation(it)
-                                },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MaterialSymbolIcon("subtitles"),
-                                    contentDescription = stringResource(R.string.fullscreenlyricsview_translation),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Floating Lyrics Editor and Lyrics Settings Stack (on the left)
-                    androidx.compose.animation.AnimatedVisibility(
+                    // issue 124: every floating action in one column at the bottom right — add to
+                    // room, romanization/translation (non-catalog lyrics), lyrics editor, settings —
+                    // the same corner the Work lyrics page uses.
+                    LyricsFloatingActions(
                         visible = isLoadingLyrics || !autoHideLyricsControls || controlsVisible,
-                        enter = fadeIn() + scaleIn(),
-                        exit = fadeOut() + scaleOut(),
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(bottom = 16.dp, start = 4.dp)
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            if (lyricsEditorEnabled) {
-                                // Quick Open Lyrics Editor
-                                FilledTonalIconButton(
-                                    onClick = {
-                                        HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                        onShowLyricsEditor()
-                                    },
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MaterialSymbolIcon("edit"),
-                                        contentDescription = stringResource(R.string.edit_lyrics),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
+                        showTextToggles = catalogLyricsLanguages.isEmpty(),
+                        showRomanization = showRomanization,
+                        showTranslation = showTranslation,
+                        onRomanizationChange = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            appSettings.setShowLyricsRomanization(it)
+                        },
+                        onTranslationChange = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            appSettings.setShowLyricsTranslation(it)
+                        },
+                        lyricsEditorEnabled = lyricsEditorEnabled,
+                        onEditLyrics = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            onShowLyricsEditor()
+                        },
+                        onLyricsSettings = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            onNavigateToLyricsSettings()
+                        },
+                        onAddToRoom = onAddToRoom?.let { addToRoom ->
+                            {
+                                HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                                addToRoom()
                             }
-
-                            // Quick Open Lyrics Settings
-                            FilledTonalIconButton(
-                                onClick = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    onNavigateToLyricsSettings()
-                                },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MaterialSymbolIcon("settings"),
-                                    contentDescription = stringResource(R.string.lyrics_settings),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    }
+                        },
+                    )
                 }
                 }
             }
@@ -1269,98 +1211,38 @@ fun FullScreenLyricsView(
                         }
                     }
 
-                    // Floating Romanization and Translation Stack (on the right)
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = catalogLyricsLanguages.isEmpty() &&
-                            (isLoadingLyrics || !autoHideLyricsControls || controlsVisible),
-                        enter = fadeIn() + scaleIn(),
-                        exit = fadeOut() + scaleOut(),
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(bottom = 16.dp, end = 4.dp)
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // Quick Toggle Romanization
-                            FilledTonalIconToggleButton(
-                                checked = showRomanization,
-                                onCheckedChange = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    appSettings.setShowLyricsRomanization(it)
-                                },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MaterialSymbolIcon("translate"),
-                                    contentDescription = stringResource(R.string.fullscreenlyricsview_romanization),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-
-                            // Quick Toggle Translation
-                            FilledTonalIconToggleButton(
-                                checked = showTranslation,
-                                onCheckedChange = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    appSettings.setShowLyricsTranslation(it)
-                                },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MaterialSymbolIcon("subtitles"),
-                                    contentDescription = stringResource(R.string.fullscreenlyricsview_translation),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Floating Lyrics Editor and Lyrics Settings Stack (on the left)
-                    androidx.compose.animation.AnimatedVisibility(
+                    // issue 124: every floating action in one column at the bottom right — add to
+                    // room, romanization/translation (non-catalog lyrics), lyrics editor, settings —
+                    // the same corner the Work lyrics page uses.
+                    LyricsFloatingActions(
                         visible = isLoadingLyrics || !autoHideLyricsControls || controlsVisible,
-                        enter = fadeIn() + scaleIn(),
-                        exit = fadeOut() + scaleOut(),
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(bottom = 16.dp, start = 4.dp)
-                    ) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            if (lyricsEditorEnabled) {
-                                // Quick Open Lyrics Editor
-                                FilledTonalIconButton(
-                                    onClick = {
-                                        HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                        onShowLyricsEditor()
-                                    },
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = MaterialSymbolIcon("edit"),
-                                        contentDescription = stringResource(R.string.edit_lyrics),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
+                        showTextToggles = catalogLyricsLanguages.isEmpty(),
+                        showRomanization = showRomanization,
+                        showTranslation = showTranslation,
+                        onRomanizationChange = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            appSettings.setShowLyricsRomanization(it)
+                        },
+                        onTranslationChange = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            appSettings.setShowLyricsTranslation(it)
+                        },
+                        lyricsEditorEnabled = lyricsEditorEnabled,
+                        onEditLyrics = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            onShowLyricsEditor()
+                        },
+                        onLyricsSettings = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            onNavigateToLyricsSettings()
+                        },
+                        onAddToRoom = onAddToRoom?.let { addToRoom ->
+                            {
+                                HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                                addToRoom()
                             }
-
-                            // Quick Open Lyrics Settings
-                            FilledTonalIconButton(
-                                onClick = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    onNavigateToLyricsSettings()
-                                },
-                                modifier = Modifier.size(44.dp)
-                            ) {
-                                Icon(
-                                    imageVector = MaterialSymbolIcon("settings"),
-                                    contentDescription = stringResource(R.string.lyrics_settings),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                    }
+                        },
+                    )
                 }
 
                 // C. SYNC TUNER DOCK: Translucent slider or quick buttons to tweak sync offset in real time
@@ -1589,6 +1471,86 @@ private fun FullScreenPlainLyricsView(
     }
 }
 
+
+/**
+ * issue 124: the floating actions of the full-screen lyrics, one column at the bottom right (the
+ * corner the Work lyrics page also uses). Top to bottom: add to room (catalog Work only),
+ * romanization and translation toggles (non-catalog lyrics), lyrics editor (when enabled), settings.
+ */
+@Composable
+private fun BoxScope.LyricsFloatingActions(
+    visible: Boolean,
+    showTextToggles: Boolean,
+    showRomanization: Boolean,
+    showTranslation: Boolean,
+    onRomanizationChange: (Boolean) -> Unit,
+    onTranslationChange: (Boolean) -> Unit,
+    lyricsEditorEnabled: Boolean,
+    onEditLyrics: () -> Unit,
+    onLyricsSettings: () -> Unit,
+    onAddToRoom: (() -> Unit)?,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut(),
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(bottom = 16.dp, end = 4.dp),
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            onAddToRoom?.let { addToRoom ->
+                FilledTonalIconButton(onClick = addToRoom, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        imageVector = MaterialSymbolIcon("playlist_add"),
+                        contentDescription = stringResource(R.string.rooms_add_to_room),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+            if (showTextToggles) {
+                FilledTonalIconToggleButton(
+                    checked = showRomanization,
+                    onCheckedChange = onRomanizationChange,
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = MaterialSymbolIcon("translate"),
+                        contentDescription = stringResource(R.string.fullscreenlyricsview_romanization),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                FilledTonalIconToggleButton(
+                    checked = showTranslation,
+                    onCheckedChange = onTranslationChange,
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = MaterialSymbolIcon("subtitles"),
+                        contentDescription = stringResource(R.string.fullscreenlyricsview_translation),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+            if (lyricsEditorEnabled) {
+                FilledTonalIconButton(onClick = onEditLyrics, modifier = Modifier.size(44.dp)) {
+                    Icon(
+                        imageVector = MaterialSymbolIcon("edit"),
+                        contentDescription = stringResource(R.string.edit_lyrics),
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+            FilledTonalIconButton(onClick = onLyricsSettings, modifier = Modifier.size(44.dp)) {
+                Icon(
+                    imageVector = MaterialSymbolIcon("settings"),
+                    contentDescription = stringResource(R.string.lyrics_settings),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+    }
+}
 
 @Composable
 internal fun CatalogLyricSourceToggleButton(

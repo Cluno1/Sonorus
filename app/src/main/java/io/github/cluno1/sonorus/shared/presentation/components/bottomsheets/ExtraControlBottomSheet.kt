@@ -130,6 +130,8 @@ fun ExtraControlBottomSheet(
     onDevice: () -> Unit = {},
     onQueue: () -> Unit = {},
     onAddToPlaylist: () -> Unit,
+    // issue 124: shown only for a song with a catalog Work.
+    onAddToRoom: (() -> Unit)? = null,
     onEditControls: (() -> Unit)? = null,
     onPlaybackSpeed: () -> Unit,
     onPlaybackPitch: () -> Unit = {},
@@ -299,6 +301,14 @@ fun ExtraControlBottomSheet(
                 icon = RhythmIcons.AddToPlaylist,
                 label = context.getString(R.string.bottomsheet_add_to_playlist),
                 action = onAddToPlaylist,
+            ))
+        }
+
+        onAddToRoom?.let { addToRoom ->
+            add(controlAction(
+                icon = MaterialSymbolIcon("playlist_add"),
+                label = context.getString(R.string.rooms_add_to_room),
+                action = addToRoom,
             ))
         }
 
