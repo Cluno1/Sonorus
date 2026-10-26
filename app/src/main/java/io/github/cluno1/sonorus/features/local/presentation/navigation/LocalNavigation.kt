@@ -1924,9 +1924,21 @@ private fun LocalNavigationContent(
                                                 label = "alpha_$title"
                                             )
 
+                                            // issue 126: the selected item takes twice the width of the others so its
+                                            // label fits (three equal slots left ~80dp, too narrow for icon + text);
+                                            // the others shrink to icon-only slots.
+                                            val itemWeight by animateFloatAsState(
+                                                targetValue = if (isSelected) 2f else 1f,
+                                                animationSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                                    stiffness = Spring.StiffnessMediumLow
+                                                ),
+                                                label = "weight_$title"
+                                            )
+
                                             // Background pill animation with spring
                                             val pillWidth by animateDpAsState(
-                                                targetValue = if (isSelected) 120.dp else 0.dp,
+                                                targetValue = if (isSelected) 96.dp else 0.dp,
                                                 animationSpec = spring(
                                                     dampingRatio = Spring.DampingRatioMediumBouncy,
                                                     stiffness = Spring.StiffnessLow
@@ -1948,7 +1960,7 @@ private fun LocalNavigationContent(
 
                                             Box(
                                                 modifier = Modifier
-                                                    .weight(1f)
+                                                    .weight(itemWeight)
                                                     .fillMaxHeight()
                                                     .clickable {
                                                         HapticUtils.performHapticFeedback(
@@ -1982,8 +1994,8 @@ private fun LocalNavigationContent(
                                                                 .background(MaterialTheme.colorScheme.primaryContainer)
                                                                 .height(48.dp)
                                                                 .widthIn(min = pillWidth) // Animated width
-                                                                .padding(horizontal = 18.dp)
-                                                            else Modifier.padding(horizontal = 16.dp)
+                                                                .padding(horizontal = 14.dp)
+                                                            else Modifier.padding(horizontal = 8.dp)
                                                         )
                                                 ) {
                                                     // Animated icon with crossfade
