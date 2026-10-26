@@ -76,6 +76,7 @@ import java.util.Locale
  * that pane, so the lyrics on the right stay readable. Phones keep the single column.
  * issue 116: the Work's tags and the "Manage tags" entry sit under the title.
  * issue 124: "add to room" heads the bottom-right floating column (phone) / corner (tablet).
+ * issue 125: "edit lyrics" follows it and edits the shown language as plain text.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,6 +102,8 @@ fun CatalogWorkLyricsScreen(
     var showSourceImages by remember(workId) { mutableStateOf(false) }
     // issue 124: "add to room" sheet.
     var addingToRoom by remember(workId) { mutableStateOf(false) }
+    // issue 125: plain-text lyrics editor of the shown language.
+    var editingLyrics by remember(workId) { mutableStateOf(false) }
     val displayingImages = showSourceImages && sourceImages.isNotEmpty()
     val bottomPadding = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding()
     val tablet = isTabletLyricsLayout()
@@ -234,21 +237,20 @@ fun CatalogWorkLyricsScreen(
                             CatalogWorkLyricsBody(
                                 state = state,
                                 selectedVariant = selectedVariant,
-                                bottomPadding = bottomPadding + if (work != null) 56.dp else 0.dp,
+                                bottomPadding = bottomPadding + if (work != null) 104.dp else 0.dp,
                                 onBack = onBack,
                             )
-                            // issue 124: same bottom-right corner as the phone and the player lyrics.
+                            // issue 124/125: same bottom-right corner as the phone and the player lyrics.
                             if (work != null) {
-                                SmallFloatingActionButton(
-                                    onClick = { addingToRoom = true },
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                Column(
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
                                         .padding(end = 16.dp, bottom = bottomPadding - 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
-                                    Icon(
-                                        MaterialSymbolIcon("playlist_add"),
-                                        contentDescription = stringResource(R.string.rooms_add_to_room),
+                                    WorkLyricsWorkActions(
+                                        onAddToRoom = { addingToRoom = true },
+                                        onEditLyrics = { editingLyrics = true },
                                     )
                                 }
                             }
@@ -276,11 +278,9 @@ fun CatalogWorkLyricsScreen(
                         state = state,
                         selectedVariant = selectedVariant,
                         // Room so the last lines can scroll clear of the floating buttons.
-                        bottomPadding = bottomPadding + when {
-                            playSong != null && onOpenScore != null -> 168.dp
-                            playSong != null || onOpenScore != null -> 112.dp
-                            else -> 56.dp
-                        },
+                        bottomPadding = bottomPadding +
+                            52.dp * ((if (work != null) 2 else 0) + (if (onOpenScore != null) 1 else 0)) +
+                            (if (playSong != null) 68.dp else 0.dp),
                         onBack = onBack,
                         leading = {
                             Column(
@@ -311,15 +311,10 @@ fun CatalogWorkLyricsScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         if (work != null) {
-                            SmallFloatingActionButton(
-                                onClick = { addingToRoom = true },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            ) {
-                                Icon(
-                                    MaterialSymbolIcon("playlist_add"),
-                                    contentDescription = stringResource(R.string.rooms_add_to_room),
-                                )
-                            }
+                            WorkLyricsWorkActions(
+                                onAddToRoom = { addingToRoom = true },
+                                onEditLyrics = { editingLyrics = true },
+                            )
                         }
                         onOpenScore?.let { openScore ->
                             SmallFloatingActionButton(
@@ -351,6 +346,41 @@ fun CatalogWorkLyricsScreen(
 
     if (addingToRoom) {
         CatalogAddToRoomSheet(workId = workId, onDismiss = { addingToRoom = false })
+    }
+
+    if (editingLyrics && work != null) {
+        val deviceLanguage = remember { java.util.Locale.getDefault().toLanguageTag() }
+        val target = remember(work, selectedVariant) { workLyricsEditTarget(work, selectedVariant, deviceLanguage) }
+        CatalogWorkLyricsEditSheet(
+            work = work,
+            target = target,
+            onDismiss = { editingLyrics = false },
+            onSaved = { updated ->
+                editingLyrics = false
+                state.updateWork(updated)
+            },
+            onStale = {
+                editingLyrics = false
+                state.retry()
+            },
+        )
+    }
+}
+
+/** issue 124/125: the Work's own actions at the top of the bottom-right column. */
+@Composable
+private fun WorkLyricsWorkActions(onAddToRoom: () -> Unit, onEditLyrics: () -> Unit) {
+    SmallFloatingActionButton(
+        onClick = onAddToRoom,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Icon(MaterialSymbolIcon("playlist_add"), contentDescription = stringResource(R.string.rooms_add_to_room))
+    }
+    SmallFloatingActionButton(
+        onClick = onEditLyrics,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Icon(MaterialSymbolIcon("edit"), contentDescription = stringResource(R.string.edit_lyrics))
     }
 }
 
@@ -473,7 +503,8 @@ private fun rememberSelectedLyricsLanguage(variants: List<CatalogLyricsVariant>)
             if (isEmpty()) add(Locale.getDefault().toLanguageTag())
         }
     }
-    remember(variants) {
+    // Keyed on the languages, not the texts: saving an edit (issue 125) keeps the shown language.
+    remember(variants.map { it.language }) {
         mutableStateOf(selectCatalogLyricsVariant(variants, preferredLanguageTags)?.language)
     }
 }

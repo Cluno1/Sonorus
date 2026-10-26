@@ -169,6 +169,11 @@ internal data class WorkDto(
 )
 
 /** `PATCH /v2/works/{id}/tags` body (issue 116): only the tag set, whole-array replace. */
+/** issue 125: body of `PUT /v2/works/{id}/lyrics/{language}`. */
+internal data class WorkLyricReplaceDto(
+    @SerializedName("lyrics") val lyrics: String,
+)
+
 internal data class WorkTagsPatchDto(
     @SerializedName("tags") val tags: List<String>,
 )

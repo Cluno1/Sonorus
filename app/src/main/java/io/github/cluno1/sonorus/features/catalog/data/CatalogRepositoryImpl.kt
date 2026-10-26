@@ -584,6 +584,35 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
         }
     }
 
+    override suspend fun replaceWorkLyrics(
+        workId: String,
+        language: String,
+        lyrics: String,
+        expectedRevision: Int,
+    ): Result<WorkSummary> = guarded {
+        val id = validUuid(workId)
+        require(expectedRevision > 0) { "work revision must be positive" }
+        require(lyrics.isNotBlank()) { "lyrics must not be blank" }
+        val tag = io.github.cluno1.sonorus.features.catalog.domain.normalizeCatalogLyricsLanguageTag(language)
+        val response = client().workLyricsWriteApi.replaceWorkLyrics(
+            workId = id,
+            language = tag,
+            ifMatch = "\"rev-$expectedRevision\"",
+            body = io.github.cluno1.sonorus.features.catalog.data.remote.WorkLyricReplaceDto(lyrics),
+        )
+        if (response.code() == 412) {
+            android.util.Log.w("CatalogRepository", "Catalog work lyrics edit rejected as stale (work=$id, expected=$expectedRevision)")
+            throw CatalogFailure.StaleRevision(null)
+        }
+        val work = CatalogDtoMapper.work(response.bodyOrThrow())
+        require(work.id == id) { "lyrics write work id does not match request" }
+        // Same as tags: keep the cached bundle in step; the dropped ETag makes the next bundle
+        // request revalidate against the server.
+        cache.loadBundle(id)?.let { cache.saveBundle(it.copy(work = work), null) }
+        android.util.Log.i("CatalogRepository", "Catalog work lyrics replaced (work=$id, language=$tag, revision=${work.revision})")
+        work
+    }
+
     override suspend fun replaceWorkTags(
         workId: String,
         tags: List<String>,

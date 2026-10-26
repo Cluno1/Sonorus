@@ -54,4 +54,14 @@ class CatalogApiReadOnlyTest {
             assertTrue("${method.name} must not PATCH", method.getAnnotation(PATCH::class.java) == null)
         }
     }
+
+    @Test
+    fun workLyricsWriteApiDeclaresOnlyTheNarrowLyricsPut() {
+        // issue 125: plain lyrics of one language; general Work writes stay out of the APK.
+        val methods = CatalogWorkLyricsWriteApi::class.java.declaredMethods
+            .filterNot { it.name.endsWith("\$default") }
+        assertTrue(methods.size == 1)
+        val put = methods.single().getAnnotation(PUT::class.java)
+        assertTrue(put != null && put.value == "v2/works/{id}/lyrics/{language}")
+    }
 }

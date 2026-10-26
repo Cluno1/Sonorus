@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 125: editing a Work's plain lyrics on its lyrics page -->
+<resources>
+    <string name="work_lyrics_edit_title">Edit lyrics · %1$s</string>
+    <string name="work_lyrics_edit_hint">Plain-text lyrics of this work, shown to everyone after saving. Time-synced lyrics are edited from the player.</string>
+    <string name="work_lyrics_edit_save">Save</string>
+    <string name="work_lyrics_edit_saved">Lyrics saved</string>
+    <string name="work_lyrics_edit_stale">Someone else changed these lyrics first; reloaded</string>
+    <string name="work_lyrics_edit_failed">Couldn\'t save the lyrics</string>
+</resources>

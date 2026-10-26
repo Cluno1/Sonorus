@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 125: editing a Work's plain lyrics on its lyrics page -->
+<resources>
+    <string name="work_lyrics_edit_title">編輯歌詞 · %1$s</string>
+    <string name="work_lyrics_edit_hint">這首作品的純文字歌詞，儲存後所有人都能看到。帶時間軸的同步歌詞請在播放頁編輯。</string>
+    <string name="work_lyrics_edit_save">儲存</string>
+    <string name="work_lyrics_edit_saved">歌詞已儲存</string>
+    <string name="work_lyrics_edit_stale">歌詞已被他人修改，已重新載入</string>
+    <string name="work_lyrics_edit_failed">歌詞儲存失敗</string>
+</resources>

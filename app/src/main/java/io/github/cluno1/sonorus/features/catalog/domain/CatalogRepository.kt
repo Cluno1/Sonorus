@@ -34,6 +34,17 @@ interface CatalogRepository {
      * Guarded by the Work revision; a stale revision fails with [CatalogFailure.StaleRevision].
      * A backend without the endpoint answers 404 ([CatalogFailure.Server]).
      */
+    /**
+     * issue 125: replaces a Work's plain lyrics of [language] (the default language, or one of its
+     * translations) for any enrolled device. Guarded by the Work revision like [replaceWorkTags].
+     */
+    suspend fun replaceWorkLyrics(
+        workId: String,
+        language: String,
+        lyrics: String,
+        expectedRevision: Int,
+    ): Result<WorkSummary>
+
     suspend fun replaceWorkTags(
         workId: String,
         tags: List<String>,

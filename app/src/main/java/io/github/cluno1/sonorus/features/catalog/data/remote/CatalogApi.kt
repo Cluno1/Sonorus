@@ -113,6 +113,17 @@ internal interface CatalogLyricsWriteApi {
     ): Response<RenditionLyricWriteDto>
 }
 
+/** issue 125: a Work's plain lyrics of one language; the response is the updated Work. */
+internal interface CatalogWorkLyricsWriteApi {
+    @PUT("v2/works/{id}/lyrics/{language}")
+    suspend fun replaceWorkLyrics(
+        @Path("id") workId: String,
+        @Path("language") language: String,
+        @Header("If-Match") ifMatch: String,
+        @Body body: WorkLyricReplaceDto,
+    ): Response<WorkDto>
+}
+
 /** issue 116: the only Work write a device may make — the tag set; the response is the updated Work. */
 internal interface CatalogWorkTagsWriteApi {
     @PATCH("v2/works/{id}/tags")

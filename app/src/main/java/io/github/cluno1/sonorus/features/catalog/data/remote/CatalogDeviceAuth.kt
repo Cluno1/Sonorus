@@ -311,7 +311,8 @@ internal class CatalogDeviceAuthClient(
             request.url.encodedPath.matches(Regex("^/v2/works/[^/]+/tags$"))
         require(
             isRead || isLyricWrite || isChorusWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite ||
-                isCatalogRoomWrite(request.method, request.url.encodedPath),
+                isCatalogRoomWrite(request.method, request.url.encodedPath) ||
+                isCatalogWorkLyricWrite(request.method, request.url.encodedPath),
         ) {
             "public Catalog only signs reads and narrow owned writes"
         }
@@ -449,6 +450,10 @@ private val CATALOG_ROOM_WRITES = listOf(
     "DELETE" to Regex("^/v2/rooms/[^/]+/items/[^/]+$"),
     "PUT" to Regex("^/v2/rooms/[^/]+/order$"),
 )
+
+/** issue 125: a Work's plain lyrics of one language — the one extra Work write a device may sign. */
+internal fun isCatalogWorkLyricWrite(method: String, encodedPath: String): Boolean =
+    method == "PUT" && encodedPath.matches(Regex("^/v2/works/[^/]+/lyrics/[^/]+$"))
 
 internal fun isCatalogRoomWrite(method: String, encodedPath: String): Boolean =
     CATALOG_ROOM_WRITES.any { (verb, path) -> verb == method && path.matches(encodedPath) }

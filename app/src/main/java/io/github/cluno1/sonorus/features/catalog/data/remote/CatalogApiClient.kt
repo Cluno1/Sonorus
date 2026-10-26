@@ -75,6 +75,7 @@ internal class CatalogApiClient(
     val api: CatalogApi = retrofit.create(CatalogApi::class.java)
     val lyricsWriteApi: CatalogLyricsWriteApi = retrofit.create(CatalogLyricsWriteApi::class.java)
     val workTagsWriteApi: CatalogWorkTagsWriteApi = retrofit.create(CatalogWorkTagsWriteApi::class.java)
+    val workLyricsWriteApi: CatalogWorkLyricsWriteApi = retrofit.create(CatalogWorkLyricsWriteApi::class.java)
     val chorusApi: CatalogChorusApi = retrofit.create(CatalogChorusApi::class.java)
     /** issue 124 */
     val roomsApi: CatalogRoomsApi = retrofit.create(CatalogRoomsApi::class.java)
