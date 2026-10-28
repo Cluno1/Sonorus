@@ -218,6 +218,7 @@ fun UniversalSearchScreen(
     var filterLyrics by remember { mutableStateOf(true) }
     var filterNumbers by remember { mutableStateOf(true) }
     var filterTags by remember { mutableStateOf(true) }
+    var filterExternalLyrics by remember { mutableStateOf(true) }
     var lyricsSearchState by remember {
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
@@ -358,10 +359,10 @@ fun UniversalSearchScreen(
     }
     val currentExternalLyricsSearch by rememberUpdatedState(catalogSource?.searchExternalLyrics)
     val externalLyricsSearchAvailable = catalogSource?.searchExternalLyrics != null
-    LaunchedEffect(catalogTextQuery, filterLyrics, externalLyricsSearchAvailable) {
+    LaunchedEffect(catalogTextQuery, filterExternalLyrics, externalLyricsSearchAvailable) {
         externalLyricsSectionExpanded = false
         val search = currentExternalLyricsSearch
-        if (search == null || !filterLyrics || catalogTextQuery.isEmpty()) {
+        if (search == null || !filterExternalLyrics || catalogTextQuery.isEmpty()) {
             externalLyricsState = UniversalExternalLyricsSearchState.Idle
             return@LaunchedEffect
         }
@@ -1497,11 +1498,9 @@ fun UniversalSearchScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(RhythmIcons.Search, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(8.dp))
                         BasicTextField(
                             value = query,
                             onValueChange = { query = it },
@@ -1514,7 +1513,13 @@ fun UniversalSearchScreen(
                             decorationBox = { innerTextField ->
                                 Box(contentAlignment = Alignment.CenterStart) {
                                     if (query.isEmpty()) {
-                                        Text(stringResource(R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            stringResource(R.string.universalsearchscreen_search_everywhere),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
                                     }
                                     innerTextField()
                                 }
@@ -1528,27 +1533,28 @@ fun UniversalSearchScreen(
                                 Icon(MaterialSymbolIcon("clear", filled = true), contentDescription = stringResource(R.string.ui_clear), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                    }
-                }
-
-                val canSearch = query.isNotBlank() && query.trim() != searchedQuery
-                Surface(
-                    shape = CircleShape,
-                    color = if (canSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh
-                ) {
-                    IconButton(
-                        onClick = {
-                            HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                            submitSearch(query)
-                        },
-                        enabled = query.isNotBlank(),
-                    ) {
-                        Icon(
-                            RhythmIcons.Search,
-                            contentDescription = stringResource(R.string.cd_search),
-                            tint = if (canSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(25.dp)
-                        )
+                        // Same round button as back / filters, sized to sit inside the 52 dp field.
+                        val canSearch = query.isNotBlank() && query.trim() != searchedQuery
+                        Surface(
+                            shape = CircleShape,
+                            color = if (canSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.padding(start = 4.dp).size(40.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                                    submitSearch(query)
+                                },
+                                enabled = query.isNotBlank(),
+                            ) {
+                                Icon(
+                                    RhythmIcons.Search,
+                                    contentDescription = stringResource(R.string.cd_search),
+                                    tint = if (canSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -1730,6 +1736,40 @@ fun UniversalSearchScreen(
                                 }
                             } else null,
                             shape = RoundedCornerShape(filterLyricsCornerRadius),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = null
+                        )
+                    }
+                    if (externalLyricsSearchAvailable) {
+                        val filterExternalLyricsCornerRadius by animateDpAsState(
+                            targetValue = if (filterExternalLyrics) 24.dp else 12.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "externalLyricsCornerRadius"
+                        )
+                        FilterChip(
+                            selected = filterExternalLyrics,
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                                filterExternalLyrics = !filterExternalLyrics
+                            },
+                            label = { Text(stringResource(R.string.search_external_lyrics_section), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                            leadingIcon = if (filterExternalLyrics) {
+                                {
+                                    Icon(
+                                        imageVector = RhythmIcons.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                    )
+                                }
+                            } else null,
+                            shape = RoundedCornerShape(filterExternalLyricsCornerRadius),
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
