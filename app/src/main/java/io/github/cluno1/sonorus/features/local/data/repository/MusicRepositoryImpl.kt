@@ -4714,7 +4714,7 @@ class MusicRepository(context: Context) {
             for (provider in order) {
                 val candidates = deviceMetadataRepository.searchLyrics(song, provider)
                 val candidate = if (provider == DevicePublicMetadataProvider.CHINESE_LYRICS) {
-                    DeviceChineseLyrics.automaticPick(candidates)
+                    DeviceChineseLyrics.automaticPick(candidates, song.title)
                 } else {
                     candidates.firstOrNull()?.takeIf {
                         DeviceMetadataMatcher.isAutomaticMatch(

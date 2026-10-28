@@ -84,7 +84,7 @@ class DeviceChineseLyricsTest {
         // Without collapsing, the 0.03 margin would reject this as ambiguous.
         assertFalse(DeviceMetadataMatcher.isAutomaticMatch(0.86, 0.86, DeviceMetadataRepository.MIN_AUTO_CONFIDENCE))
         assertEquals(1, DeviceChineseLyrics.collapseSameSong(sameSong).size)
-        assertEquals("旅人", DeviceChineseLyrics.automaticPick(sameSong)?.title)
+        assertEquals("旅人", DeviceChineseLyrics.automaticPick(sameSong, "旅人")?.title)
     }
 
     @Test
@@ -99,26 +99,64 @@ class DeviceChineseLyricsTest {
     }
 
     @Test
-    fun 时长差太多或歌手不同不算同一首歌() {
+    fun 歌手不同或版本后缀不同不算同一首歌() {
         val kept = DeviceChineseLyrics.collapseSameSong(
             listOf(
                 candidate("旅人", "罗云熙", 0.86),
-                candidate("旅人", "罗云熙", 0.84, seconds = 180.0),
                 candidate("旅人", "王铮亮", 0.80),
+                candidate("旅人 (Live)", "罗云熙", 0.70),
             ),
         )
         assertEquals(3, kept.size)
     }
 
     @Test
+    fun 同一首歌各平台时长差几秒仍合并为一首() {
+        val kept = DeviceChineseLyrics.collapseSameSong(
+            listOf(
+                candidate("旅人", "罗云熙", 0.86, seconds = 253.8, platform = "netease"),
+                candidate("旅人", "罗云熙", 0.84, seconds = 249.0, platform = "tencent"),
+            ),
+        )
+        assertEquals("netease", kept.single().platform)
+    }
+
+    @Test
+    fun 王铮亮不凡的伴奏版不挡住原版自动采用() {
+        // Live /match result for 王铮亮《不凡》; the local file is 207 s with no album.
+        val input = DeviceMatchInput("不凡", "王铮亮", "", 207_000)
+        val candidates = DeviceChineseLyrics.candidates(
+            input,
+            listOf(
+                match(CatalogExternalLyricsSource.NETEASE, "1", "不凡", "王铮亮", 211_802),
+                match(CatalogExternalLyricsSource.TENCENT, "2", "不凡", "王铮亮", 88_000),
+                match(CatalogExternalLyricsSource.KUGOU, "3", "不凡", "王铮亮", 211_000),
+                match(CatalogExternalLyricsSource.NETEASE, "4", "不凡 (伴奏)", "王铮亮", 211_802),
+                match(CatalogExternalLyricsSource.TENCENT, "5", "不凡 (三亚农场演唱会版)", "王铮亮", 208_000),
+                match(CatalogExternalLyricsSource.TENCENT, "6", "不凡2024", "王铮亮", 252_000),
+            ),
+        )
+        val pick = DeviceChineseLyrics.automaticPick(candidates, "不凡")
+        assertEquals("不凡", pick?.title)
+        assertTrue(pick!!.confidence >= DeviceMetadataRepository.MIN_AUTO_CONFIDENCE)
+    }
+
+    @Test
+    fun 本地本身是伴奏时伴奏版照常参与自动采用() {
+        val only = listOf(candidate("不凡 (伴奏)", "王铮亮", 0.86))
+        assertNull(DeviceChineseLyrics.automaticPick(only, "不凡"))
+        assertEquals("不凡 (伴奏)", DeviceChineseLyrics.automaticPick(only, "不凡 (伴奏)")?.title)
+    }
+
+    @Test
     fun 不同的歌分数接近时不自动采用() {
         val ambiguous = listOf(candidate("旅人", "罗云熙", 0.80), candidate("旅人", "王铮亮", 0.79))
-        assertNull(DeviceChineseLyrics.automaticPick(ambiguous))
+        assertNull(DeviceChineseLyrics.automaticPick(ambiguous, "旅人"))
     }
 
     @Test
     fun 低于LRCLIB自动门槛时不自动采用() {
-        assertNull(DeviceChineseLyrics.automaticPick(listOf(candidate("旅途", "别人", 0.60))))
+        assertNull(DeviceChineseLyrics.automaticPick(listOf(candidate("旅途", "别人", 0.60)), "旅人"))
     }
 
     @Test

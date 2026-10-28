@@ -9,7 +9,6 @@ import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.shared.data.model.LyricsData
 import java.text.Normalizer
 import java.util.Locale
-import kotlin.math.abs
 
 /**
  * issue 127: "Chinese lyrics" (NetEase / QQ Music / Kugou through the backend's Meting provider)
@@ -27,6 +26,11 @@ import kotlin.math.abs
  * - The same song exists on NetEase, QQ and Kugou with near-equal scores. Without [collapseSameSong]
  *   the 0.03 ambiguity margin rejects every automatic match (local songs rarely carry an album, so
  *   the 0.98 unconditional threshold is unreachable). Manual search keeps all platforms on purpose.
+ * - Platforms disagree on duration by several seconds for one recording, so the collapse looks at
+ *   title and artist only. The score already ranks the closest duration first.
+ * - The matcher drops parenthesized text, so "不凡 (伴奏)" ties with "不凡" at the same duration and
+ *   blocks the margin. Accompaniment versions are left out of automatic use unless the local title
+ *   is one too (王铮亮《不凡》, issue 127).
  * - Mixing sources before the ambiguity check would make LRCLIB and Chinese copies of one song
  *   block each other.
  *
@@ -36,9 +40,9 @@ import kotlin.math.abs
 internal object DeviceChineseLyrics {
     private const val TAG = "DeviceChineseLyrics"
     private const val MAX_CANDIDATES = 12
-    private const val SAME_SONG_SECONDS = 3.0
     private val cjk = Regex("[\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff]")
     private val noise = Regex("[\\p{P}\\p{S}\\s]+")
+    private val accompaniment = Regex("伴奏|纯音乐|純音樂|消音|instrumental|karaoke|卡拉ok|off ?vocal|\\binst\\b", RegexOption.IGNORE_CASE)
 
     /** Source tag stored on [LyricsData.source]; read by the lyrics source label. */
     const val SOURCE = "CNLYRICS"
@@ -96,8 +100,8 @@ internal object DeviceChineseLyrics {
         }.sortedByDescending(DeviceLyricsCandidate::confidence).take(MAX_CANDIDATES)
 
     /**
-     * One entry per song for the automatic ambiguity check: same title and artist within
-     * [SAME_SONG_SECONDS]. Keeps the best score, preferring synced lyrics on a tie.
+     * One entry per song for the automatic ambiguity check: same title and artist, whatever the
+     * duration. Keeps the best score, preferring synced lyrics on a tie.
      */
     fun collapseSameSong(candidates: List<DeviceLyricsCandidate>): List<DeviceLyricsCandidate> {
         val kept = mutableListOf<DeviceLyricsCandidate>()
@@ -112,8 +116,9 @@ internal object DeviceChineseLyrics {
     }
 
     /** The automatically usable candidate, or null when nothing is confident and unambiguous. */
-    fun automaticPick(candidates: List<DeviceLyricsCandidate>): DeviceLyricsCandidate? {
-        val collapsed = collapseSameSong(candidates)
+    fun automaticPick(candidates: List<DeviceLyricsCandidate>, localTitle: String?): DeviceLyricsCandidate? {
+        val wantsAccompaniment = isAccompaniment(localTitle.orEmpty())
+        val collapsed = collapseSameSong(candidates.filter { wantsAccompaniment || !isAccompaniment(it.title) })
         return collapsed.firstOrNull()?.takeIf {
             DeviceMetadataMatcher.isAutomaticMatch(
                 it.confidence,
@@ -147,16 +152,15 @@ internal object DeviceChineseLyrics {
             .matchExternalLyrics(title, artist.takeIf(String::isNotBlank), null, null)
             .onFailure { Log.w(TAG, "Chinese lyrics match unavailable: ${it.javaClass.simpleName}") }
             .getOrNull() ?: return null
-        val pick = automaticPick(candidates(DeviceMatchInput(title, artist, "", 0L), matches)) ?: return null
+        val pick = automaticPick(candidates(DeviceMatchInput(title, artist, "", 0L), matches), title) ?: return null
         return pick.lyrics.copy(source = label(SOURCE, pick))
     }
 
-    private fun sameSong(left: DeviceLyricsCandidate, right: DeviceLyricsCandidate): Boolean {
-        if (key(left.title) != key(right.title) || key(left.artist) != key(right.artist)) return false
-        val a = left.durationSeconds
-        val b = right.durationSeconds
-        return a == null || b == null || abs(a - b) <= SAME_SONG_SECONDS
-    }
+    fun isAccompaniment(title: String): Boolean =
+        accompaniment.containsMatchIn(Normalizer.normalize(title, Normalizer.Form.NFKC))
+
+    private fun sameSong(left: DeviceLyricsCandidate, right: DeviceLyricsCandidate): Boolean =
+        key(left.title) == key(right.title) && key(left.artist) == key(right.artist)
 
     private fun key(value: String): String =
         Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(Locale.ROOT).replace(noise, "")
