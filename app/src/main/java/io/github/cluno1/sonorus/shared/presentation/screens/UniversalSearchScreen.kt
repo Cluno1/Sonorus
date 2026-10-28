@@ -37,6 +37,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -59,6 +61,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -183,6 +186,17 @@ fun UniversalSearchScreen(
     val horizontalPadding = if (isTablet) 32.dp else 24.dp
 
     var query by remember { mutableStateOf("") }
+    // What results are shown for: set only by the search button, the keyboard's search key, or a
+    // history / genre tap, so typing never sends requests. Clearing the box clears the results.
+    var searchedQuery by remember { mutableStateOf("") }
+    LaunchedEffect(query) {
+        if (query.isBlank()) searchedQuery = ""
+    }
+    val submitSearch: (String) -> Unit = { text ->
+        query = text
+        searchedQuery = text.trim()
+        focusManager.clearFocus()
+    }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -313,7 +327,7 @@ fun UniversalSearchScreen(
         }
     }
 
-    val normalizedQuery = remember(query) { normalizedUniversalSearchQuery(query) }
+    val normalizedQuery = remember(searchedQuery) { normalizedUniversalSearchQuery(searchedQuery) }
 
     LaunchedEffect(normalizedQuery) {
         if (catalogSource == null &&
@@ -325,10 +339,10 @@ fun UniversalSearchScreen(
         }
     }
 
-    // issue 107: lyrics and number categories are answered by the server, debounced like typing.
+    // issue 107: lyrics and number categories are answered by the server, once per submitted search.
     val catalogTextSearchAvailable = catalogSource?.searchLibrary != null
     val currentCatalogTextSearch by rememberUpdatedState(catalogSource?.searchLibrary)
-    val catalogTextQuery = remember(query) { query.trim().take(100) }
+    val catalogTextQuery = remember(searchedQuery) { searchedQuery.trim().take(100) }
     LaunchedEffect(catalogTextQuery, filterLyrics, catalogTextSearchAvailable) {
         lyricsSectionExpanded = false
         val search = currentCatalogTextSearch
@@ -337,13 +351,11 @@ fun UniversalSearchScreen(
             return@LaunchedEffect
         }
         lyricsSearchState = UniversalCatalogTextSearchState.Loading
-        delay(300)
         lyricsSearchState = search(catalogTextQuery, CatalogLibrarySearchType.LYRICS).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
             onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
         )
     }
-    // issue 127: public platforms answer slower than the catalog; wait a little longer while typing.
     val currentExternalLyricsSearch by rememberUpdatedState(catalogSource?.searchExternalLyrics)
     val externalLyricsSearchAvailable = catalogSource?.searchExternalLyrics != null
     LaunchedEffect(catalogTextQuery, filterLyrics, externalLyricsSearchAvailable) {
@@ -354,7 +366,6 @@ fun UniversalSearchScreen(
             return@LaunchedEffect
         }
         externalLyricsState = UniversalExternalLyricsSearchState.Loading
-        delay(500)
         // An old server without the endpoint, or a platform outage, is expected: hide the group.
         externalLyricsState = search(catalogTextQuery).fold(
             onSuccess = { UniversalExternalLyricsSearchState.Loaded(it.items) },
@@ -369,7 +380,6 @@ fun UniversalSearchScreen(
             return@LaunchedEffect
         }
         numberSearchState = UniversalCatalogTextSearchState.Loading
-        delay(300)
         numberSearchState = search(catalogTextQuery, CatalogLibrarySearchType.NUMBER).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
             onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
@@ -383,7 +393,6 @@ fun UniversalSearchScreen(
             return@LaunchedEffect
         }
         tagSearchState = UniversalCatalogTextSearchState.Loading
-        delay(300)
         tagSearchState = search(catalogTextQuery, CatalogLibrarySearchType.TAGS).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
             onFailure = { UniversalCatalogTextSearchState.Failed(catalogTagSearchFailureMessage(context, it)) },
@@ -396,7 +405,6 @@ fun UniversalSearchScreen(
             return@LaunchedEffect
         }
         scoreSearchState = UniversalCatalogTextSearchState.Loading
-        delay(300)
         scoreSearchState = search(catalogTextQuery, CatalogLibrarySearchType.SCORES).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
             // Older servers reject the new type; the score list below retains the local filter as a fallback.
@@ -458,13 +466,13 @@ fun UniversalSearchScreen(
             }
         }
     }
-    val matchedLocalArtists = remember(query, localArtists, filterArtists) {
-        if (!filterArtists || query.isBlank()) emptyList()
-        else localArtists.filter { it.name.contains(query, true) }
+    val matchedLocalArtists = remember(searchedQuery, localArtists, filterArtists) {
+        if (!filterArtists || searchedQuery.isBlank()) emptyList()
+        else localArtists.filter { it.name.contains(searchedQuery, true) }
     }
-    val matchedLocalPlaylists = remember(query, localPlaylists, filterPlaylists) {
-        if (!filterPlaylists || query.isBlank()) emptyList()
-        else localPlaylists.filter { it.name.contains(query, true) }
+    val matchedLocalPlaylists = remember(searchedQuery, localPlaylists, filterPlaylists) {
+        if (!filterPlaylists || searchedQuery.isBlank()) emptyList()
+        else localPlaylists.filter { it.name.contains(searchedQuery, true) }
     }
 
     val matchedStreamingSongs = if (catalogSource == null && filterSongs) streamingResults.songs else emptyList()
@@ -503,23 +511,23 @@ fun UniversalSearchScreen(
     }
 
     val openCatalogWorkLyrics: (CatalogLibrarySearchItem) -> Unit = { item ->
-        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
         onCatalogWorkLyricsClick(item)
     }
     val openExternalLyrics: (CatalogExternalLyricsItem) -> Unit = { item ->
-        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
         onExternalLyricsClick(item)
     }
     val openCatalogWorkScore: (CatalogLibrarySearchItem) -> Unit = { item ->
-        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
         onCatalogWorkScoreClick(item)
     }
     val openCatalogWorkSong: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit = { item, song ->
-        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
         handleAction("LOCAL") { onCatalogWorkSongClick(item, song) }
     }
     val openCatalogTag: (CatalogLibraryTag) -> Unit = { tag ->
-        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
         focusManager.clearFocus()
         onCatalogTagClick(tag)
     }
@@ -588,7 +596,7 @@ fun UniversalSearchScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         AnimatedContent(
-            targetState = query.isBlank(),
+            targetState = searchedQuery.isBlank(),
             transitionSpec = {
                 if (targetState) {
                     (slideInVertically(initialOffsetY = { -it / 6 }) + fadeIn(animationSpec = tween(300)))
@@ -680,7 +688,7 @@ fun UniversalSearchScreen(
                                         },
                                         onClick = {
                                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                            query = item
+                                            submitSearch(item)
                                         }
                                     )
                                 }
@@ -707,7 +715,7 @@ fun UniversalSearchScreen(
                                     isGenreDetectionComplete = isGenreDetectionComplete,
                                     onGenreClick = { genre ->
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                        query = genre
+                                        submitSearch(genre)
                                     }
                                 )
                             }
@@ -786,7 +794,7 @@ fun UniversalSearchScreen(
                                         },
                                         onClick = {
                                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                            query = item
+                                            submitSearch(item)
                                         }
                                     )
                                 }
@@ -886,7 +894,7 @@ fun UniversalSearchScreen(
                                 isGenreDetectionComplete = isGenreDetectionComplete,
                                 onGenreClick = { genre ->
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                    query = genre
+                                    submitSearch(genre)
                                 }
                             )
                         }
@@ -911,7 +919,7 @@ fun UniversalSearchScreen(
                                     .padding(vertical = 48.dp)
                                     .animateItem(),
                                 title = stringResource(R.string.no_results_found),
-                                subtitle = stringResource(R.string.search_no_results_query_format, query),
+                                subtitle = stringResource(R.string.search_no_results_query_format, searchedQuery),
                                 mainIcon = RhythmIcons.Search,
                                 accentIcon = RhythmIcons.Search,
                                 cornerIcon = RhythmIcons.MusicNote,
@@ -949,13 +957,13 @@ fun UniversalSearchScreen(
                                 val allSongs = buildList {
                                     matchedLocalSongs.take(3).forEach { song ->
                                         add(SongSearchItem("LOCAL", song.title, "${song.artist} • ${song.album}", song.artworkUri, song) {
-                                            if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                            if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                             handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
                                         })
                                     }
                                     matchedStreamingSongs.take(3).forEach { song ->
                                         add(SongSearchItem("STREAMING", song.title, "${song.artist} • ${song.album}", song.artworkUri, song) {
-                                            if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                            if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                             handleAction("STREAMING") { onStreamingSongClick(song) }
                                         })
                                     }
@@ -1055,13 +1063,13 @@ fun UniversalSearchScreen(
                                 val allPlaylists = buildList {
                                     matchedLocalPlaylists.take(5).forEach { playlist ->
                                         add(Triple("LOCAL", playlist.name, "Local Playlist") to {
-                                            if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                            if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                             handleAction("LOCAL") { onLocalPlaylistClick(playlist) }
                                         })
                                     }
                                     matchedStreamingPlaylists.take(5).forEach { playlist ->
                                         add(Triple("STREAMING", playlist.name, "Streaming Playlist") to {
-                                            if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                            if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                             handleAction("STREAMING") { onStreamingPlaylistClick(playlist) }
                                         })
                                     }
@@ -1104,13 +1112,13 @@ fun UniversalSearchScreen(
                             val allAlbums = buildList {
                                 matchedLocalAlbums.take(6).forEach { album ->
                                     add(SearchGridItem("LOCAL", album.title, album.artist, album.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalAlbumClick(album) }
                                     })
                                 }
                                 matchedStreamingAlbums.take(6).forEach { album ->
                                     add(SearchGridItem("STREAMING", album.title, album.artist, album.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("STREAMING") { onStreamingAlbumClick(album) }
                                     })
                                 }
@@ -1149,13 +1157,13 @@ fun UniversalSearchScreen(
                             val allArtists = buildList {
                                 matchedLocalArtists.take(6).forEach { artist ->
                                     add(SearchGridItem("LOCAL", artist.name, "${artist.numberOfTracks} tracks", artist.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalArtistClick(artist) }
                                     })
                                 }
                                 matchedStreamingArtists.take(6).forEach { artist ->
                                     add(SearchGridItem("STREAMING", artist.name, "Streaming Artist", artist.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("STREAMING") { onStreamingArtistClick(artist) }
                                     })
                                 }
@@ -1206,13 +1214,13 @@ fun UniversalSearchScreen(
                             val allSongs = buildList {
                                 matchedLocalSongs.take(3).forEach { song ->
                                     add(SongSearchItem("LOCAL", song.title, "${song.artist} • ${song.album}", song.artworkUri, song) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
                                     })
                                 }
                                 matchedStreamingSongs.take(3).forEach { song ->
                                     add(SongSearchItem("STREAMING", song.title, "${song.artist} • ${song.album}", song.artworkUri, song) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("STREAMING") { onStreamingSongClick(song) }
                                     })
                                 }
@@ -1312,13 +1320,13 @@ fun UniversalSearchScreen(
                             val allAlbums = buildList {
                                 matchedLocalAlbums.take(6).forEach { album ->
                                     add(SearchGridItem("LOCAL", album.title, album.artist, album.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalAlbumClick(album) }
                                     })
                                 }
                                 matchedStreamingAlbums.take(6).forEach { album ->
                                     add(SearchGridItem("STREAMING", album.title, album.artist, album.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("STREAMING") { onStreamingAlbumClick(album) }
                                     })
                                 }
@@ -1357,13 +1365,13 @@ fun UniversalSearchScreen(
                             val allArtists = buildList {
                                 matchedLocalArtists.take(6).forEach { artist ->
                                     add(SearchGridItem("LOCAL", artist.name, "${artist.numberOfTracks} tracks", artist.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalArtistClick(artist) }
                                     })
                                 }
                                 matchedStreamingArtists.take(6).forEach { artist ->
                                     add(SearchGridItem("STREAMING", artist.name, "Streaming Artist", artist.artworkUri) {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("STREAMING") { onStreamingArtistClick(artist) }
                                     })
                                 }
@@ -1384,13 +1392,13 @@ fun UniversalSearchScreen(
                             val allPlaylists = buildList {
                                 matchedLocalPlaylists.take(5).forEach { playlist ->
                                     add(Triple("LOCAL", playlist.name, "Local Playlist") to {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalPlaylistClick(playlist) }
                                     })
                                 }
                                 matchedStreamingPlaylists.take(5).forEach { playlist ->
                                     add(Triple("STREAMING", playlist.name, "Streaming Playlist") to {
-                                        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("STREAMING") { onStreamingPlaylistClick(playlist) }
                                     })
                                 }
@@ -1498,6 +1506,8 @@ fun UniversalSearchScreen(
                             value = query,
                             onValueChange = { query = it },
                             modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { if (query.isNotBlank()) submitSearch(query) }),
                             textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                             singleLine = true,
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -1518,6 +1528,27 @@ fun UniversalSearchScreen(
                                 Icon(MaterialSymbolIcon("clear", filled = true), contentDescription = stringResource(R.string.ui_clear), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
+                    }
+                }
+
+                val canSearch = query.isNotBlank() && query.trim() != searchedQuery
+                Surface(
+                    shape = CircleShape,
+                    color = if (canSearch) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    IconButton(
+                        onClick = {
+                            HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                            submitSearch(query)
+                        },
+                        enabled = query.isNotBlank(),
+                    ) {
+                        Icon(
+                            RhythmIcons.Search,
+                            contentDescription = stringResource(R.string.cd_search),
+                            tint = if (canSearch) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(25.dp)
+                        )
                     }
                 }
 
