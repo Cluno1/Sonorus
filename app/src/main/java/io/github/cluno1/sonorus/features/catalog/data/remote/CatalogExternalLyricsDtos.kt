@@ -31,6 +31,8 @@ internal data class ExternalLyricsDto(
     @SerializedName("external_id") val externalId: String?,
     @SerializedName("lyrics") val lyrics: String?,
     @SerializedName("translation") val translation: String? = null,
+    @SerializedName("raw_lrc") val rawLrc: String? = null,
+    @SerializedName("raw_translation") val rawTranslation: String? = null,
 )
 
 /** `GET /v2/library/external-lyrics/match` response (issue 127). */
@@ -74,6 +76,8 @@ internal object CatalogExternalLyricsMapper {
             externalId = id,
             lyrics = lyrics,
             translation = dto.translation?.trim()?.takeIf(String::isNotEmpty),
+            fullLyrics = dto.rawLrc?.trim()?.takeIf(String::isNotEmpty),
+            fullTranslation = dto.rawTranslation?.trim()?.takeIf(String::isNotEmpty),
         )
     }
 

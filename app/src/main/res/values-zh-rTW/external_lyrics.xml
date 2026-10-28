@@ -16,4 +16,9 @@
     <string name="api_chinese_lyrics_desc">經音樂庫取得網易雲音樂、QQ 音樂、酷狗的中文同步歌詞</string>
     <string name="lyrics_source_chinese_match">中文歌詞 · %1$s / %2$s · %3$s</string>
     <string name="lyrics_source_chinese_selected_match">已選中文歌詞 · %1$s / %2$s · %3$s</string>
+    <!-- issue 127: simplified / full switch and copy on the online lyrics page. -->
+    <string name="external_lyrics_simplified">精簡</string>
+    <string name="external_lyrics_full">完整</string>
+    <string name="external_lyrics_copy">複製歌詞</string>
+    <string name="external_lyrics_copied">已複製歌詞</string>
 </resources>

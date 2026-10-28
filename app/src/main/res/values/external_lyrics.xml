@@ -16,4 +16,9 @@
     <string name="api_chinese_lyrics_desc">Chinese synced lyrics from NetEase Cloud Music, QQ Music and Kugou through your music library</string>
     <string name="lyrics_source_chinese_match">Chinese lyrics · %1$s / %2$s · %3$s</string>
     <string name="lyrics_source_chinese_selected_match">Selected Chinese lyrics · %1$s / %2$s · %3$s</string>
+    <!-- issue 127: simplified / full switch and copy on the online lyrics page. -->
+    <string name="external_lyrics_simplified">Simplified</string>
+    <string name="external_lyrics_full">Full</string>
+    <string name="external_lyrics_copy">Copy lyrics</string>
+    <string name="external_lyrics_copied">Lyrics copied</string>
 </resources>

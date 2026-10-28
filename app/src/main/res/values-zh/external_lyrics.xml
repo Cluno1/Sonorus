@@ -16,4 +16,9 @@
     <string name="api_chinese_lyrics_desc">经音乐库获取网易云音乐、QQ 音乐、酷狗的中文同步歌词</string>
     <string name="lyrics_source_chinese_match">中文歌词 · %1$s / %2$s · %3$s</string>
     <string name="lyrics_source_chinese_selected_match">已选中文歌词 · %1$s / %2$s · %3$s</string>
+    <!-- issue 127: simplified / full switch and copy on the online lyrics page. -->
+    <string name="external_lyrics_simplified">精简</string>
+    <string name="external_lyrics_full">完整</string>
+    <string name="external_lyrics_copy">复制歌词</string>
+    <string name="external_lyrics_copied">已复制歌词</string>
 </resources>

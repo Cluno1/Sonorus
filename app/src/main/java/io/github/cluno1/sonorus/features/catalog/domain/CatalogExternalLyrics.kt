@@ -46,7 +46,18 @@ data class CatalogExternalLyrics(
     /** Plain text, timestamps and credit lines already removed by the backend. */
     val lyrics: String,
     val translation: String?,
-)
+    /** The platform's LRC as received (tags, credits, timestamps); null from an older backend. */
+    val fullLyrics: String? = null,
+    val fullTranslation: String? = null,
+) {
+    /** What the page shows and the copy button copies; "full" falls back to plain when absent. */
+    fun text(full: Boolean, translated: Boolean): String = when {
+        translated && full -> fullTranslation ?: translation.orEmpty()
+        translated -> translation.orEmpty()
+        full -> fullLyrics ?: lyrics
+        else -> lyrics
+    }
+}
 
 /**
  * One candidate of `GET /v2/library/external-lyrics/match` (issue 127): a song on a public platform

@@ -89,6 +89,28 @@ class CatalogExternalLyricsMapperTest {
     }
 
     @Test
+    fun 完整模式用平台原文且缺失时回落到精简歌词() {
+        val full = CatalogExternalLyricsMapper.lyrics(
+            gson.fromJson(
+                """{"source": "tencent", "external_id": "003amoK83FTPT9", "lyrics": "趁年少 别今朝",
+                   "translation": "Seize youth", "raw_lrc": "[ti:不凡]\n[00:16.82]词：宋宝宇\n[00:32.11]趁年少 别今朝",
+                   "raw_translation": "[00:32.11]Seize youth"}""",
+                ExternalLyricsDto::class.java,
+            ),
+        )
+        assertEquals("[ti:不凡]\n[00:16.82]词：宋宝宇\n[00:32.11]趁年少 别今朝", full.text(full = true, translated = false))
+        assertEquals("趁年少 别今朝", full.text(full = false, translated = false))
+        assertEquals("[00:32.11]Seize youth", full.text(full = true, translated = true))
+        assertEquals("Seize youth", full.text(full = false, translated = true))
+
+        val older = CatalogExternalLyricsMapper.lyrics(
+            ExternalLyricsDto(source = "netease", externalId = "1", lyrics = "歌词", rawLrc = "  "),
+        )
+        assertNull(older.fullLyrics)
+        assertEquals("歌词", older.text(full = true, translated = false))
+    }
+
+    @Test
     fun mapsMatchCandidatesWithLyricsAndDropsEmptyOnes() {
         val matches = CatalogExternalLyricsMapper.match(
             gson.fromJson(
