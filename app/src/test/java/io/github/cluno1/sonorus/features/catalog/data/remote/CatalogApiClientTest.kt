@@ -41,6 +41,36 @@ class CatalogApiClientTest {
     }
 
     @Test
+    fun 每次新建的客户端复用同一条连接() = runBlocking {
+        repeat(2) {
+            server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("{\"status\":\"ok\"}"))
+        }
+        CatalogApiClient(server.url("/").toString(), "token").api.health()
+        CatalogApiClient(server.url("/").toString(), "token").api.health()
+
+        assertEquals(0, server.takeRequest().sequenceNumber)
+        // issue 128: 1 = second request on the same connection, not a new connect.
+        assertEquals(1, server.takeRequest().sequenceNumber)
+    }
+
+    @Test
+    fun 不同服务器不共用连接() = runBlocking {
+        val other = MockWebServer()
+        try {
+            server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("{\"status\":\"ok\"}"))
+            other.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("{\"status\":\"ok\"}"))
+            CatalogApiClient(server.url("/").toString(), "token").api.health()
+            CatalogApiClient(other.url("/").toString(), "token").api.health()
+
+            assertEquals(1, server.requestCount)
+            assertEquals(1, other.requestCount)
+            assertEquals(0, other.takeRequest().sequenceNumber)
+        } finally {
+            other.close()
+        }
+    }
+
+    @Test
     fun refusesCrossOriginAssetUrl() {
         val client = CatalogApiClient(server.url("/").toString(), "token")
         assertThrows(IllegalArgumentException::class.java) {

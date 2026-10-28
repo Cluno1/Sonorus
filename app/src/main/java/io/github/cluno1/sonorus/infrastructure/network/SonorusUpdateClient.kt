@@ -12,6 +12,7 @@ import io.github.cluno1.sonorus.BuildConfig
 import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogDeviceAuthClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogEndpoint
+import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogHttp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -213,6 +214,7 @@ class SonorusUpdateClient(
 ) {
     private val gson = GsonBuilder().disableHtmlEscaping().create()
     private val http = OkHttpClient.Builder()
+        .connectionPool(CatalogHttp.pool)
         .followRedirects(false)
         .followSslRedirects(false)
         .connectTimeout(30, TimeUnit.SECONDS)

@@ -433,6 +433,7 @@ internal class CatalogDeviceAuthClient(
     }
 
     private fun baseHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectionPool(CatalogHttp.pool)
         .followRedirects(false)
         .followSslRedirects(false)
         .connectTimeout(12, TimeUnit.SECONDS)

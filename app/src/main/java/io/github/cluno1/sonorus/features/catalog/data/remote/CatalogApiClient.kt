@@ -46,6 +46,7 @@ internal class CatalogApiClient(
     )
 
     private val httpClient = OkHttpClient.Builder()
+                .connectionPool(CatalogHttp.pool)
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .connectTimeout(12, TimeUnit.SECONDS)
