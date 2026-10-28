@@ -18,6 +18,9 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryScoreWork
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyrics
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogTagWorksPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogIssuedInvite
@@ -430,6 +433,16 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         query: String,
         type: CatalogLibrarySearchType,
     ): Result<CatalogLibrarySearchResult> = repository.searchLibrary(query, type)
+
+    /** issue 127: public-platform Chinese lyrics shown under the lyrics search category. */
+    suspend fun searchExternalLyrics(query: String): Result<CatalogExternalLyricsSearchResult> =
+        repository.searchExternalLyrics(query)
+
+    suspend fun getExternalLyrics(
+        source: CatalogExternalLyricsSource,
+        externalId: String,
+        title: String?,
+    ): Result<CatalogExternalLyrics> = repository.getExternalLyrics(source, externalId, title)
 
     suspend fun listTagWorks(tagKey: String, cursor: String? = null): Result<CatalogTagWorksPage> =
         repository.listTagWorks(tagKey, cursor)

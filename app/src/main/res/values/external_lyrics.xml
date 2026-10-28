@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 127: public-platform Chinese lyrics under the universal search lyrics category. -->
+<resources>
+    <string name="search_external_lyrics_section">Online lyrics</string>
+    <string name="search_external_lyrics_hint">From public music platforms, for reading only</string>
+    <string name="external_lyrics_source_netease">NetEase Cloud Music</string>
+    <string name="external_lyrics_source_tencent">QQ Music</string>
+    <string name="external_lyrics_source_kugou">Kugou Music</string>
+    <string name="external_lyrics_attribution">Lyrics from %1$s</string>
+    <string name="external_lyrics_not_found">This song has no lyrics on that platform</string>
+    <string name="external_lyrics_original">Original</string>
+    <string name="external_lyrics_translation">Translation</string>
+</resources>

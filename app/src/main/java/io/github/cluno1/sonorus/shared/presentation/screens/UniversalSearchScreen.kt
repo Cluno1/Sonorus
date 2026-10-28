@@ -87,6 +87,10 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryScoreWork
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogFailure
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchItem
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsItem
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.formatExternalLyricsDuration
+import io.github.cluno1.sonorus.features.catalog.presentation.labelRes
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
@@ -128,6 +132,8 @@ data class UniversalSearchCatalogSource(
     val requiredAppModeForLocalItems: String? = null,
     /** Server lyrics, number, score, and tag search; null hides catalog search categories. */
     val searchLibrary: (suspend (String, CatalogLibrarySearchType) -> Result<CatalogLibrarySearchResult>)? = null,
+    /** issue 127: public-platform Chinese lyrics under the lyrics category; null hides that group. */
+    val searchExternalLyrics: (suspend (String) -> Result<CatalogExternalLyricsSearchResult>)? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -140,6 +146,7 @@ fun UniversalSearchScreen(
     onLocalAlbumClick: (Album) -> Unit = {},
     onCatalogScoreWorkClick: (CatalogLibraryScoreWork) -> Unit = {},
     onCatalogWorkLyricsClick: (CatalogLibrarySearchItem) -> Unit = {},
+    onExternalLyricsClick: (CatalogExternalLyricsItem) -> Unit = {},
     onCatalogWorkScoreClick: (CatalogLibrarySearchItem) -> Unit = {},
     onCatalogWorkSongClick: (CatalogLibrarySearchItem, CatalogLibrarySearchSong) -> Unit = { _, _ -> },
     onCatalogTagClick: (CatalogLibraryTag) -> Unit = {},
@@ -210,6 +217,10 @@ fun UniversalSearchScreen(
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
     var lyricsSectionExpanded by remember { mutableStateOf(false) }
+    var externalLyricsState by remember {
+        mutableStateOf<UniversalExternalLyricsSearchState>(UniversalExternalLyricsSearchState.Idle)
+    }
+    var externalLyricsSectionExpanded by remember { mutableStateOf(false) }
     var numberSectionExpanded by remember { mutableStateOf(false) }
     var tagSectionExpanded by remember { mutableStateOf(false) }
 
@@ -332,6 +343,24 @@ fun UniversalSearchScreen(
             onFailure = { UniversalCatalogTextSearchState.Failed(catalogTextSearchFailureMessage(context, it)) },
         )
     }
+    // issue 127: public platforms answer slower than the catalog; wait a little longer while typing.
+    val currentExternalLyricsSearch by rememberUpdatedState(catalogSource?.searchExternalLyrics)
+    val externalLyricsSearchAvailable = catalogSource?.searchExternalLyrics != null
+    LaunchedEffect(catalogTextQuery, filterLyrics, externalLyricsSearchAvailable) {
+        externalLyricsSectionExpanded = false
+        val search = currentExternalLyricsSearch
+        if (search == null || !filterLyrics || catalogTextQuery.isEmpty()) {
+            externalLyricsState = UniversalExternalLyricsSearchState.Idle
+            return@LaunchedEffect
+        }
+        externalLyricsState = UniversalExternalLyricsSearchState.Loading
+        delay(500)
+        // An old server without the endpoint, or a platform outage, is expected: hide the group.
+        externalLyricsState = search(catalogTextQuery).fold(
+            onSuccess = { UniversalExternalLyricsSearchState.Loaded(it.items) },
+            onFailure = { UniversalExternalLyricsSearchState.Idle },
+        )
+    }
     LaunchedEffect(catalogTextQuery, filterNumbers, catalogTextSearchAvailable) {
         numberSectionExpanded = false
         val search = currentCatalogTextSearch
@@ -378,7 +407,10 @@ fun UniversalSearchScreen(
     val matchedNumberItems = (numberSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
     val matchedTagItems = (tagSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.tagItems.orEmpty()
     val scoreSearchResult = (scoreSearchState as? UniversalCatalogTextSearchState.Loaded)?.result
+    val matchedExternalLyricsItems =
+        (externalLyricsState as? UniversalExternalLyricsSearchState.Loaded)?.items.orEmpty()
     val isCatalogTextSearchLoading = lyricsSearchState is UniversalCatalogTextSearchState.Loading ||
+        externalLyricsState is UniversalExternalLyricsSearchState.Loading ||
         numberSearchState is UniversalCatalogTextSearchState.Loading ||
         tagSearchState is UniversalCatalogTextSearchState.Loading ||
         scoreSearchState is UniversalCatalogTextSearchState.Loading
@@ -448,7 +480,8 @@ fun UniversalSearchScreen(
             matchedLocalArtists.isNotEmpty() || matchedStreamingArtists.isNotEmpty() ||
             matchedLocalPlaylists.isNotEmpty() || matchedStreamingPlaylists.isNotEmpty() ||
             matchedScoreWorks.isNotEmpty() ||
-            matchedLyricsItems.isNotEmpty() || matchedNumberItems.isNotEmpty() || matchedTagItems.isNotEmpty()
+            matchedLyricsItems.isNotEmpty() || matchedNumberItems.isNotEmpty() || matchedTagItems.isNotEmpty() ||
+            matchedExternalLyricsItems.isNotEmpty()
     val showEmptyState = shouldShowUniversalSearchEmptyState(
         hasResults = hasResults,
         isLocalLoading = isLocalLoading,
@@ -472,6 +505,10 @@ fun UniversalSearchScreen(
     val openCatalogWorkLyrics: (CatalogLibrarySearchItem) -> Unit = { item ->
         if (query.isNotBlank()) localViewModel.addSearchQuery(query)
         onCatalogWorkLyricsClick(item)
+    }
+    val openExternalLyrics: (CatalogExternalLyricsItem) -> Unit = { item ->
+        if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+        onExternalLyricsClick(item)
     }
     val openCatalogWorkScore: (CatalogLibrarySearchItem) -> Unit = { item ->
         if (query.isNotBlank()) localViewModel.addSearchQuery(query)
@@ -501,6 +538,12 @@ fun UniversalSearchScreen(
             onOpenScore = openCatalogWorkScore,
             onOpenSong = openCatalogWorkSong,
             onOpenTag = openCatalogTag,
+        )
+        universalExternalLyricsSection(
+            items = matchedExternalLyricsItems,
+            expanded = externalLyricsSectionExpanded,
+            onToggleExpanded = { externalLyricsSectionExpanded = !externalLyricsSectionExpanded },
+            onOpen = openExternalLyrics,
         )
     }
 
@@ -3081,6 +3124,118 @@ internal sealed interface UniversalCatalogTextSearchState {
 }
 
 private const val CATALOG_TEXT_SEARCH_PREVIEW_COUNT = 5
+
+/** issue 127: failures are folded into [Idle] — the group simply does not appear. */
+internal sealed interface UniversalExternalLyricsSearchState {
+    data object Idle : UniversalExternalLyricsSearchState
+    data object Loading : UniversalExternalLyricsSearchState
+    data class Loaded(val items: List<CatalogExternalLyricsItem>) : UniversalExternalLyricsSearchState
+}
+
+private fun LazyListScope.universalExternalLyricsSection(
+    items: List<CatalogExternalLyricsItem>,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onOpen: (CatalogExternalLyricsItem) -> Unit,
+) {
+    if (items.isEmpty()) return
+    item(key = "external_lyrics_group") {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+        ) {
+            UniversalCatalogTextSectionHeader(R.string.search_external_lyrics_section)
+            Text(
+                text = stringResource(R.string.search_external_lyrics_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            )
+            Column(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                val visible = if (expanded) items else items.take(CATALOG_TEXT_SEARCH_PREVIEW_COUNT)
+                visible.forEach { item ->
+                    key(item.key) { UniversalExternalLyricsRow(item = item, onClick = { onOpen(item) }) }
+                }
+            }
+            if (items.size > CATALOG_TEXT_SEARCH_PREVIEW_COUNT) {
+                TextButton(
+                    onClick = onToggleExpanded,
+                    modifier = Modifier.padding(start = 4.dp),
+                ) {
+                    Text(
+                        if (expanded) stringResource(R.string.search_lyrics_number_show_less)
+                        else stringResource(R.string.search_lyrics_number_show_all, items.size),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UniversalExternalLyricsRow(
+    item: CatalogExternalLyricsItem,
+    onClick: () -> Unit,
+) {
+    val sourceLabel = stringResource(item.source.labelRes())
+    // Several platforms carry the same title by different singers: artist, album and length tell them apart.
+    val details = remember(item, sourceLabel) {
+        listOfNotNull(
+            item.artists.joinToString("、").takeIf(String::isNotEmpty),
+            item.album,
+            formatExternalLyricsDuration(item.durationMs),
+            sourceLabel,
+        ).joinToString(" · ")
+    }
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = MaterialSymbolIcon("lyrics"),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = details,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                item.snippet?.let { snippet ->
+                    Text(
+                        text = snippet,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
 
 private fun catalogTextSearchFailureMessage(context: Context, error: Throwable): String = when (error) {
     is CatalogFailure.Unreachable -> context.getString(R.string.search_lyrics_number_offline)

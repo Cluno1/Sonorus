@@ -98,6 +98,17 @@ interface CatalogRepository {
         limit: Int = 50,
     ): Result<CatalogLibrarySearchResult>
     suspend fun listTagWorks(tagKey: String, cursor: String? = null, limit: Int = 50): Result<CatalogTagWorksPage>
+
+    /** issue 127: public-platform lyrics search; implementations without a server simply fail. */
+    suspend fun searchExternalLyrics(query: String, limit: Int = 20): Result<CatalogExternalLyricsSearchResult> =
+        Result.failure(UnsupportedOperationException("external lyrics are not supported"))
+
+    suspend fun getExternalLyrics(
+        source: CatalogExternalLyricsSource,
+        externalId: String,
+        title: String? = null,
+    ): Result<CatalogExternalLyrics> =
+        Result.failure(UnsupportedOperationException("external lyrics are not supported"))
     suspend fun downloadArtwork(assetId: String): Result<CatalogArtwork>
     suspend fun downloadAsset(assetId: String, expectedSha256: String, expectedSize: Long): Result<ByteArray>
     suspend fun cachePlaybackAndLatestScore(

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 127: public-platform Chinese lyrics under the universal search lyrics category. -->
+<resources>
+    <string name="search_external_lyrics_section">网络歌词</string>
+    <string name="search_external_lyrics_hint">来自公开音乐平台，仅供查看</string>
+    <string name="external_lyrics_source_netease">网易云音乐</string>
+    <string name="external_lyrics_source_tencent">QQ 音乐</string>
+    <string name="external_lyrics_source_kugou">酷狗音乐</string>
+    <string name="external_lyrics_attribution">歌词来自%1$s</string>
+    <string name="external_lyrics_not_found">这首歌在该平台上没有歌词</string>
+    <string name="external_lyrics_original">原文</string>
+    <string name="external_lyrics_translation">翻译</string>
+</resources>

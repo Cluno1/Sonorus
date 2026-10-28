@@ -153,6 +153,9 @@ import io.github.cluno1.sonorus.features.chorus.presentation.ChorusScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogViewModel
 import io.github.cluno1.sonorus.features.catalog.presentation.currentScoreOption
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkLyricsScreen
+import io.github.cluno1.sonorus.features.catalog.presentation.CatalogExternalLyricsScreen
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsItem
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRoomDetailScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRoomsScreen
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
@@ -298,6 +301,12 @@ sealed class Screen(val route: String) {
             songs: List<CatalogLibrarySearchSong>?,
         ): String = "catalog_work_lyrics/${Uri.encode(workId)}?title=${Uri.encode(title)}" +
             (songs?.let { "&songs=${Uri.encode(encodeWorkLyricsSongs(it))}" } ?: "")
+    }
+    /** issue 127: read-only lyrics of a song on a public platform (universal search). */
+    object ExternalLyrics : Screen("external_lyrics/{source}/{externalId}?title={title}&artist={artist}") {
+        fun createRoute(item: CatalogExternalLyricsItem): String =
+            "external_lyrics/${item.source.wireValue}/${Uri.encode(item.externalId)}" +
+                "?title=${Uri.encode(item.title)}&artist=${Uri.encode(item.artists.joinToString("、"))}"
     }
     object CatalogTagWorks : Screen("catalog_tag_works?tagKey={tagKey}&label={label}") {
         fun createRoute(tag: CatalogLibraryTag): String =
@@ -2740,6 +2749,31 @@ private fun LocalNavigationContent(
                 }
 
                 composable(
+                    route = Screen.ExternalLyrics.route,
+                    arguments = listOf(
+                        navArgument("source") { type = NavType.StringType },
+                        navArgument("externalId") { type = NavType.StringType },
+                        navArgument("title") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("artist") { type = NavType.StringType; defaultValue = "" },
+                    ),
+                ) { backStackEntry ->
+                    val leave: () -> Unit = { if (!navController.popBackStack()) navigateToTopLevel(Screen.Home.route) }
+                    val source = CatalogExternalLyricsSource.fromWire(backStackEntry.arguments?.getString("source"))
+                    if (source == null) {
+                        LaunchedEffect(Unit) { leave() }
+                    } else {
+                        CatalogExternalLyricsScreen(
+                            source = source,
+                            externalId = backStackEntry.arguments?.getString("externalId")?.let(Uri::decode).orEmpty(),
+                            title = backStackEntry.arguments?.getString("title")?.let(Uri::decode).orEmpty(),
+                            artist = backStackEntry.arguments?.getString("artist")?.let(Uri::decode).orEmpty(),
+                            viewModel = catalogViewModel,
+                            onBack = { leave() },
+                        )
+                    }
+                }
+
+                composable(
                     route = Screen.CatalogTagWorks.route,
                     arguments = listOf(
                         navArgument("tagKey") { type = NavType.StringType },
@@ -2816,9 +2850,15 @@ private fun LocalNavigationContent(
                                 serverUrl = catalogState.serverUrl,
                                 isLoading = catalogState.loading || streamingIsLoading,
                                 searchLibrary = catalogViewModel::searchLibrary,
+                                searchExternalLyrics = catalogViewModel::searchExternalLyrics,
                             ),
                             onCatalogWorkLyricsClick = { item ->
                                 openCatalogWorkLyrics(item.workId, item.title, item.songs)
+                            },
+                            onExternalLyricsClick = { item ->
+                                navController.navigate(Screen.ExternalLyrics.createRoute(item)) {
+                                    launchSingleTop = true
+                                }
                             },
                             onCatalogWorkScoreClick = { item -> openCatalogWorkScore(item.workId) },
                             onCatalogWorkSongClick = { _, song -> openCatalogWorkSong(song) },

@@ -37,6 +37,10 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySnapshot
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyrics
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSearchResult
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
+import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogExternalLyricsMapper
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchType
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogTagWorksPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
@@ -378,6 +382,30 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
             client().api.librarySearch(trimmed, type.wireValue, limit).bodyOrThrow(),
             requestedType = type,
         )
+    }
+
+    override suspend fun searchExternalLyrics(
+        query: String,
+        limit: Int,
+    ): Result<CatalogExternalLyricsSearchResult> = guarded {
+        val trimmed = query.trim()
+        require(trimmed.length in 1..100) { "search query must be 1..100 characters" }
+        require(limit in 1..50) { "limit must be in 1..50" }
+        // Live third-party data (issue 127): never cached on the device.
+        CatalogExternalLyricsMapper.search(client().api.externalLyricsSearch(trimmed, limit).bodyOrThrow())
+    }
+
+    override suspend fun getExternalLyrics(
+        source: CatalogExternalLyricsSource,
+        externalId: String,
+        title: String?,
+    ): Result<CatalogExternalLyrics> = guarded {
+        val id = externalId.trim()
+        require(id.matches(Regex("^[A-Za-z0-9]{1,64}$"))) { "invalid external lyrics id" }
+        CatalogExternalLyricsMapper.lyrics(
+            client().api.externalLyrics(source.wireValue, id, title?.trim()?.take(200)?.takeIf(String::isNotEmpty))
+                .bodyOrThrow(),
+        ).also { require(it.source == source && it.externalId == id) { "external lyrics do not match request" } }
     }
 
     override suspend fun listTagWorks(tagKey: String, cursor: String?, limit: Int): Result<CatalogTagWorksPage> = guarded {

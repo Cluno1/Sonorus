@@ -51,6 +51,20 @@ internal interface CatalogApi {
         @Query("limit") limit: Int = 50,
     ): Response<LibrarySearchDto>
 
+    /** issue 127: Chinese lyrics on public platforms; same query rules as librarySearch(type=lyrics). */
+    @GET("v2/library/external-lyrics/search")
+    suspend fun externalLyricsSearch(
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 20,
+    ): Response<ExternalLyricsSearchDto>
+
+    @GET("v2/library/external-lyrics/{source}/{externalId}")
+    suspend fun externalLyrics(
+        @Path("source") source: String,
+        @Path("externalId") externalId: String,
+        @Query("title") title: String? = null,
+    ): Response<ExternalLyricsDto>
+
     /** issue 121: all existing Work tags for the tag picker. */
     @GET("v2/library/tags")
     suspend fun libraryTags(@Query("limit") limit: Int = 500): Response<LibraryTagListDto>
