@@ -3,6 +3,7 @@ package io.github.cluno1.sonorus.features.catalog.data.remote
 import com.google.gson.annotations.SerializedName
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyrics
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsItem
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsMatch
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSearchResult
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
 
@@ -32,6 +33,24 @@ internal data class ExternalLyricsDto(
     @SerializedName("translation") val translation: String? = null,
 )
 
+/** `GET /v2/library/external-lyrics/match` response (issue 127). */
+internal data class ExternalLyricsMatchDto(
+    @SerializedName("items") val items: List<ExternalLyricsMatchItemDto>?,
+    @SerializedName("unavailable_sources") val unavailableSources: List<String>? = null,
+)
+
+internal data class ExternalLyricsMatchItemDto(
+    @SerializedName("source") val source: String?,
+    @SerializedName("external_id") val externalId: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("artists") val artists: List<String>?,
+    @SerializedName("album") val album: String? = null,
+    @SerializedName("duration_ms") val durationMs: Long? = null,
+    @SerializedName("lyrics") val lyrics: String?,
+    @SerializedName("synced_lrc") val syncedLrc: String? = null,
+    @SerializedName("translation") val translation: String? = null,
+)
+
 internal object CatalogExternalLyricsMapper {
     private val externalId = Regex("^[A-Za-z0-9]{1,64}$")
 
@@ -57,6 +76,28 @@ internal object CatalogExternalLyricsMapper {
             translation = dto.translation?.trim()?.takeIf(String::isNotEmpty),
         )
     }
+
+    /** Candidates without lyrics or with a malformed identity are dropped. */
+    fun match(dto: ExternalLyricsMatchDto): List<CatalogExternalLyricsMatch> =
+        (dto.items ?: throw IllegalArgumentException("external lyrics match has no items"))
+            .mapNotNull { item ->
+                val source = CatalogExternalLyricsSource.fromWire(item.source) ?: return@mapNotNull null
+                val id = item.externalId?.trim()?.takeIf(externalId::matches) ?: return@mapNotNull null
+                val title = item.title?.trim()?.takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                val lyrics = item.lyrics?.trim()?.takeIf(String::isNotEmpty) ?: return@mapNotNull null
+                CatalogExternalLyricsMatch(
+                    source = source,
+                    externalId = id,
+                    title = title,
+                    artists = item.artists.orEmpty().map(String::trim).filter(String::isNotEmpty),
+                    album = item.album?.trim()?.takeIf(String::isNotEmpty),
+                    durationMs = item.durationMs?.takeIf { it > 0 },
+                    lyrics = lyrics,
+                    syncedLrc = item.syncedLrc?.trim()?.takeIf(String::isNotEmpty),
+                    translation = item.translation?.trim()?.takeIf(String::isNotEmpty),
+                )
+            }
+            .distinctBy { it.source to it.externalId }
 
     internal fun item(dto: ExternalLyricsItemDto): CatalogExternalLyricsItem? {
         val source = CatalogExternalLyricsSource.fromWire(dto.source) ?: return null

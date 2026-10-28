@@ -10,4 +10,10 @@
     <string name="external_lyrics_not_found">這首歌在該平台上沒有歌詞</string>
     <string name="external_lyrics_original">原文</string>
     <string name="external_lyrics_translation">翻譯</string>
+    <!-- issue 127: Chinese lyrics as a lyrics source next to LRCLIB. -->
+    <string name="chinese_lyrics_source_name">中文歌詞</string>
+    <string name="device_manual_metadata_chinese_lyrics_desc">經音樂庫取得網易雲音樂、QQ 音樂、酷狗的同步歌詞與純文字歌詞</string>
+    <string name="api_chinese_lyrics_desc">經音樂庫取得網易雲音樂、QQ 音樂、酷狗的中文同步歌詞</string>
+    <string name="lyrics_source_chinese_match">中文歌詞 · %1$s / %2$s · %3$s</string>
+    <string name="lyrics_source_chinese_selected_match">已選中文歌詞 · %1$s / %2$s · %3$s</string>
 </resources>

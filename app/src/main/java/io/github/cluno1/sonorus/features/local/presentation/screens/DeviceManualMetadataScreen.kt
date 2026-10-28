@@ -64,6 +64,8 @@ import io.github.cluno1.sonorus.features.local.data.device.DeviceLyricsCandidate
 import io.github.cluno1.sonorus.features.local.data.device.DeviceManualMetadataKind
 import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataRequest
 import io.github.cluno1.sonorus.features.local.data.device.DevicePublicMetadataProvider
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
+import io.github.cluno1.sonorus.features.catalog.presentation.labelRes
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.DeviceManualMetadataError
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.DeviceManualProviderStatus
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.DeviceManualMetadataUiState
@@ -111,6 +113,8 @@ fun DeviceManualMetadataScreen(
         mutableStateOf(song?.duration?.takeIf { it > 0 }?.let(::formatDurationInput).orEmpty())
     }
     var lrclibSelected by rememberSaveable(song?.id) { mutableStateOf(true) }
+    // issue 127: Chinese lyrics (NetEase / QQ Music / Kugou via the backend), next to LRCLIB.
+    var chineseLyricsSelected by rememberSaveable(song?.id) { mutableStateOf(true) }
     var musicBrainzSelected by rememberSaveable(song?.id) { mutableStateOf(true) }
     var deezerSelected by rememberSaveable(song?.id) { mutableStateOf(true) }
     var itunesSelected by rememberSaveable(song?.id) { mutableStateOf(true) }
@@ -280,14 +284,28 @@ fun DeviceManualMetadataScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                     when (kind) {
-                        DeviceManualMetadataKind.LYRICS -> ProviderChip(
-                            selected = lrclibSelected,
-                            onClick = { lrclibSelected = !lrclibSelected },
-                            title = "LRCLIB",
-                            description = stringResource(R.string.device_manual_metadata_lrclib_desc),
-                            status = state.providerStatuses[DevicePublicMetadataProvider.LRCLIB],
-                            resultCount = state.lyricsCandidates.size,
-                        )
+                        DeviceManualMetadataKind.LYRICS -> {
+                            ProviderChip(
+                                selected = lrclibSelected,
+                                onClick = { lrclibSelected = !lrclibSelected },
+                                title = "LRCLIB",
+                                description = stringResource(R.string.device_manual_metadata_lrclib_desc),
+                                status = state.providerStatuses[DevicePublicMetadataProvider.LRCLIB],
+                                resultCount = state.lyricsCandidates.count {
+                                    it.provider == DevicePublicMetadataProvider.LRCLIB
+                                },
+                            )
+                            ProviderChip(
+                                selected = chineseLyricsSelected,
+                                onClick = { chineseLyricsSelected = !chineseLyricsSelected },
+                                title = stringResource(R.string.chinese_lyrics_source_name),
+                                description = stringResource(R.string.device_manual_metadata_chinese_lyrics_desc),
+                                status = state.providerStatuses[DevicePublicMetadataProvider.CHINESE_LYRICS],
+                                resultCount = state.lyricsCandidates.count {
+                                    it.provider == DevicePublicMetadataProvider.CHINESE_LYRICS
+                                },
+                            )
+                        }
                         DeviceManualMetadataKind.ARTWORK -> {
                             ProviderChip(
                                 selected = musicBrainzSelected,
@@ -473,6 +491,9 @@ fun DeviceManualMetadataScreen(
                 val providers = buildSet {
                     if (kind == DeviceManualMetadataKind.LYRICS && lrclibSelected) {
                         add(DevicePublicMetadataProvider.LRCLIB)
+                    }
+                    if (kind == DeviceManualMetadataKind.LYRICS && chineseLyricsSelected) {
+                        add(DevicePublicMetadataProvider.CHINESE_LYRICS)
                     }
                     if (kind == DeviceManualMetadataKind.ARTWORK && musicBrainzSelected) {
                         add(DevicePublicMetadataProvider.MUSICBRAINZ_CAA)
@@ -932,7 +953,11 @@ private fun LyricsCandidateCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("LRCLIB", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    lyricsCandidateSourceLabel(candidate),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
                 Text(
                     stringResource(
                         R.string.device_manual_metadata_confidence,
@@ -1324,6 +1349,7 @@ private fun DevicePublicMetadataProvider.displayName(): String = when (this) {
     DevicePublicMetadataProvider.DEEZER -> "Deezer"
     DevicePublicMetadataProvider.ITUNES -> "iTunes Search"
     DevicePublicMetadataProvider.WIKIPEDIA -> "Wikipedia"
+    DevicePublicMetadataProvider.CHINESE_LYRICS -> "NetEase / QQ Music / Kugou"
 }
 
 @Composable
@@ -1378,4 +1404,13 @@ private fun DeviceManualMetadataError.stringResource(): Int = when (this) {
     DeviceManualMetadataError.PROVIDER_REQUIRED -> R.string.device_manual_metadata_provider_required
     DeviceManualMetadataError.REQUEST_FAILED -> R.string.device_manual_metadata_request_failed
     DeviceManualMetadataError.APPLY_FAILED -> R.string.device_manual_metadata_apply_failed
+}
+
+/** issue 127: "LRCLIB", or "Chinese lyrics · NetEase Cloud Music" with the platform that answered. */
+@Composable
+private fun lyricsCandidateSourceLabel(candidate: DeviceLyricsCandidate): String {
+    if (candidate.provider != DevicePublicMetadataProvider.CHINESE_LYRICS) return "LRCLIB"
+    val name = stringResource(R.string.chinese_lyrics_source_name)
+    val platform = CatalogExternalLyricsSource.fromWire(candidate.platform)?.let { stringResource(it.labelRes()) }
+    return if (platform == null) name else "$name · $platform"
 }

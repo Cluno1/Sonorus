@@ -115,6 +115,7 @@ import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataRequest
 import io.github.cluno1.sonorus.features.local.data.device.DevicePublicMetadataProvider
 import io.github.cluno1.sonorus.features.local.data.device.DeviceScanFolderAccess
 import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataRepository
+import io.github.cluno1.sonorus.features.local.data.device.DeviceChineseLyrics
 import io.github.cluno1.sonorus.features.local.data.device.DeviceArtistFolderArtworkPolicy
 import io.github.cluno1.sonorus.features.local.data.device.DeviceArtistMatchPolicy
 import io.github.cluno1.sonorus.features.local.data.device.DevicePrivateMetadataFileNames
@@ -4708,19 +4709,27 @@ class MusicRepository(context: Context) {
         }
 
         if (isNetworkAvailable()) {
-            val candidates = deviceMetadataRepository.searchLyrics(song)
-            val candidate = candidates.firstOrNull()?.takeIf {
-                DeviceMetadataMatcher.isAutomaticMatch(
-                    it.confidence,
-                    candidates.getOrNull(1)?.confidence,
-                    DeviceMetadataRepository.MIN_AUTO_CONFIDENCE,
-                    unconditionalThreshold = DeviceMetadataRepository.EXACT_AUTO_CONFIDENCE,
-                )
-            }
-            if (candidate != null) {
-                val result = deviceMetadataRepository.applyLyrics(song, candidate)
-                lyricsCache[cacheKey] = result
-                return result
+            // issue 127: LRCLIB and Chinese lyrics are judged one source at a time, in order.
+            val order = DeviceChineseLyrics.automaticOrder(DeviceChineseLyrics.isEnabled(context), song.title, song.artist)
+            for (provider in order) {
+                val candidates = deviceMetadataRepository.searchLyrics(song, provider)
+                val candidate = if (provider == DevicePublicMetadataProvider.CHINESE_LYRICS) {
+                    DeviceChineseLyrics.automaticPick(candidates)
+                } else {
+                    candidates.firstOrNull()?.takeIf {
+                        DeviceMetadataMatcher.isAutomaticMatch(
+                            it.confidence,
+                            candidates.getOrNull(1)?.confidence,
+                            DeviceMetadataRepository.MIN_AUTO_CONFIDENCE,
+                            unconditionalThreshold = DeviceMetadataRepository.EXACT_AUTO_CONFIDENCE,
+                        )
+                    }
+                }
+                if (candidate != null) {
+                    val result = deviceMetadataRepository.applyLyrics(song, candidate)
+                    lyricsCache[cacheKey] = result
+                    return result
+                }
             }
         }
         return LyricsData("No lyrics found for this song", null, source = "DEVICE")
@@ -4747,7 +4756,8 @@ class MusicRepository(context: Context) {
     suspend fun searchDeviceLyricsCandidatesWithStatus(
         song: Song,
         query: DeviceMetadataRequest,
-    ) = deviceMetadataRepository.searchLyricsResult(song, query)
+        provider: DevicePublicMetadataProvider = DevicePublicMetadataProvider.LRCLIB,
+    ) = deviceMetadataRepository.searchLyricsResult(song, query, provider)
 
     suspend fun searchDeviceArtworkCandidates(
         song: Song,
@@ -4863,6 +4873,11 @@ class MusicRepository(context: Context) {
         var lrclibPlainBackup: LyricsData? = null
 
         val appSettings = AppSettings.getInstance(context)
+
+        // issue 127: Chinese titles or artists try the Chinese lyrics source before the others.
+        if (DeviceChineseLyrics.isEnabled(context) && DeviceChineseLyrics.prefersChinese(cleanTitle, cleanArtist)) {
+            DeviceChineseLyrics.fetchForPlayer(context, cleanTitle, cleanArtist)?.let { return it }
+        }
 
         // Try Better Lyrics first (high quality syllable/TTML synced lyrics)
         val fetchBetterLyrics = suspend {

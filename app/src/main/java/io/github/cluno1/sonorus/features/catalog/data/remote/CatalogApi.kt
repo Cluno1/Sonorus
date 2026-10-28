@@ -58,6 +58,16 @@ internal interface CatalogApi {
         @Query("limit") limit: Int = 20,
     ): Response<ExternalLyricsSearchDto>
 
+    /** issue 127: lyrics candidates for one known song (the LRCLIB `/api/search` equivalent). */
+    @GET("v2/library/external-lyrics/match")
+    suspend fun externalLyricsMatch(
+        @Query("title") title: String,
+        @Query("artist") artist: String? = null,
+        @Query("album") album: String? = null,
+        @Query("duration") durationSeconds: Int? = null,
+        @Query("limit") limit: Int = 5,
+    ): Response<ExternalLyricsMatchDto>
+
     @GET("v2/library/external-lyrics/{source}/{externalId}")
     suspend fun externalLyrics(
         @Path("source") source: String,

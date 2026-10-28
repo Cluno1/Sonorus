@@ -3,7 +3,8 @@ package io.github.cluno1.sonorus.features.local.data.device
 
 enum class DeviceManualMetadataKind { LYRICS, ARTWORK, ARTIST_ARTWORK, DETAILS }
 
-enum class DevicePublicMetadataProvider { LRCLIB, MUSICBRAINZ_CAA, DEEZER, ITUNES, WIKIPEDIA }
+/** CHINESE_LYRICS (issue 127): NetEase / QQ Music / Kugou lyrics via the backend, lyrics only. */
+enum class DevicePublicMetadataProvider { LRCLIB, MUSICBRAINZ_CAA, DEEZER, ITUNES, WIKIPEDIA, CHINESE_LYRICS }
 
 /** Where a manually selected cover should be materialized. */
 enum class DeviceArtworkSaveTarget { APP_ONLY, MUSIC_FOLDER }

@@ -45,7 +45,10 @@ data class DeviceLyricsCandidate(
     val album: String,
     val durationSeconds: Double?,
     val confidence: Double,
-    val lyrics: LyricsData
+    val lyrics: LyricsData,
+    // issue 127: which public source found it; [platform] is netease / tencent / kugou for Chinese lyrics.
+    val provider: DevicePublicMetadataProvider = DevicePublicMetadataProvider.LRCLIB,
+    val platform: String? = null,
 )
 
 private data class MusicBrainzArtworkMatch(
@@ -135,15 +138,19 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
         query: DeviceMetadataRequest = requestFor(song),
     ): List<DeviceLyricsCandidate> = searchLyricsResult(song, query).candidates
 
+    /** issue 127: the automatic-match lookup of one lyrics source (LRCLIB or Chinese lyrics). */
+    suspend fun searchLyrics(song: Song, provider: DevicePublicMetadataProvider): List<DeviceLyricsCandidate> =
+        searchLyricsResult(song, requestFor(song), provider).candidates
+
     suspend fun searchLyricsResult(
         song: Song,
         query: DeviceMetadataRequest,
+        provider: DevicePublicMetadataProvider = DevicePublicMetadataProvider.LRCLIB,
     ): DeviceProviderSearchResult<DeviceLyricsCandidate> = withContext(Dispatchers.IO) {
         fun result(candidates: List<DeviceLyricsCandidate> = emptyList(), failed: Boolean = false) =
-            DeviceProviderSearchResult(DevicePublicMetadataProvider.LRCLIB, candidates, failed)
+            DeviceProviderSearchResult(provider, candidates, failed)
         if (!song.isPublicQueryTarget()) return@withContext result()
         if (!NetworkClient.isDevicePublicMetadataEnabled()) return@withContext result()
-        val service = NetworkClient.lrclibApiService ?: return@withContext result(failed = true)
         val request = query.normalized()
         if (request.title.isBlank()) return@withContext result()
         val input = DeviceMatchInput(
@@ -152,6 +159,15 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
             request.album.orEmpty(),
             request.durationSeconds?.times(1000L) ?: 0L,
         )
+        // issue 127: same gates and the same matcher as LRCLIB, answered by the backend.
+        if (provider == DevicePublicMetadataProvider.CHINESE_LYRICS) {
+            return@withContext if (DeviceChineseLyrics.isEnabled(context)) {
+                DeviceChineseLyrics.search(context, request, input)
+            } else {
+                result()
+            }
+        }
+        val service = NetworkClient.lrclibApiService ?: return@withContext result(failed = true)
         val preciseResult = runCatching {
             service.searchLyrics(
                 trackName = request.title,
@@ -179,6 +195,11 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
     }
 
     suspend fun applyLyrics(song: Song, candidate: DeviceLyricsCandidate, userSelected: Boolean = false): LyricsData {
+        if (candidate.provider == DevicePublicMetadataProvider.CHINESE_LYRICS) {
+            val labelled = candidate.lyrics.copy(source = DeviceChineseLyrics.deviceLabel(candidate, userSelected))
+            saveLyrics(song, labelled, DeviceChineseLyrics.SOURCE, candidate.externalId, candidate.confidence, pinned = userSelected)
+            return labelled
+        }
         val prefix = if (userSelected) "DEVICE_LRCLIB_SELECTED" else "DEVICE_LRCLIB"
         val labelled = candidate.lyrics.copy(source = "$prefix|${candidate.title}|${candidate.artist}|${(candidate.confidence * 100).toInt()}%")
         saveLyrics(song, labelled, "LRCLIB", candidate.externalId, candidate.confidence, pinned = userSelected)
@@ -294,6 +315,7 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
                         .toList()
                 }
                 DevicePublicMetadataProvider.LRCLIB,
+                DevicePublicMetadataProvider.CHINESE_LYRICS,
                 DevicePublicMetadataProvider.WIKIPEDIA -> emptyList()
             }
         }.throwIfCancelled().fold(
@@ -477,6 +499,7 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
                         .toList()
                 }
                 DevicePublicMetadataProvider.LRCLIB,
+                DevicePublicMetadataProvider.CHINESE_LYRICS,
                 DevicePublicMetadataProvider.WIKIPEDIA -> emptyList()
             }
         }.throwIfCancelled().fold(
@@ -625,6 +648,7 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
             DevicePublicMetadataProvider.DEEZER -> ArtworkProvider.DEEZER
             DevicePublicMetadataProvider.ITUNES -> ArtworkProvider.ITUNES
             DevicePublicMetadataProvider.LRCLIB,
+            DevicePublicMetadataProvider.CHINESE_LYRICS,
             DevicePublicMetadataProvider.WIKIPEDIA -> return@withContext null
         }
         albumLocks.computeIfAbsent(albumKey) { Mutex() }.withLock {

@@ -103,6 +103,16 @@ interface CatalogRepository {
     suspend fun searchExternalLyrics(query: String, limit: Int = 20): Result<CatalogExternalLyricsSearchResult> =
         Result.failure(UnsupportedOperationException("external lyrics are not supported"))
 
+    /** issue 127: candidates with lyrics for one song, for the DEVICE "Chinese lyrics" source. */
+    suspend fun matchExternalLyrics(
+        title: String,
+        artist: String?,
+        album: String?,
+        durationSeconds: Int?,
+        limit: Int = 5,
+    ): Result<List<CatalogExternalLyricsMatch>> =
+        Result.failure(UnsupportedOperationException("external lyrics are not supported"))
+
     suspend fun getExternalLyrics(
         source: CatalogExternalLyricsSource,
         externalId: String,

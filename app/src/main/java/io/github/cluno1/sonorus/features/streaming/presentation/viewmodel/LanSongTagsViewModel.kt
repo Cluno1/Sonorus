@@ -201,7 +201,7 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
         val song = querySong() ?: return
         searchJob?.cancel()
         val supported = when (kind) {
-            DeviceManualMetadataKind.LYRICS -> setOf(DevicePublicMetadataProvider.LRCLIB)
+            DeviceManualMetadataKind.LYRICS -> setOf(DevicePublicMetadataProvider.LRCLIB, DevicePublicMetadataProvider.CHINESE_LYRICS)
             DeviceManualMetadataKind.ARTWORK, DeviceManualMetadataKind.DETAILS -> setOf(
                 DevicePublicMetadataProvider.MUSICBRAINZ_CAA, DevicePublicMetadataProvider.DEEZER,
                 DevicePublicMetadataProvider.ITUNES,
@@ -221,9 +221,13 @@ class LanSongTagsViewModel(application: Application) : AndroidViewModel(applicat
                 coroutineScope {
                     when (kind) {
                         DeviceManualMetadataKind.LYRICS -> {
-                            val result = publicMetadata.searchLyricsResult(song, request)
-                            _searchState.value = _searchState.value.copy(lyricsCandidates = result.candidates,
-                                providerStatuses = mapOf(result.provider to status(result)))
+                            // issue 127: every selected lyrics source, merged by confidence.
+                            val results = selected.map { provider -> async { publicMetadata.searchLyricsResult(song, request, provider) } }.awaitAll()
+                            _searchState.value = _searchState.value.copy(
+                                lyricsCandidates = results.flatMap { it.candidates }
+                                    .distinctBy { it.provider to it.externalId }
+                                    .sortedByDescending { it.confidence },
+                                providerStatuses = results.associate { it.provider to status(it) })
                         }
                         DeviceManualMetadataKind.ARTWORK -> {
                             val results = selected.map { provider -> async { publicMetadata.searchArtworkResult(song, request, provider) } }.awaitAll()

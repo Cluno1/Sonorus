@@ -10,4 +10,10 @@
     <string name="external_lyrics_not_found">This song has no lyrics on that platform</string>
     <string name="external_lyrics_original">Original</string>
     <string name="external_lyrics_translation">Translation</string>
+    <!-- issue 127: Chinese lyrics as a lyrics source next to LRCLIB. -->
+    <string name="chinese_lyrics_source_name">Chinese lyrics</string>
+    <string name="device_manual_metadata_chinese_lyrics_desc">NetEase Cloud Music, QQ Music and Kugou through your music library; synchronized and plain lyrics</string>
+    <string name="api_chinese_lyrics_desc">Chinese synced lyrics from NetEase Cloud Music, QQ Music and Kugou through your music library</string>
+    <string name="lyrics_source_chinese_match">Chinese lyrics · %1$s / %2$s · %3$s</string>
+    <string name="lyrics_source_chinese_selected_match">Selected Chinese lyrics · %1$s / %2$s · %3$s</string>
 </resources>

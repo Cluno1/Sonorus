@@ -8631,7 +8631,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
         val supportedProviders = when (kind) {
             DeviceManualMetadataKind.LYRICS -> providers.intersect(
-                setOf(DevicePublicMetadataProvider.LRCLIB),
+                setOf(DevicePublicMetadataProvider.LRCLIB, DevicePublicMetadataProvider.CHINESE_LYRICS),
             )
             DeviceManualMetadataKind.ARTWORK -> providers.intersect(
                 setOf(
@@ -8689,16 +8689,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 var editorialCandidates = emptyList<DeviceEditorialCandidate>()
                 val providerStatuses = when (kind) {
                     DeviceManualMetadataKind.LYRICS -> {
-                        val result = repository.searchDeviceLyricsCandidatesWithStatus(song, query)
-                        lyricsCandidates = result.candidates
-                        val status = result.toManualStatus()
-                        if (requestId == deviceManualMetadataRequestId) {
-                            _deviceManualMetadataState.value = _deviceManualMetadataState.value.copy(
-                                lyricsCandidates = result.candidates,
-                                providerStatuses = mapOf(result.provider to status),
-                            )
+                        // issue 127: LRCLIB and Chinese lyrics side by side, like the artwork providers.
+                        val searches = supportedProviders.map { provider ->
+                            async {
+                                val result = repository.searchDeviceLyricsCandidatesWithStatus(song, query, provider)
+                                if (requestId == deviceManualMetadataRequestId) {
+                                    val current = _deviceManualMetadataState.value
+                                    _deviceManualMetadataState.value = current.copy(
+                                        lyricsCandidates = (current.lyricsCandidates + result.candidates)
+                                            .distinctBy { it.provider to it.externalId }
+                                            .sortedByDescending(DeviceLyricsCandidate::confidence),
+                                        providerStatuses = current.providerStatuses +
+                                            (result.provider to result.toManualStatus()),
+                                    )
+                                }
+                                result
+                            }
                         }
-                        mapOf(result.provider to status)
+                        val results = searches.map { it.await() }
+                        lyricsCandidates = results.flatMap { it.candidates }
+                            .distinctBy { it.provider to it.externalId }
+                            .sortedByDescending(DeviceLyricsCandidate::confidence)
+                        results.associate { it.provider to it.toManualStatus() }
                     }
                     DeviceManualMetadataKind.ARTWORK -> {
                         val searches = supportedProviders.map { provider ->

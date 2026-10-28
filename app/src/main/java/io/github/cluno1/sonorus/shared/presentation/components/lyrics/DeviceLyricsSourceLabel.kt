@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
 import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.shared.data.model.LyricsContribution
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
+import io.github.cluno1.sonorus.features.catalog.presentation.labelRes
 import java.util.Locale
 
 @Composable
@@ -31,6 +33,18 @@ internal fun localizedLyricsSourceLabel(source: String): String = when {
             parts.getOrNull(3).orEmpty()
         )
     }
+    chineseLyricsSource(source) != null -> {
+        // issue 127: "Chinese lyrics · title / artist · 87% · NetEase Cloud Music".
+        val parts = chineseLyricsSource(source)!!
+        val platform = CatalogExternalLyricsSource.fromWire(parts.platform)?.let { stringResource(it.labelRes()) }
+        val base = stringResource(
+            if (parts.selected) R.string.lyrics_source_chinese_selected_match else R.string.lyrics_source_chinese_match,
+            parts.title,
+            parts.artist,
+            parts.confidence,
+        )
+        if (platform == null) base else "$base · $platform"
+    }
     managedLibraryLanguage(source) != null -> {
         val language = managedLibraryLanguage(source).orEmpty()
         if (language.equals("und", true) || language.isBlank()) {
@@ -43,6 +57,26 @@ internal fun localizedLyricsSourceLabel(source: String): String = when {
         }
     }
     else -> source
+}
+
+/** issue 127: the parts of a Chinese lyrics source tag written by DeviceChineseLyrics. */
+internal data class ChineseLyricsSourceParts(
+    val selected: Boolean,
+    val title: String,
+    val artist: String,
+    val confidence: String,
+    val platform: String,
+)
+
+internal fun chineseLyricsSource(source: String): ChineseLyricsSourceParts? {
+    val parts = source.split('|')
+    val selected = when (parts.firstOrNull()) {
+        "DEVICE_CNLYRICS", "CNLYRICS" -> false
+        "DEVICE_CNLYRICS_SELECTED" -> true
+        else -> return null
+    }
+    if (parts.size < 4) return null
+    return ChineseLyricsSourceParts(selected, parts[1], parts[2], parts[3], parts.getOrNull(4).orEmpty())
 }
 
 internal fun managedLibraryLanguage(source: String): String? {

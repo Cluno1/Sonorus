@@ -89,6 +89,31 @@ class CatalogExternalLyricsMapperTest {
     }
 
     @Test
+    fun mapsMatchCandidatesWithLyricsAndDropsEmptyOnes() {
+        val matches = CatalogExternalLyricsMapper.match(
+            gson.fromJson(
+                """
+                {"unavailable_sources": [], "items": [
+                  {"source": "kugou", "external_id": "8ae73bc9", "title": "旅人", "artists": ["罗云熙"],
+                   "album": "旅人", "duration_ms": 253000, "lyrics": "In your eyes",
+                   "synced_lrc": "[00:13.73]In your eyes", "translation": null},
+                  {"source": "netease", "external_id": "1", "title": "空歌词", "artists": [], "lyrics": " "},
+                  {"source": "kuwo", "external_id": "2", "title": "未知来源", "artists": [], "lyrics": "x"}
+                ]}
+                """.trimIndent(),
+                ExternalLyricsMatchDto::class.java,
+            ),
+        )
+        val match = matches.single()
+        assertEquals(CatalogExternalLyricsSource.KUGOU, match.source)
+        assertEquals("[00:13.73]In your eyes", match.syncedLrc)
+        assertEquals(253000L, match.durationMs)
+        assertThrows(IllegalArgumentException::class.java) {
+            CatalogExternalLyricsMapper.match(ExternalLyricsMatchDto(items = null))
+        }
+    }
+
+    @Test
     fun formatsDurationAsMinutesAndSeconds() {
         assertEquals("4:13", formatExternalLyricsDuration(253783L))
         assertEquals("0:05", formatExternalLyricsDuration(5000L))

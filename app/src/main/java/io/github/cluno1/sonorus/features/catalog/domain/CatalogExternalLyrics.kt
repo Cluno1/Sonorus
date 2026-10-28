@@ -48,6 +48,22 @@ data class CatalogExternalLyrics(
     val translation: String?,
 )
 
+/**
+ * One candidate of `GET /v2/library/external-lyrics/match` (issue 127): a song on a public platform
+ * with its lyrics, the LRCLIB `/api/search` equivalent used by the DEVICE "Chinese lyrics" source.
+ */
+data class CatalogExternalLyricsMatch(
+    val source: CatalogExternalLyricsSource,
+    val externalId: String,
+    val title: String,
+    val artists: List<String>,
+    val album: String?,
+    val durationMs: Long?,
+    val lyrics: String,
+    val syncedLrc: String?,
+    val translation: String?,
+)
+
 /** "3:47" for search rows; null when the platform reported no length. */
 fun formatExternalLyricsDuration(durationMs: Long?): String? {
     if (durationMs == null || durationMs <= 0) return null

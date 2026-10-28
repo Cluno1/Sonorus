@@ -388,6 +388,8 @@ class AppSettings private constructor(context: Context) {
         // API Integration
         private const val KEY_DEEZER_API_ENABLED = "deezer_api_enabled"
         private const val KEY_LRCLIB_API_ENABLED = "lrclib_api_enabled"
+        // issue 127: Chinese lyrics through the private library backend (not a direct third-party call).
+        private const val KEY_CHINESE_LYRICS_API_ENABLED = "chinese_lyrics_api_enabled"
         private const val KEY_BETTERLYRICS_API_ENABLED = "better_lyrics_api_enabled"
         private const val KEY_YTMUSIC_API_ENABLED = "ytmusic_api_enabled"
         private const val KEY_SPOTIFY_API_ENABLED = "spotify_api_enabled"
@@ -1741,6 +1743,9 @@ class AppSettings private constructor(context: Context) {
     
     private val _lrclibApiEnabled = MutableStateFlow(!ProductCapabilities.catalogOnly && prefs.getBoolean(KEY_LRCLIB_API_ENABLED, BuildConfig.FLAVOR != "fdroid"))
     val lrclibApiEnabled: StateFlow<Boolean> = _lrclibApiEnabled.asStateFlow()
+
+    private val _chineseLyricsApiEnabled = MutableStateFlow(prefs.getBoolean(KEY_CHINESE_LYRICS_API_ENABLED, true))
+    val chineseLyricsApiEnabled: StateFlow<Boolean> = _chineseLyricsApiEnabled.asStateFlow()
     
     private val _betterLyricsApiEnabled = MutableStateFlow(!ProductCapabilities.catalogOnly && prefs.getBoolean(KEY_BETTERLYRICS_API_ENABLED, BuildConfig.FLAVOR != "fdroid"))
     val betterLyricsApiEnabled: StateFlow<Boolean> = _betterLyricsApiEnabled.asStateFlow()
@@ -3735,6 +3740,11 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
         _deezerApiEnabled.value = accepted
     }
     
+    fun setChineseLyricsApiEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_CHINESE_LYRICS_API_ENABLED, enabled) }
+        _chineseLyricsApiEnabled.value = enabled
+    }
+
     fun setLrcLibApiEnabled(enabled: Boolean) {
         val accepted = enabled && ProductCapabilities.thirdPartyMusicServices
         prefs.edit { putBoolean(KEY_LRCLIB_API_ENABLED, accepted) }
@@ -5535,6 +5545,7 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
         // API Enable/Disable States
         _deezerApiEnabled.value = ProductCapabilities.thirdPartyMusicServices && prefs.getBoolean(KEY_DEEZER_API_ENABLED, BuildConfig.FLAVOR != "fdroid")
         _lrclibApiEnabled.value = ProductCapabilities.thirdPartyMusicServices && prefs.getBoolean(KEY_LRCLIB_API_ENABLED, BuildConfig.FLAVOR != "fdroid")
+        _chineseLyricsApiEnabled.value = prefs.getBoolean(KEY_CHINESE_LYRICS_API_ENABLED, true)
         _betterLyricsApiEnabled.value = ProductCapabilities.thirdPartyMusicServices && prefs.getBoolean(KEY_BETTERLYRICS_API_ENABLED, BuildConfig.FLAVOR != "fdroid")
         _ytMusicApiEnabled.value = ProductCapabilities.thirdPartyMusicServices && prefs.getBoolean(KEY_YTMUSIC_API_ENABLED, BuildConfig.FLAVOR != "fdroid")
         _spotifyApiEnabled.value = ProductCapabilities.thirdPartyMusicServices && prefs.getBoolean(KEY_SPOTIFY_API_ENABLED, BuildConfig.FLAVOR != "fdroid")

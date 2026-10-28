@@ -12,4 +12,16 @@ class DeviceLyricsSourceLabelTest {
         assertEquals("und", managedLibraryLanguage("Catalog"))
         assertNull(managedLibraryLanguage("LRCLib"))
     }
+
+    @Test
+    fun readsChineseLyricsSourceTags() {
+        assertEquals(
+            ChineseLyricsSourceParts(false, "旅人", "罗云熙", "86%", "tencent"),
+            chineseLyricsSource("DEVICE_CNLYRICS|旅人|罗云熙|86%|tencent"),
+        )
+        assertEquals(true, chineseLyricsSource("DEVICE_CNLYRICS_SELECTED|旅人|罗云熙|86%|kugou")?.selected)
+        assertEquals("netease", chineseLyricsSource("CNLYRICS|旅人|罗云熙|80%|netease")?.platform)
+        assertNull(chineseLyricsSource("DEVICE_LRCLIB|旅人|罗云熙|86%"))
+        assertNull(chineseLyricsSource("DEVICE_CNLYRICS|only-title"))
+    }
 }

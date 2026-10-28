@@ -38,6 +38,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySnapshot
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchResult
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyrics
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsMatch
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSearchResult
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogExternalLyricsMapper
@@ -393,6 +394,27 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
         require(limit in 1..50) { "limit must be in 1..50" }
         // Live third-party data (issue 127): never cached on the device.
         CatalogExternalLyricsMapper.search(client().api.externalLyricsSearch(trimmed, limit).bodyOrThrow())
+    }
+
+    override suspend fun matchExternalLyrics(
+        title: String,
+        artist: String?,
+        album: String?,
+        durationSeconds: Int?,
+        limit: Int,
+    ): Result<List<CatalogExternalLyricsMatch>> = guarded {
+        val trimmed = title.trim()
+        require(trimmed.length in 1..200) { "title must be 1..200 characters" }
+        require(limit in 1..10) { "limit must be in 1..10" }
+        CatalogExternalLyricsMapper.match(
+            client().api.externalLyricsMatch(
+                title = trimmed,
+                artist = artist?.trim()?.take(200)?.takeIf(String::isNotEmpty),
+                album = album?.trim()?.take(200)?.takeIf(String::isNotEmpty),
+                durationSeconds = durationSeconds?.takeIf { it in 1..86_400 },
+                limit = limit,
+            ).bodyOrThrow(),
+        )
     }
 
     override suspend fun getExternalLyrics(

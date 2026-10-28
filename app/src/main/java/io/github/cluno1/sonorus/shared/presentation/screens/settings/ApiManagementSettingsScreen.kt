@@ -174,6 +174,7 @@ fun ApiManagementSettingsScreen(onBackClick: () -> Unit) {
     // API states
     val deezerApiEnabled by appSettings.deezerApiEnabled.collectAsState()
     val lrclibApiEnabled by appSettings.lrclibApiEnabled.collectAsState()
+    val chineseLyricsApiEnabled by appSettings.chineseLyricsApiEnabled.collectAsState()
     val betterLyricsApiEnabled by appSettings.betterLyricsApiEnabled.collectAsState()
     val ytMusicApiEnabled by appSettings.ytMusicApiEnabled.collectAsState()
     val lyricallyApiEnabled by appSettings.lyricallyApiEnabled.collectAsState()
@@ -244,6 +245,21 @@ fun ApiManagementSettingsScreen(onBackClick: () -> Unit) {
                             )
                         )
                     }
+
+                    // issue 127: answered by the private library backend, so not behind ENABLE_LRCLIB.
+                    add(
+                        toMaterial3SettingsItem(
+                            context = context,
+                            hapticFeedback = hapticFeedback,
+                            item = SettingItem(
+                                icon = RhythmIcons.Queue,
+                                title = stringResource(R.string.chinese_lyrics_source_name),
+                                description = context.getString(R.string.api_chinese_lyrics_desc),
+                                toggleState = chineseLyricsApiEnabled,
+                                onToggleChange = { enabled -> appSettings.setChineseLyricsApiEnabled(enabled) }
+                            )
+                        )
+                    )
 
                     if (io.github.cluno1.sonorus.BuildConfig.ENABLE_BETTERLYRICS) {
                         add(
