@@ -428,11 +428,40 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** issue 107: server-side lyrics / hymnal-number search used by universal search. */
+    /** Refresh the catalog when online score search finds works missing from the local snapshot. */
     suspend fun searchLibrary(
         query: String,
         type: CatalogLibrarySearchType,
-    ): Result<CatalogLibrarySearchResult> = repository.searchLibrary(query, type)
+    ): Result<CatalogLibrarySearchResult> {
+        val result = repository.searchLibrary(query, type)
+        val search = result.getOrNull() ?: return result
+        if (type != CatalogLibrarySearchType.SCORES) return result
+
+        val cachedIds = _state.value.scoreWorks.mapTo(mutableSetOf()) { it.workId }
+        if (search.items.none { it.workId !in cachedIds }) return result
+
+        // Score search returns IDs; the cards and navigation need their full score options.
+        // Wait for the refresh so the result is not silently filtered by a stale snapshot.
+        return repository.getLibrary(forceRefresh = true).fold(
+            onSuccess = { snapshot ->
+                _state.value = _state.value.copy(
+                    songs = snapshot.songs,
+                    albums = snapshot.albums,
+                    scoreWorks = snapshot.scoreWorks,
+                    offlineSnapshot = snapshot.fromCache,
+                )
+                val refreshedIds = snapshot.scoreWorks.mapTo(mutableSetOf()) { it.workId }
+                if (search.items.any { it.workId !in refreshedIds }) {
+                    Result.failure(IllegalStateException(
+                        getApplication<Application>().getString(R.string.search_lyrics_number_failed),
+                    ))
+                } else {
+                    result
+                }
+            },
+            onFailure = { Result.failure(it) },
+        )
+    }
 
     /** issue 127: public-platform Chinese lyrics shown under the lyrics search category. */
     suspend fun searchExternalLyrics(query: String): Result<CatalogExternalLyricsSearchResult> =

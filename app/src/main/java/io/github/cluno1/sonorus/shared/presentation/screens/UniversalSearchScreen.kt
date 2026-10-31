@@ -416,6 +416,7 @@ fun UniversalSearchScreen(
     val matchedNumberItems = (numberSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.items.orEmpty()
     val matchedTagItems = (tagSearchState as? UniversalCatalogTextSearchState.Loaded)?.result?.tagItems.orEmpty()
     val scoreSearchResult = (scoreSearchState as? UniversalCatalogTextSearchState.Loaded)?.result
+    val scoreSearchFailure = (scoreSearchState as? UniversalCatalogTextSearchState.Failed)?.message
     val matchedExternalLyricsItems =
         (externalLyricsState as? UniversalExternalLyricsSearchState.Loaded)?.items.orEmpty()
     val isCatalogTextSearchLoading = lyricsSearchState is UniversalCatalogTextSearchState.Loading ||
@@ -1155,6 +1156,20 @@ fun UniversalSearchScreen(
                                 }
                             }
 
+                            if (scoreSearchFailure != null) {
+                                item(key = "scores_error") {
+                                    Column(modifier = Modifier.fillMaxWidth().animateItem()) {
+                                        UniversalCatalogTextSectionHeader(R.string.catalog_scores)
+                                        Text(
+                                            text = scoreSearchFailure,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(16.dp),
+                                        )
+                                    }
+                                }
+                            }
+
                             val allArtists = buildList {
                                 matchedLocalArtists.take(6).forEach { artist ->
                                     add(SearchGridItem("LOCAL", artist.name, "${artist.numberOfTracks} tracks", artist.artworkUri) {
@@ -1359,6 +1374,20 @@ fun UniversalSearchScreen(
                                                 modifier = Modifier.width(160.dp),
                                             )
                                         }
+                                    }
+                                }
+                            }
+
+                            if (scoreSearchFailure != null) {
+                                item(key = "scores_error") {
+                                    Column(modifier = Modifier.fillMaxWidth().animateItem()) {
+                                        UniversalCatalogTextSectionHeader(R.string.catalog_scores)
+                                        Text(
+                                            text = scoreSearchFailure,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(16.dp),
+                                        )
                                     }
                                 }
                             }
@@ -3606,7 +3635,8 @@ private fun UniversalLyricsSearchRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                item.snippet?.let { snippet ->
+                val detail = item.snippet ?: if (!item.hasLyrics) stringResource(R.string.lyrics_no_lyrics) else null
+                detail?.let { snippet ->
                     Text(
                         text = snippet,
                         style = MaterialTheme.typography.bodyMedium,
