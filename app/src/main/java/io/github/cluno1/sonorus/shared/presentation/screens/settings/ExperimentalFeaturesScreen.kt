@@ -187,7 +187,6 @@ fun LabsSettingsScreen(
     val hapticFeedbackEnabled by appSettings.hapticFeedbackEnabled.collectAsState()
     val enableAlbumEditing by appSettings.enableAlbumEditing.collectAsState()
     val lyricsEditorEnabled by appSettings.lyricsEditorEnabled.collectAsState()
-    val scoreChorusLabEnabled by appSettings.scoreChorusLabEnabled.collectAsState()
     val haptic = LocalHapticFeedback.current
     
     val forcePlayerCompactMode by appSettings.forcePlayerCompactMode.collectAsState()
@@ -231,13 +230,6 @@ fun LabsSettingsScreen(
                     title = context.getString(R.string.labs_music_score_experiments),
                     items = listOf(
                         SettingItem(
-                            MaterialSymbolIcon("groups", filled = true),
-                            context.getString(R.string.labs_score_chorus),
-                            context.getString(R.string.labs_score_chorus_desc),
-                            toggleState = scoreChorusLabEnabled,
-                            onToggleChange = { appSettings.setScoreChorusLabEnabled(it) }
-                        ),
-                        SettingItem(
                             MaterialSymbolIcon("photo_library", filled = true),
                             context.getString(R.string.labs_client_images),
                             context.getString(R.string.labs_client_images_desc),
@@ -245,9 +237,9 @@ fun LabsSettingsScreen(
                         ),
                         SettingItem(
                             MaterialSymbolIcon("admin_panel_settings", filled = true),
-                            context.getString(R.string.chorus_admin_title),
-                            context.getString(R.string.labs_chorus_admin_desc),
-                            onClick = { onNavigateTo(SettingsRoutes.CHORUS_ADMIN) }
+                            context.getString(R.string.device_admin_title),
+                            context.getString(R.string.labs_device_admin_desc),
+                            onClick = { onNavigateTo(SettingsRoutes.DEVICE_ADMIN) }
                         )
                     )
                 )

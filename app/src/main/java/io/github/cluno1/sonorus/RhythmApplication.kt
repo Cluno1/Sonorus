@@ -67,6 +67,16 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         val settings = AppSettings.getInstance(applicationContext)
         Log.d(TAG, "✓ AppSettings initialized")
 
+        // Remove files owned by the retired online-chorus feature from this device.
+        settings.prefs.edit { remove("score_chorus_lab_enabled") }
+        CoroutineScope(Dispatchers.IO).launch {
+            listOf(
+                java.io.File(filesDir, "chorus-drafts"),
+                java.io.File(filesDir, "chorus-imports"),
+                java.io.File(cacheDir, "chorus-mixes"),
+            ).forEach { it.deleteRecursively() }
+        }
+
         // Apply the user's theme preference to the system configuration so the
         // system splash screen and window background match the app theme
         // (light in light mode, dark in dark mode) instead of always being dark.

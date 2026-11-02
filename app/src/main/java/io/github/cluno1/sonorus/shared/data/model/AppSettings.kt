@@ -270,7 +270,6 @@ class AppSettings private constructor(context: Context) {
         private const val KEY_MINI_PLAYER_THEME_ID = "miniplayer_theme_id"
         private const val KEY_USE_EXPERIMENTAL_PLAYER_UI = "use_experimental_player_ui"
         private const val KEY_ENABLE_ALBUM_EDITING = "enable_album_editing"
-        private const val KEY_SCORE_CHORUS_LAB_ENABLED = "score_chorus_lab_enabled"
         
         // Library Settings
         private const val KEY_ALBUM_VIEW_TYPE = "album_view_type"
@@ -1994,8 +1993,6 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
     private val _enableAlbumEditing = MutableStateFlow(prefs.getBoolean(KEY_ENABLE_ALBUM_EDITING, false))
     val enableAlbumEditing: StateFlow<Boolean> = _enableAlbumEditing.asStateFlow()
 
-    private val _scoreChorusLabEnabled = MutableStateFlow(prefs.getBoolean(KEY_SCORE_CHORUS_LAB_ENABLED, false))
-    val scoreChorusLabEnabled: StateFlow<Boolean> = _scoreChorusLabEnabled.asStateFlow()
     
     // Festive Theme Settings
     private val _festiveThemeEnabled = MutableStateFlow(prefs.getBoolean(KEY_FESTIVE_THEME_ENABLED, true))
@@ -4073,10 +4070,6 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
         _enableAlbumEditing.value = enabled
     }
 
-    fun setScoreChorusLabEnabled(enabled: Boolean) {
-        prefs.edit { putBoolean(KEY_SCORE_CHORUS_LAB_ENABLED, enabled) }
-        _scoreChorusLabEnabled.value = enabled
-    }
     
     // Codec Monitoring & Enhanced Seeking Methods
     fun setCodecMonitoringEnabled(enabled: Boolean) {
@@ -5610,7 +5603,6 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
         _forcePlayerCompactMode.value = prefs.getBoolean(KEY_FORCE_PLAYER_COMPACT_MODE, false)
         _useExperimentalPlayerUi.value = prefs.getBoolean(KEY_USE_EXPERIMENTAL_PLAYER_UI, false)
         _enableAlbumEditing.value = prefs.getBoolean(KEY_ENABLE_ALBUM_EDITING, false)
-        _scoreChorusLabEnabled.value = prefs.getBoolean(KEY_SCORE_CHORUS_LAB_ENABLED, false)
         _onboardingCompleted.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
         _initialMediaScanCompleted.value = prefs.getBoolean(KEY_INITIAL_MEDIA_SCAN_COMPLETED, false)
         _genreDetectionCompleted.value = prefs.getBoolean(KEY_GENRE_DETECTION_COMPLETED, false)

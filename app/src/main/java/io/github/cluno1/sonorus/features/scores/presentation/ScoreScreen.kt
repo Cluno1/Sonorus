@@ -604,8 +604,6 @@ fun RemoteScoreScreen(
     title: String,
     canonicalMusicXml: ByteArray,
     onBackClick: () -> Unit,
-    onChorusClick: (() -> Unit)? = null,
-    onHelpClick: (() -> Unit)? = null,
     onPlaybackPositionChanged: (tick: Long, timeMs: Long) -> Unit = { _, _ -> },
     playbackCommand: ScorePlaybackCommand? = null,
     playbackInteractionEnabled: Boolean = true,
@@ -683,20 +681,6 @@ fun RemoteScoreScreen(
                             )
                         }
                     },
-                    actions = {
-                        if (onHelpClick != null) {
-                            FilledTonalIconButton(
-                                onClick = onHelpClick,
-                                modifier = Modifier.size(48.dp),
-                            ) {
-                                Icon(
-                                    MaterialSymbolIcon("help", filled = true),
-                                    contentDescription = stringResource(R.string.chorus_recording_help_open),
-                                    modifier = Modifier.size(24.dp),
-                                )
-                            }
-                        }
-                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                     ),
@@ -739,8 +723,6 @@ fun RemoteScoreScreen(
                         title = title,
                         subtitle = scoreLabel,
                         onBackClick = onBackClick,
-                        onChorusClick = onChorusClick,
-                        onHelpClick = onHelpClick,
                         onPlaybackPositionChanged = onPlaybackPositionChanged,
                         playbackCommand = playbackCommand,
                         playbackInteractionEnabled = playbackInteractionEnabled,
@@ -849,8 +831,6 @@ private fun ScoreReadyContent(
     title: String? = null,
     subtitle: String? = null,
     onBackClick: (() -> Unit)? = null,
-    onChorusClick: (() -> Unit)? = null,
-    onHelpClick: (() -> Unit)? = null,
     onPlaybackPositionChanged: (tick: Long, timeMs: Long) -> Unit = { _, _ -> },
     playbackCommand: ScorePlaybackCommand? = null,
     playbackInteractionEnabled: Boolean = true,
@@ -1258,8 +1238,6 @@ private fun ScoreReadyContent(
             title = title,
             subtitle = subtitle,
             onBackClick = onBackClick,
-            onChorusClick = onChorusClick,
-            onHelpClick = onHelpClick,
             viewMode = viewMode,
             playbackVariant = playbackVariant,
             status = playbackStatus,
@@ -1960,8 +1938,6 @@ private fun ScorePlaybackControls(
     title: String?,
     subtitle: String?,
     onBackClick: (() -> Unit)?,
-    onChorusClick: (() -> Unit)?,
-    onHelpClick: (() -> Unit)?,
     viewMode: ScoreViewMode,
     playbackVariant: BundledScoreVariant,
     status: ScorePlaybackStatus,
@@ -2048,39 +2024,6 @@ private fun ScorePlaybackControls(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-
-            if (onChorusClick != null) {
-                FilledTonalIconButton(
-                    onClick = onChorusClick,
-                    modifier = Modifier.size(48.dp),
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    ),
-                ) {
-                    Icon(
-                        RhythmIcons.MusicNote,
-                        contentDescription = stringResource(R.string.score_chorus),
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-
-            if (onHelpClick != null) {
-                FilledTonalIconButton(
-                    onClick = onHelpClick,
-                    modifier = Modifier.size(48.dp),
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    ),
-                ) {
-                    Icon(
-                        MaterialSymbolIcon("help", filled = true),
-                        contentDescription = stringResource(R.string.chorus_recording_help_open),
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
             }
 
             FilledIconButton(

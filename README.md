@@ -36,10 +36,9 @@ Sonorus treats listening, reading, and rehearsing as parts of the same experienc
 | 🔐 | **Private Catalog** | Optional self-hosted music access with per-device enrollment, authenticated downloads, and multiple registered devices per user. |
 | 🎼 | **Music scores** | Browse and render MusicXML scores, select vocal or instrumental parts, follow playback, and work with tempo and metronome controls. |
 | ✍️ | **Lyrics workshop** | Edit source text, line timing, or word timing; stamp lyrics against the track; import, save, and synchronize supported lyrics with the Catalog. |
-| 🎙️ | **Chorus Lab** | Rehearse against a chosen score revision, record and trim takes, preview submissions, and manage collaborative mixes through invitations. |
 | 📱 | **Made for Android** | Material 3 UI with layouts for phones and larger screens, immersive lyrics, Media3 playback, and Android 8.0+ support. |
 
-The private Catalog and Chorus Lab are optional. Local playback does not require a Sonorus server account.
+The private Catalog is optional. Local playback does not require a Sonorus server account.
 
 ## Screenshots
 

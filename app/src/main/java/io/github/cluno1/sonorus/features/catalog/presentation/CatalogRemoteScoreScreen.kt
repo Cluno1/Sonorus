@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -56,7 +54,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSym
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.data.repository.PlaybackMediaKind
 import io.github.cluno1.sonorus.shared.data.repository.PlaybackSubject
-import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -91,12 +88,6 @@ fun CatalogRemoteScoreScreen(
     initialScoreId: String? = null,
     viewModel: CatalogViewModel,
     onBack: () -> Unit,
-    onOpenChorus: (
-        workId: String,
-        scoreId: String,
-        revisionId: String,
-        title: String,
-    ) -> Unit,
     // issue 112: settings-panel entries that jump to this Work's lyrics page / song playback
     // page. Lyrics is always reachable (an empty-lyrics state is a valid landing); song is
     // null when the Work has no playable song in the synced library, so the entry is hidden.
@@ -104,10 +95,6 @@ fun CatalogRemoteScoreScreen(
     onOpenWorkSong: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val scoreChorusLabEnabled by remember(context) {
-        AppSettings.getInstance(context).scoreChorusLabEnabled
-    }.collectAsState()
     var selectedScoreId by remember(scoreWork?.workId, scoreWork?.scoreOptions, initialScoreId) {
         mutableStateOf(
             if (scoreWork == null) {
@@ -180,18 +167,6 @@ fun CatalogRemoteScoreScreen(
             title = scoreWork?.title ?: title,
             canonicalMusicXml = checkNotNull(bytes),
             onBackClick = onBack,
-            onChorusClick = if (scoreChorusLabEnabled) {
-                {
-                    onOpenChorus(
-                        workId,
-                        selectedOption?.scoreId
-                            ?: history.getOrNull(selectedIndex)?.scoreId
-                            ?: initialScoreId.orEmpty(),
-                        history.getOrNull(selectedIndex)?.id ?: activeRevisionId,
-                        scoreWork?.title ?: title,
-                    )
-                }
-            } else null,
             scoreLabel = selectedOption?.scoreLabel ?: scoreLabel.takeIf(String::isNotBlank),
             revisionLabel = history.getOrNull(selectedIndex)?.let {
                 stringResource(R.string.score_revision_label, it.revisionNo)

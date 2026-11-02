@@ -11,20 +11,6 @@ data class CatalogAdminDevice(
     val lastSeenAt: String?,
 )
 
-data class ChorusModerationSettings(
-    val automaticApproval: Boolean,
-    val updatedBy: String,
-    val updatedAt: String?,
-)
-
-data class ChorusModerationItem(
-    val workId: String,
-    val projectTitle: String,
-    val track: ChorusTrack,
-)
-
 data class CatalogAdminDashboard(
     val devices: List<CatalogAdminDevice>,
-    val settings: ChorusModerationSettings,
-    val pendingTracks: List<ChorusModerationItem>,
 )

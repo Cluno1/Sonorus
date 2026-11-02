@@ -146,10 +146,8 @@ import io.github.cluno1.sonorus.features.catalog.domain.toStableCatalogSongId
 import io.github.cluno1.sonorus.features.catalog.domain.toRhythmAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.toRhythmSong
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogServerSettingsScreen
-import io.github.cluno1.sonorus.features.catalog.presentation.ChorusAdminScreen
+import io.github.cluno1.sonorus.features.catalog.presentation.DeviceAdminScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRemoteScoreScreen
-import io.github.cluno1.sonorus.features.chorus.presentation.ChorusRecordingScreen
-import io.github.cluno1.sonorus.features.chorus.presentation.ChorusScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogViewModel
 import io.github.cluno1.sonorus.features.catalog.presentation.currentScoreOption
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkLyricsScreen
@@ -270,7 +268,7 @@ sealed class Screen(val route: String) {
     }
     object Settings : Screen("settings")
     object CatalogSettings : Screen("catalog_settings")
-    object ChorusAdmin : Screen("chorus_admin")
+    object DeviceAdmin : Screen("device_admin")
     object ClientImages : Screen("client_images")
     object DeviceManualMetadata : Screen(
         "device_manual_metadata/{songId}?kind={kind}&artistName={artistName}",
@@ -311,17 +309,6 @@ sealed class Screen(val route: String) {
     object CatalogTagWorks : Screen("catalog_tag_works?tagKey={tagKey}&label={label}") {
         fun createRoute(tag: CatalogLibraryTag): String =
             "catalog_tag_works?tagKey=${Uri.encode(tag.key)}&label=${Uri.encode(tag.label)}"
-    }
-    object Chorus : Screen(
-        "chorus/{workId}?title={title}&scoreId={scoreId}&revisionId={revisionId}",
-    ) {
-        fun createRoute(workId: String, scoreId: String, revisionId: String, title: String) =
-            "chorus/${Uri.encode(workId)}?title=${Uri.encode(title)}" +
-                "&scoreId=${Uri.encode(scoreId)}&revisionId=${Uri.encode(revisionId)}"
-    }
-    object ChorusRecording : Screen("chorus_record/{projectId}/{revisionId}?title={title}") {
-        fun createRoute(projectId: String, revisionId: String, title: String) =
-            "chorus_record/${Uri.encode(projectId)}/${Uri.encode(revisionId)}?title=${Uri.encode(title)}"
     }
     /** issue 124: rooms where several people pick and order a gathering's songs. */
     object Rooms : Screen("rooms")
@@ -672,7 +659,7 @@ fun LocalNavigation(
                 pendingRoute == Screen.Search.route ||
                 pendingRoute == Screen.Player.route ||
                 pendingRoute == Screen.Settings.route ||
-                pendingRoute == Screen.ChorusAdmin.route ||
+                pendingRoute == Screen.DeviceAdmin.route ||
                 pendingRoute == Screen.RhythmStats.route ||
                 pendingRoute.startsWith(Screen.Library.route.substringBefore("?")) ||
                 pendingRoute.startsWith("playlist/") ||
@@ -2497,8 +2484,8 @@ private fun LocalNavigationContent(
                     )
                 }
 
-                composable(Screen.ChorusAdmin.route) {
-                    ChorusAdminScreen(
+                composable(Screen.DeviceAdmin.route) {
+                    DeviceAdminScreen(
                         state = catalogState,
                         viewModel = catalogViewModel,
                         onOpenDeviceRegistration = {
@@ -2511,54 +2498,6 @@ private fun LocalNavigationContent(
                 composable(Screen.ClientImages.route) {
                     io.github.cluno1.sonorus.features.clientimages.presentation.ClientImageLabsScreen(
                         onBackClick = { navController.popBackStack() },
-                    )
-                }
-
-                composable(
-                    route = Screen.Chorus.route,
-                    arguments = listOf(
-                        navArgument("workId") { type = NavType.StringType },
-                        navArgument("title") { type = NavType.StringType; defaultValue = "在线合唱" },
-                        navArgument("scoreId") { type = NavType.StringType; defaultValue = "" },
-                        navArgument("revisionId") { type = NavType.StringType; defaultValue = "" },
-                    ),
-                ) { backStackEntry ->
-                    val workId = backStackEntry.arguments?.getString("workId")?.let(Uri::decode).orEmpty()
-                    val chorusTitle = backStackEntry.arguments?.getString("title")?.let(Uri::decode) ?: "在线合唱"
-                    ChorusScreen(
-                        workId = workId,
-                        initialScoreId = backStackEntry.arguments?.getString("scoreId")
-                            ?.let(Uri::decode)
-                            .orEmpty(),
-                        initialRevisionId = backStackEntry.arguments?.getString("revisionId")
-                            ?.let(Uri::decode)
-                            .orEmpty(),
-                        title = chorusTitle,
-                        viewModel = catalogViewModel,
-                        onBack = { navController.popBackStack() },
-                        onRecord = { projectId, revisionId ->
-                            navController.navigate(
-                                Screen.ChorusRecording.createRoute(projectId, revisionId, chorusTitle),
-                            ) { launchSingleTop = true }
-                        },
-                    )
-                }
-
-                composable(
-                    route = Screen.ChorusRecording.route,
-                    arguments = listOf(
-                        navArgument("projectId") { type = NavType.StringType },
-                        navArgument("revisionId") { type = NavType.StringType },
-                        navArgument("title") { type = NavType.StringType; defaultValue = "录制合唱" },
-                    ),
-                ) { backStackEntry ->
-                    ChorusRecordingScreen(
-                        projectId = backStackEntry.arguments?.getString("projectId")?.let(Uri::decode).orEmpty(),
-                        revisionId = backStackEntry.arguments?.getString("revisionId")?.let(Uri::decode).orEmpty(),
-                        title = backStackEntry.arguments?.getString("title")?.let(Uri::decode) ?: "录制合唱",
-                        viewModel = catalogViewModel,
-                        onBack = { navController.popBackStack() },
-                        onUploaded = { navController.popBackStack() },
                     )
                 }
 
@@ -2669,18 +2608,6 @@ private fun LocalNavigationContent(
                         viewModel = catalogViewModel,
                         onBack = {
                             if (!navController.popBackStack()) navigateToTopLevel(Screen.Home.route)
-                        },
-                        onOpenChorus = { targetWorkId, targetScoreId, targetRevisionId, targetTitle ->
-                            navController.navigate(
-                                Screen.Chorus.createRoute(
-                                    targetWorkId,
-                                    targetScoreId,
-                                    targetRevisionId,
-                                    targetTitle,
-                                ),
-                            ) {
-                                launchSingleTop = true
-                            }
                         },
                         // issue 112: score settings panel entries jumping to this Work's lyrics
                         // page / song playback. Reuse the same lookups as openCatalogWorkScore
@@ -2962,8 +2889,8 @@ private fun LocalNavigationContent(
                     io.github.cluno1.sonorus.shared.presentation.screens.settings.LabsSettingsScreen(
                         onBackClick = navigateBackOrToSettings,
                         onNavigateTo = { route ->
-                            if (route == SettingsRoutes.CHORUS_ADMIN) {
-                                navController.navigate(Screen.ChorusAdmin.route) { launchSingleTop = true }
+                            if (route == SettingsRoutes.DEVICE_ADMIN) {
+                                navController.navigate(Screen.DeviceAdmin.route) { launchSingleTop = true }
                             } else if (route == SettingsRoutes.CLIENT_IMAGES) {
                                 navController.navigate(Screen.ClientImages.route) { launchSingleTop = true }
                             }

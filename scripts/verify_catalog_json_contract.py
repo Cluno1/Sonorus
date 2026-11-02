@@ -52,7 +52,6 @@ REMOTE_SOURCES = (
     "CatalogDeviceAuth.kt",
     "CatalogDtos.kt",
     "CatalogRoomDtos.kt",
-    "ChorusDtos.kt",
 )
 EXPLICIT_MODELS = {
     "io.github.cluno1.sonorus.features.catalog.data.local.CatalogOfflineCache$Entry": (

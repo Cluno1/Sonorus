@@ -198,7 +198,7 @@ object SettingsRoutes {
     const val CATALOG = "catalog_settings"
     const val LAN_SUBSONIC = "lan_subsonic_settings"
     const val LAN_MUSIC_UPLOAD = "lan_music_upload"
-    const val CHORUS_ADMIN = "chorus_admin"
+    const val DEVICE_ADMIN = "device_admin"
     const val CLIENT_IMAGES = "client_images"
 }
 
@@ -1110,11 +1110,11 @@ fun SettingsScreenWrapper(
                 appSettings.setInitialStreamingRoute(Screen.LanMusicUpload.route)
                 if (!navController.popBackStack()) safeNavigateToMain(navController)
             }
-        } else if (route == SettingsRoutes.CHORUS_ADMIN) {
-            if (navController.graph.findNode(Screen.ChorusAdmin.route) != null) {
-                navController.navigate(Screen.ChorusAdmin.route) { launchSingleTop = true }
+        } else if (route == SettingsRoutes.DEVICE_ADMIN) {
+            if (navController.graph.findNode(Screen.DeviceAdmin.route) != null) {
+                navController.navigate(Screen.DeviceAdmin.route) { launchSingleTop = true }
             } else {
-                appSettings.setInitialStreamingRoute(Screen.ChorusAdmin.route)
+                appSettings.setInitialStreamingRoute(Screen.DeviceAdmin.route)
                 if (!navController.popBackStack()) {
                     safeNavigateToMain(navController)
                 }

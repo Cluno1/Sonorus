@@ -78,13 +78,6 @@ interface CatalogRepository {
         displayName: String? = null,
         replaceExistingDevice: Boolean = false,
     ): Result<CatalogIssuedInvite>
-    suspend fun setChorusAutomaticApproval(enabled: Boolean): Result<ChorusModerationSettings>
-    suspend fun moderateChorusTrack(
-        trackId: String,
-        revision: Int,
-        publish: Boolean,
-        reason: String? = null,
-    ): Result<ChorusTrack>
     fun clearConnection()
     suspend fun listWorks(query: String? = null, cursor: String? = null, limit: Int = 50): Result<CatalogPage>
     suspend fun getWorkBundle(workId: String, forceRefresh: Boolean = false): Result<WorkBundle>
@@ -135,21 +128,5 @@ interface CatalogRepository {
         expectedRevision: Int,
         idempotencyKey: String,
     ): Result<CatalogLyricsWriteResult>
-    suspend fun getChorus(workId: String): Result<ChorusCatalog>
-    suspend fun getChorusProject(projectId: String): Result<ChorusProject>
-    suspend fun uploadChorusTrack(projectId: String, upload: ChorusTrackUpload): Result<ChorusTrack>
-    suspend fun updateChorusTrackAlignment(
-        trackId: String,
-        revision: Int,
-        offsetMs: Long,
-        anchors: List<ChorusSyncAnchor>,
-    ): Result<ChorusTrack>
-    suspend fun submitChorusTrack(trackId: String): Result<ChorusTrack>
-    suspend fun withdrawChorusTrack(trackId: String): Result<ChorusTrack>
-    suspend fun resolveChorusMix(
-        projectId: String,
-        chorusTimelineId: String,
-        trackIds: List<String>,
-    ): Result<ChorusMix>
-    suspend fun getChorusMix(mixId: String): Result<ChorusMix>
+
 }

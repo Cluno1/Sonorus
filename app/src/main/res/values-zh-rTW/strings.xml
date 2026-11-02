@@ -3155,9 +3155,6 @@
     <string name="thumb_style_puffy">雲朵</string>
     <string name="thumb_style_puffy_desc">Material 3 雲朵形</string>
     <string name="labs_music_score_experiments">音樂與樂譜實驗功能</string>
-    <string name="labs_score_chorus">線上合唱</string>
-    <string name="labs_score_chorus_desc">在樂譜詳細頁顯示線上合唱入口</string>
-    <string name="score_chorus">線上合唱</string>
     <string name="player_equalizer_on">等化器 開</string>
     <string name="player_equalizer_off">等化器 關</string>
     <string name="player_equalizer_enabled_desc">等化器已啟用</string>

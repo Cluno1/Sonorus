@@ -6,16 +6,9 @@ import io.github.cluno1.sonorus.features.catalog.data.local.CatalogQueueStore
 import io.github.cluno1.sonorus.features.catalog.data.local.CatalogOfflineCache
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogApiClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.AdminDeviceDto
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusModerationRequestDto
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusModerationSettingsPatchDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogDeviceAuthClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogDtoMapper
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogEndpoint
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusAlignmentPatchDto
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusDtoMapper
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusMixResolveDto
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusSyncAnchorDto
-import io.github.cluno1.sonorus.features.catalog.data.remote.ChorusTrackCreateDto
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogChanges
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDashboard
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDevice
@@ -24,15 +17,6 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogConnection
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogFailure
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogIssuedInvite
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLyricsWriteResult
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusCatalog
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusMix
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusModerationItem
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusModerationSettings
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusPlayback
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusProject
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusSyncAnchor
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusTrack
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusTrackUpload
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPage
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryAlbum
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySnapshot
@@ -61,10 +45,6 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Response
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.asRequestBody
-import android.net.Uri
-import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
@@ -167,21 +147,7 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
     override suspend fun getAdminDashboard(): Result<CatalogAdminDashboard> = guarded {
         val api = client().adminApi
         val devices = api.devices().bodyOrThrow().items.orEmpty().map(::adminDevice)
-        val settings = api.moderationSettings().bodyOrThrow().let {
-            ChorusModerationSettings(
-                automaticApproval = requireNotNull(it.automaticApproval),
-                updatedBy = it.updatedBy.orEmpty(),
-                updatedAt = it.updatedAt,
-            )
-        }
-        val pendingTracks = api.moderationTracks().bodyOrThrow().items.orEmpty().map { item ->
-            ChorusModerationItem(
-                workId = requireNotNull(item.workId),
-                projectTitle = requireNotNull(item.projectTitle),
-                track = ChorusDtoMapper.track(requireNotNull(item.track)),
-            )
-        }
-        CatalogAdminDashboard(devices, settings, pendingTracks)
+        CatalogAdminDashboard(devices)
     }
 
     override suspend fun issueInviteAsAdministrator(
@@ -202,38 +168,6 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
                 expiresAt = requireNotNull(it.expiresAt),
             )
         }
-    }
-
-    override suspend fun setChorusAutomaticApproval(
-        enabled: Boolean,
-    ): Result<ChorusModerationSettings> = guarded {
-        client().adminApi.updateModerationSettings(
-            ChorusModerationSettingsPatchDto(enabled),
-        ).bodyOrThrow().let {
-            ChorusModerationSettings(
-                automaticApproval = requireNotNull(it.automaticApproval),
-                updatedBy = it.updatedBy.orEmpty(),
-                updatedAt = it.updatedAt,
-            )
-        }
-    }
-
-    override suspend fun moderateChorusTrack(
-        trackId: String,
-        revision: Int,
-        publish: Boolean,
-        reason: String?,
-    ): Result<ChorusTrack> = guarded {
-        ChorusDtoMapper.track(
-            client().adminApi.moderateTrack(
-                trackId = validUuid(trackId),
-                ifMatch = "\"rev-$revision\"",
-                body = ChorusModerationRequestDto(
-                    status = if (publish) "published" else "rejected",
-                    reason = reason?.trim()?.takeIf(String::isNotEmpty),
-                ),
-            ).bodyOrThrow(),
-        )
     }
 
     override fun clearConnection() {
@@ -701,206 +635,6 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
     }.recoverCatching { error ->
         if (error is CatalogFailure.Unreachable) cache.loadLibraryTags() else throw error
     }
-
-    override suspend fun getChorus(workId: String): Result<ChorusCatalog> = guarded {
-        val id = validUuid(workId)
-        ChorusDtoMapper.catalog(client().chorusApi.workChorus(id).bodyOrThrow()).also {
-            require(it.workId == id) { "chorus Work id does not match request" }
-        }
-    }
-
-    override suspend fun getChorusProject(projectId: String): Result<ChorusProject> = guarded {
-        val id = validUuid(projectId)
-        ChorusDtoMapper.project(client().chorusApi.project(id).bodyOrThrow()).also {
-            require(it.id == id) { "chorus project id does not match request" }
-        }
-    }
-
-    override suspend fun uploadChorusTrack(
-        projectId: String,
-        upload: ChorusTrackUpload,
-    ): Result<ChorusTrack> = guarded {
-        val id = validUuid(projectId)
-        require(upload.file.isFile && upload.file.length() in 1..100L * 1024 * 1024) {
-            "录音文件不存在或超过 100 MiB"
-        }
-        require(upload.sha256.matches(Regex("^[0-9a-f]{64}$"))) { "录音 SHA-256 无效" }
-        val digest = MessageDigest.getInstance("SHA-256")
-        upload.file.inputStream().buffered().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        val actualSha256 = digest.digest().joinToString("") { "%02x".format(it) }
-        require(actualSha256 == upload.sha256) { "录音 SHA-256 与文件内容不一致" }
-        val apiClient = client()
-        val created = apiClient.chorusApi.createTrack(
-            projectId = id,
-            idempotencyKey = UUID.randomUUID().toString(),
-            body = ChorusTrackCreateDto(
-                chorusTimelineId = validUuid(upload.chorusTimelineId),
-                partId = upload.partId,
-                contributionKind = upload.contributionKind,
-                displayLabel = upload.displayLabel,
-                takeNo = upload.takeNo,
-                sha256 = upload.sha256,
-                byteSize = upload.file.length(),
-                mediaType = upload.mediaType,
-                originalFilename = upload.file.name,
-                durationMs = upload.durationMs,
-                initialAnchors = upload.initialAnchors.map { it.toDto() },
-            ),
-        ).bodyOrThrow()
-        val track = ChorusDtoMapper.track(requireNotNull(created.track) {
-            "chorus track create response has no track"
-        })
-        when (created.uploadStatus) {
-            "reused" -> Unit
-            "upload_required" -> {
-                val target = requireNotNull(created.upload?.url) {
-                    "chorus upload target is missing"
-                }
-                if (target.startsWith("https://")) {
-                    apiClient.uploadChorusToSignedUrl(target, upload.file, upload.mediaType)
-                } else {
-                    require(target == "/v2/chorus-tracks/${track.id}/content") {
-                        "chorus upload target changed its resource"
-                    }
-                    apiClient.chorusApi.uploadTrackContent(
-                        track.id,
-                        upload.sha256,
-                        upload.file.asRequestBody(upload.mediaType.toMediaType()),
-                    ).bodyOrThrow()
-                }
-            }
-            else -> error("chorus upload status is invalid")
-        }
-        ChorusDtoMapper.track(
-            apiClient.chorusApi.completeTrack(
-                track.id,
-                UUID.randomUUID().toString(),
-            ).bodyOrThrow(),
-        )
-    }
-
-    override suspend fun updateChorusTrackAlignment(
-        trackId: String,
-        revision: Int,
-        offsetMs: Long,
-        anchors: List<ChorusSyncAnchor>,
-    ): Result<ChorusTrack> = guarded {
-        require(revision > 0 && anchors.isNotEmpty()) { "对齐锚点无效" }
-        ChorusDtoMapper.track(
-            client().chorusApi.updateAlignment(
-                validUuid(trackId),
-                "\"rev-$revision\"",
-                ChorusAlignmentPatchDto(offsetMs, anchors.map { it.toDto() }),
-            ).bodyOrThrow(),
-        )
-    }
-
-    override suspend fun submitChorusTrack(trackId: String): Result<ChorusTrack> = guarded {
-        ChorusDtoMapper.track(
-            client().chorusApi.submitTrack(
-                validUuid(trackId),
-                UUID.randomUUID().toString(),
-            ).bodyOrThrow(),
-        )
-    }
-
-    override suspend fun withdrawChorusTrack(trackId: String): Result<ChorusTrack> = guarded {
-        ChorusDtoMapper.track(client().chorusApi.withdrawTrack(validUuid(trackId)).bodyOrThrow())
-    }
-
-    override suspend fun resolveChorusMix(
-        projectId: String,
-        chorusTimelineId: String,
-        trackIds: List<String>,
-    ): Result<ChorusMix> = guarded {
-        require(trackIds.isNotEmpty() && trackIds.size <= 50) { "请选择 1 至 50 条合唱音轨" }
-        val ids = trackIds.map(::validUuid).distinct()
-        require(ids.size == trackIds.size) { "合唱音轨不能重复选择" }
-        val apiClient = client()
-        ChorusDtoMapper.mix(
-            apiClient.chorusApi.resolveMix(
-                validUuid(projectId),
-                UUID.randomUUID().toString(),
-                ChorusMixResolveDto(validUuid(chorusTimelineId), ids),
-            ).bodyOrThrow(),
-        ).resolvePlayback(apiClient)
-    }
-
-    override suspend fun getChorusMix(mixId: String): Result<ChorusMix> = guarded {
-        val apiClient = client()
-        ChorusDtoMapper.mix(
-            apiClient.chorusApi.mix(validUuid(mixId)).bodyOrThrow(),
-        ).resolvePlayback(apiClient)
-    }
-
-    private fun ChorusSyncAnchor.toDto() = ChorusSyncAnchorDto(
-        anchorOrder = anchorOrder,
-        scoreTick = scoreTick,
-        mediaMs = mediaMs,
-        confidence = confidence,
-        source = source,
-    )
-
-    private suspend fun ChorusMix.resolvePlayback(apiClient: CatalogApiClient): ChorusMix {
-        val item = playback ?: return this
-        val resolved = when {
-            item.url.startsWith("https://") -> item.url.also {
-                require(CatalogPlaybackPolicy.isSignedObjectStoreUrl(it)) {
-                    "chorus mix delivery is not a trusted signed COS URL"
-                }
-            }
-            else -> cacheAuthenticatedChorusMix(apiClient, item)
-        }
-        return copy(playback = item.copy(url = resolved))
-    }
-
-    private suspend fun cacheAuthenticatedChorusMix(
-        apiClient: CatalogApiClient,
-        playback: ChorusPlayback,
-    ): String {
-        val directory = File(applicationContext.cacheDir, "chorus-mixes").apply { mkdirs() }
-        val destination = File(directory, "${playback.sha256}.m4a")
-        if (!destination.isFile || destination.length() != playback.byteSize) {
-            val absoluteUrl = apiClient.resolveAssetUrl(playback.url).toString()
-            val temporary = File(directory, ".${playback.sha256}.${UUID.randomUUID()}.part")
-            try {
-                val digest = MessageDigest.getInstance("SHA-256")
-                apiClient.api.deliveredAsset(absoluteUrl).bodyOrThrow().use { response ->
-                    response.byteStream().use { input ->
-                        temporary.outputStream().buffered().use { output ->
-                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                            var size = 0L
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                size += read
-                                require(size <= playback.byteSize) { "chorus mix exceeds declared size" }
-                                digest.update(buffer, 0, read)
-                                output.write(buffer, 0, read)
-                            }
-                        }
-                    }
-                }
-                require(temporary.length() == playback.byteSize) { "chorus mix byte size mismatch" }
-                val actual = digest.digest().joinToString("") { "%02x".format(it) }
-                require(actual == playback.sha256) { "chorus mix SHA-256 mismatch" }
-                destination.delete()
-                require(temporary.renameTo(destination)) { "could not commit chorus mix cache" }
-            } finally {
-                temporary.delete()
-            }
-        }
-        return Uri.fromFile(destination).toString()
-    }
-
-    // ---- issue 124: rooms ----
 
     override suspend fun listRooms(workId: String?): Result<List<CatalogRoomSummary>> = guarded {
         CatalogRoomMapper.rooms(client().roomsApi.rooms(workId?.let(::validUuid)).roomBodyOrThrow())

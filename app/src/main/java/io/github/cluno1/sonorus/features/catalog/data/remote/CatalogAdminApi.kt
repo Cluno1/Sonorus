@@ -5,11 +5,8 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.Header
-import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
-import retrofit2.http.Query
 
 internal data class AdminDeviceDto(
     @SerializedName("deviceId") val deviceId: String?,
@@ -31,33 +28,6 @@ internal data class AdministratorChangeDto(
     @SerializedName("isAdministrator") val isAdministrator: Boolean?,
 )
 
-internal data class ChorusModerationSettingsDto(
-    @SerializedName("automatic_approval") val automaticApproval: Boolean?,
-    @SerializedName("updated_by") val updatedBy: String?,
-    @SerializedName("updated_at") val updatedAt: String?,
-)
-
-internal data class ChorusModerationSettingsPatchDto(
-    @SerializedName("automatic_approval") val automaticApproval: Boolean,
-)
-
-internal data class ChorusModerationItemDto(
-    @SerializedName("work_id") val workId: String?,
-    @SerializedName("project_title") val projectTitle: String?,
-    @SerializedName("track") val track: ChorusTrackDto?,
-)
-
-internal data class ChorusModerationQueueDto(
-    @SerializedName("items") val items: List<ChorusModerationItemDto>?,
-)
-
-internal data class ChorusModerationRequestDto(
-    @SerializedName("status") val status: String,
-    @SerializedName("reason") val reason: String? = null,
-    @SerializedName("gain_db") val gainDb: Double = 0.0,
-    @SerializedName("pan") val pan: Double = 0.0,
-)
-
 internal interface CatalogAdminApi {
     @GET("v2/admin/devices")
     suspend fun devices(): Response<AdminDeviceListDto>
@@ -71,24 +41,4 @@ internal interface CatalogAdminApi {
     @POST("v2/admin/invites")
     suspend fun createInvite(@Body body: InviteRequest): Response<InviteDto>
 
-    @GET("v2/admin/chorus/moderation-settings")
-    suspend fun moderationSettings(): Response<ChorusModerationSettingsDto>
-
-    @PATCH("v2/admin/chorus/moderation-settings")
-    suspend fun updateModerationSettings(
-        @Body body: ChorusModerationSettingsPatchDto,
-    ): Response<ChorusModerationSettingsDto>
-
-    @GET("v2/admin/chorus/tracks")
-    suspend fun moderationTracks(
-        @Query("status") status: String = "pending_review",
-        @Query("limit") limit: Int = 100,
-    ): Response<ChorusModerationQueueDto>
-
-    @PATCH("v2/admin/chorus/tracks/{id}/moderation")
-    suspend fun moderateTrack(
-        @Path("id") trackId: String,
-        @Header("If-Match") ifMatch: String,
-        @Body body: ChorusModerationRequestDto,
-    ): Response<ChorusTrackDto>
 }

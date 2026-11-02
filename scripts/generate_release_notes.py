@@ -139,7 +139,7 @@ def render_notes(
         f"# Sonorus {version}",
         "",
         "A signed Stable build of Sonorus: local music playback, an optional private Catalog, "
-        "MusicXML scores, synchronized lyrics editing, and Chorus Lab rehearsal tools.",
+        "MusicXML scores and synchronized lyrics editing.",
         "",
         "## What's changed",
         "",

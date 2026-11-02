@@ -29,12 +29,6 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogAdminDevice
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogSmartEnrollmentError
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogSmartEnrollmentException
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogSmartEnrollmentText
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusCatalog
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusMix
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusProject
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusSyncAnchor
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusTrack
-import io.github.cluno1.sonorus.features.catalog.domain.ChorusTrackUpload
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogEndpoint
 import io.github.cluno1.sonorus.shared.data.model.Song
 import android.net.Uri
@@ -302,42 +296,6 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun setChorusAutomaticApproval(enabled: Boolean) {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(administratorLoading = true, adminError = null)
-            repository.setChorusAutomaticApproval(enabled).fold(
-                onSuccess = { settings ->
-                    val dashboard = _state.value.administratorDashboard
-                    _state.value = _state.value.copy(
-                        administratorDashboard = dashboard?.copy(settings = settings),
-                        administratorLoading = false,
-                    )
-                },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        administratorLoading = false,
-                        adminError = message(it),
-                    )
-                },
-            )
-        }
-    }
-
-    fun moderateChorusTrack(trackId: String, revision: Int, publish: Boolean, reason: String?) {
-        viewModelScope.launch {
-            _state.value = _state.value.copy(administratorLoading = true, adminError = null)
-            repository.moderateChorusTrack(trackId, revision, publish, reason).fold(
-                onSuccess = { refreshAdministrator() },
-                onFailure = {
-                    _state.value = _state.value.copy(
-                        administratorLoading = false,
-                        adminError = message(it),
-                    )
-                },
-            )
-        }
-    }
-
     fun refreshWorks(query: String? = null) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
@@ -516,35 +474,6 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
             ?: return Result.failure(CatalogFailure.InvalidData("谱面修订没有 primary_musicxml"))
         return repository.downloadAsset(asset.assetId, asset.sha256, asset.byteSize)
     }
-
-    suspend fun chorus(workId: String): Result<ChorusCatalog> = repository.getChorus(workId)
-
-    suspend fun chorusProject(projectId: String): Result<ChorusProject> =
-        repository.getChorusProject(projectId)
-
-    suspend fun uploadChorusTrack(projectId: String, upload: ChorusTrackUpload): Result<ChorusTrack> =
-        repository.uploadChorusTrack(projectId, upload)
-
-    suspend fun alignChorusTrack(
-        trackId: String,
-        revision: Int,
-        offsetMs: Long,
-        anchors: List<ChorusSyncAnchor>,
-    ): Result<ChorusTrack> = repository.updateChorusTrackAlignment(trackId, revision, offsetMs, anchors)
-
-    suspend fun submitChorusTrack(trackId: String): Result<ChorusTrack> =
-        repository.submitChorusTrack(trackId)
-
-    suspend fun withdrawChorusTrack(trackId: String): Result<ChorusTrack> =
-        repository.withdrawChorusTrack(trackId)
-
-    suspend fun resolveChorusMix(
-        projectId: String,
-        chorusTimelineId: String,
-        trackIds: List<String>,
-    ): Result<ChorusMix> = repository.resolveChorusMix(projectId, chorusTimelineId, trackIds)
-
-    suspend fun chorusMix(mixId: String): Result<ChorusMix> = repository.getChorusMix(mixId)
 
     suspend fun restoreQueue(deviceSongs: List<Song> = emptyList()): Result<RestoredUnifiedQueue?> {
         val record = queueStore.load() ?: return Result.success(null)

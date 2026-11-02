@@ -77,24 +77,10 @@ internal class CatalogApiClient(
     val lyricsWriteApi: CatalogLyricsWriteApi = retrofit.create(CatalogLyricsWriteApi::class.java)
     val workTagsWriteApi: CatalogWorkTagsWriteApi = retrofit.create(CatalogWorkTagsWriteApi::class.java)
     val workLyricsWriteApi: CatalogWorkLyricsWriteApi = retrofit.create(CatalogWorkLyricsWriteApi::class.java)
-    val chorusApi: CatalogChorusApi = retrofit.create(CatalogChorusApi::class.java)
     /** issue 124 */
     val roomsApi: CatalogRoomsApi = retrofit.create(CatalogRoomsApi::class.java)
     val adminApi: CatalogAdminApi = retrofit.create(CatalogAdminApi::class.java)
     val imageApi: CatalogImageApi = retrofit.create(CatalogImageApi::class.java)
-
-    fun uploadChorusToSignedUrl(url: String, file: File, mediaType: String) {
-        require(CatalogPlaybackPolicy.isSignedObjectStoreUrl(url)) {
-            "chorus upload target is not a signed COS URL"
-        }
-        val request = Request.Builder()
-            .url(url)
-            .put(ProgressFileRequestBody(file, mediaType.toMediaType()) { _, _ -> })
-            .build()
-        httpClient.newCall(request).execute().use { response ->
-            require(response.isSuccessful) { "COS upload failed (${response.code})" }
-        }
-    }
 
     /**
      * Streams one prepared image directly to COS. The signed URL is consumed in-memory and is
