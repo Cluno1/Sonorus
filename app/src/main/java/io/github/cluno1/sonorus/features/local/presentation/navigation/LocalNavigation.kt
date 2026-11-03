@@ -2766,7 +2766,9 @@ private fun LocalNavigationContent(
                                 )
                     }
                 ) {
-                    val streamingViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.StreamingMusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+                    // Search must use the same playback ViewModel that owns the registered
+                    // playback handler; a destination-scoped instance has no player callback.
+                    val streamingViewModel = streamingMusicViewModel
 
                     SlideUpCornerWrapper {
                         io.github.cluno1.sonorus.shared.presentation.screens.UniversalSearchScreen(
