@@ -331,8 +331,8 @@ fun UniversalSearchScreen(
     val normalizedQuery = remember(searchedQuery) { normalizedUniversalSearchQuery(searchedQuery) }
 
     LaunchedEffect(normalizedQuery) {
-        if (catalogSource == null &&
-            ProductCapabilities.thirdPartyMusicServices &&
+        if ((catalogSource == null || ProductCapabilities.lanSubsonicOnly) &&
+            (ProductCapabilities.thirdPartyMusicServices || ProductCapabilities.lanSubsonicOnly) &&
             normalizedQuery.isNotBlank() &&
             streamingQuery != normalizedQuery
         ) {
@@ -477,12 +477,12 @@ fun UniversalSearchScreen(
         else localPlaylists.filter { it.name.contains(searchedQuery, true) }
     }
 
-    val matchedStreamingSongs = if (catalogSource == null && filterSongs) streamingResults.songs else emptyList()
+    val matchedStreamingSongs = if ((catalogSource == null || ProductCapabilities.lanSubsonicOnly) && filterSongs) streamingResults.songs else emptyList()
     val matchedStreamingAlbums = if (catalogSource == null && filterAlbums) streamingResults.albums else emptyList()
     val matchedStreamingArtists = if (catalogSource == null && filterArtists) streamingResults.artists else emptyList()
     val matchedStreamingPlaylists = if (catalogSource == null && filterPlaylists) streamingResults.playlists else emptyList()
 
-    val effectiveStreamingLoading = catalogSource == null && isStreamingLoading
+    val effectiveStreamingLoading = (catalogSource == null || ProductCapabilities.lanSubsonicOnly) && isStreamingLoading
     val isSearchLoading = isLocalLoading || effectiveStreamingLoading || isCatalogTextSearchLoading
 
     val hasResults = matchedLocalSongs.isNotEmpty() || matchedStreamingSongs.isNotEmpty() ||
@@ -499,7 +499,7 @@ fun UniversalSearchScreen(
     )
 
     val handleAction = { itemMode: String, action: () -> Unit ->
-        val effectiveItemMode = effectiveUniversalSearchItemMode(
+        val effectiveItemMode = if (ProductCapabilities.lanSubsonicOnly && itemMode == "STREAMING") "LOCAL" else effectiveUniversalSearchItemMode(
             itemMode = itemMode,
             requiredAppModeForLocalItems = catalogSource?.requiredAppModeForLocalItems,
         )
@@ -2304,7 +2304,9 @@ fun UniversalSearchSongItem(
                                 MaterialTheme.colorScheme.secondary
                         )
                         Text(
-                            text = if (mode == "STREAMING") "Streaming" else "Local",
+                            text = if (mode == "STREAMING") {
+                                if (ProductCapabilities.lanSubsonicOnly) "公共音乐聚合服务" else "Streaming"
+                            } else "Local",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
                             color = if (mode == "STREAMING")
                                 MaterialTheme.colorScheme.primary
@@ -2455,7 +2457,9 @@ private fun SearchGridCard(
                             MaterialTheme.colorScheme.secondary
                     )
                     Text(
-                        text = if (item.mode == "STREAMING") "Streaming" else "Local",
+                        text = if (item.mode == "STREAMING") {
+                            if (ProductCapabilities.lanSubsonicOnly) "公共音乐聚合服务" else "Streaming"
+                        } else "Local",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
                         color = if (item.mode == "STREAMING")
                             MaterialTheme.colorScheme.primary

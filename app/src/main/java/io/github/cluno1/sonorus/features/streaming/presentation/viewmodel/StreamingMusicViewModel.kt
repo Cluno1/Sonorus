@@ -498,7 +498,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
                 if (!NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value)) {
                     clearContent()
-                    _error.value = "LAN music is not reachable on the current network"
+                    _error.value = "公共音乐聚合服务在当前网络不可用"
                     return@launch
                 }
 
@@ -521,8 +521,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _savedPlaylists.value = emptyList()
                 _downloadedSongs.value = emptyList()
             } catch (e: Exception) {
-                Log.e("StreamingMusicViewModel", "LAN Subsonic library sync failed", e)
-                _error.value = "Failed to load LAN music: ${e.message}"
+                Log.e("StreamingMusicViewModel", "Public music recommendations failed", e)
+                _error.value = "公共音乐加载失败： ${e.message}"
             } finally {
                 _hasLoadedHomeContent.value = true
                 _hasLoadedLibrary.value = true
@@ -745,7 +745,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     fun search(query: String) {
         _searchQuery.value = query
 
-        if (!ProductCapabilities.thirdPartyMusicServices) {
+        if (!ProductCapabilities.thirdPartyMusicServices && !ProductCapabilities.lanSubsonicOnly) {
             _searchResults.value = StreamingSearchResults()
             _isLoading.value = false
             _error.value = null
@@ -906,6 +906,17 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             _isPlaying.value = true
 
             playbackHandler?.invoke(queueWithResolvedSongs, selectedIndex)
+            if (ProductCapabilities.lanSubsonicOnly) {
+                viewModelScope.launch {
+                    runCatching {
+                        providerRepository?.publicMusicClient()?.metadata(
+                            LanSubsonicPlaybackPolicy.trackIdFromMediaId(selectedResolvedSong.id).orEmpty(),
+                            selectedResolvedSong.title, selectedResolvedSong.artist, selectedResolvedSong.album,
+                            selectedResolvedSong.duration, selectedResolvedSong.artworkUri,
+                        )
+                    }.getOrNull()?.let(::applyLanMetadata)
+                }
+            }
             }
     }
 
@@ -1590,6 +1601,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         if (StreamingServiceRules.requiresServerUrl(serviceId) && serverUrl.isBlank()) {
             throw IllegalArgumentException("Server URL is required")
         }
+        if (ProductCapabilities.lanSubsonicOnly) return // Device registration supplies the signed identity.
         val requiresUsername = true
         if (requiresUsername && username.isBlank()) {
             throw IllegalArgumentException("Username is required")
@@ -1634,6 +1646,9 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Get display name for SourceType
      */
     private fun getSourceTypeName(sourceType: SourceType): String {
+        if (ProductCapabilities.lanSubsonicOnly && sourceType == SourceType.SUBSONIC) {
+            return "公共音乐聚合服务"
+        }
         return when (sourceType) {
             SourceType.SUBSONIC -> "Subsonic"
             SourceType.JELLYFIN -> "Jellyfin"
@@ -1674,7 +1689,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
-                        _error.value = "Invalid LAN music track"
+                        _error.value = "公共音乐歌曲 ID 无效"
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)
@@ -1725,7 +1740,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
-                        _error.value = "Invalid LAN music track"
+                        _error.value = "公共音乐歌曲 ID 无效"
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)

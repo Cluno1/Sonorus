@@ -8391,27 +8391,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             lyricsFetchJob?.cancel()
             _currentLyrics.value = null
             _isLoadingLyrics.value = false
-            if (!showLyrics.value) return
-            val client = (io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
+            val streamingRepository = (io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
                 .provideStreamingMusicRepository(getApplication()) as io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl)
-                .lanMetadataClient()
-            val expectedServer = client.getServerUrl()
-            val trackId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) ?: return
+            if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) return
             lyricsFetchJob = viewModelScope.launch {
                 _isLoadingLyrics.value = true
                 try {
-                    val metadata = client.getLanSongMetadata(trackId, expectedServer).getOrNull()
-                    if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id && client.getServerUrl() == expectedServer) {
+                    val metadata = streamingRepository.publicMusicMetadata(song, manual = forceRefresh)
+                    if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) {
                         // Read the shared lyrics and tags, including edits made by another user.
                         if (metadata != null) {
-                            _currentLyrics.value = metadata.lyrics()
+                            if (showLyrics.value) _currentLyrics.value = metadata.lyrics()
                             _currentSong.value = metadata.applyTo(_currentSong.value ?: song)
                             _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map {
                                 if (it.id == song.id) metadata.applyTo(it) else it
                             })
-                            (io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
-                                .provideStreamingMusicRepository(getApplication()) as? io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl)
-                                ?.applyLanMetadata(metadata)
+                            streamingRepository.applyLanMetadata(metadata)
                         }
                     }
                 } finally {

@@ -2550,16 +2550,6 @@ private fun LocalNavigationContent(
                     )
                 }
 
-                composable(route = Screen.LanMusicUpload.route) {
-                    val uploadViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.LanMusicUploadViewModel =
-                        androidx.lifecycle.viewmodel.compose.viewModel()
-                    io.github.cluno1.sonorus.features.streaming.presentation.screens.LanMusicUploadScreen(
-                        viewModel = uploadViewModel,
-                        onLibraryChanged = { streamingMusicViewModel.loadLanLibrary(force = true) },
-                        onBack = { navController.popBackStack() },
-                    )
-                }
-
                 composable(
                     route = Screen.LanSongTags.route,
                     arguments = listOf(navArgument("songId") { type = NavType.StringType }),
@@ -2570,18 +2560,30 @@ private fun LocalNavigationContent(
                             ?: currentSong?.takeIf { it.id == songId }
                             ?: viewModel.currentQueue.value.songs.firstOrNull { it.id == songId }
                     }
-                    val tagsViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.LanSongTagsViewModel =
-                        androidx.lifecycle.viewmodel.compose.viewModel()
-                    io.github.cluno1.sonorus.features.streaming.presentation.screens.LanSongTagsScreen(
-                        song = targetSong, viewModel = tagsViewModel, appSettings = appSettings,
-                        onSaved = { metadata ->
-                            viewModel.applyLanSongMetadata(metadata)
-                            streamingMusicViewModel.applyLanMetadata(metadata)
-                            android.widget.Toast.makeText(context, R.string.lan_tags_saved, android.widget.Toast.LENGTH_SHORT).show()
-                            navController.popBackStack()
-                        },
-                        onBack = { navController.popBackStack() },
-                    )
+                    if (io.github.cluno1.sonorus.core.ProductCapabilities.lanSubsonicOnly) {
+                        io.github.cluno1.sonorus.features.streaming.presentation.screens.PublicMusicMetadataScreen(
+                            song = targetSong,
+                            onSaved = { metadata ->
+                                viewModel.applyLanSongMetadata(metadata)
+                                streamingMusicViewModel.applyLanMetadata(metadata)
+                                navController.popBackStack()
+                            },
+                            onBack = { navController.popBackStack() },
+                        )
+                    } else {
+                        val tagsViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.LanSongTagsViewModel =
+                            androidx.lifecycle.viewmodel.compose.viewModel()
+                        io.github.cluno1.sonorus.features.streaming.presentation.screens.LanSongTagsScreen(
+                            song = targetSong, viewModel = tagsViewModel, appSettings = appSettings,
+                            onSaved = { metadata ->
+                                viewModel.applyLanSongMetadata(metadata)
+                                streamingMusicViewModel.applyLanMetadata(metadata)
+                                android.widget.Toast.makeText(context, R.string.lan_tags_saved, android.widget.Toast.LENGTH_SHORT).show()
+                                navController.popBackStack()
+                            },
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                 }
 
                 composable(

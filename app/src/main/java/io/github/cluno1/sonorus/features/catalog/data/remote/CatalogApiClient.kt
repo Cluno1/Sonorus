@@ -81,6 +81,7 @@ internal class CatalogApiClient(
     val roomsApi: CatalogRoomsApi = retrofit.create(CatalogRoomsApi::class.java)
     val adminApi: CatalogAdminApi = retrofit.create(CatalogAdminApi::class.java)
     val imageApi: CatalogImageApi = retrofit.create(CatalogImageApi::class.java)
+    val musicApi: CatalogMusicApi = retrofit.create(CatalogMusicApi::class.java)
 
     /**
      * Streams one prepared image directly to COS. The signed URL is consumed in-memory and is

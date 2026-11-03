@@ -415,18 +415,11 @@ fun SettingsScreen(
                     ))
                     if (ProductCapabilities.lanSubsonicOnly) {
                         add(SettingItem(
-                            MaterialSymbolIcon("lan"),
+                            MaterialSymbolIcon("music_note"),
                             context.getString(R.string.settings_lan_music),
                             context.getString(R.string.settings_lan_music_desc),
                             palette = SettingsPalettes.Emerald,
                             onClick = { onNavigateTo(SettingsRoutes.LAN_SUBSONIC) },
-                        ))
-                        add(SettingItem(
-                            RhythmIcons.ArrowUpward,
-                            context.getString(R.string.lan_upload_title),
-                            context.getString(R.string.lan_upload_settings_desc),
-                            palette = SettingsPalettes.Emerald,
-                            onClick = { onNavigateTo(SettingsRoutes.LAN_MUSIC_UPLOAD) },
                         ))
                     }
                     if (!ProductCapabilities.catalogOnly) {
@@ -1103,13 +1096,6 @@ fun SettingsScreenWrapper(
             navController.navigate("catalog_settings")
         } else if (route == SettingsRoutes.LAN_SUBSONIC && ProductCapabilities.lanSubsonicOnly) {
             navController.navigate("streaming_service_setup/SUBSONIC") { launchSingleTop = true }
-        } else if (route == SettingsRoutes.LAN_MUSIC_UPLOAD && ProductCapabilities.lanSubsonicOnly) {
-            if (navController.graph.findNode(Screen.LanMusicUpload.route) != null) {
-                navController.navigate(Screen.LanMusicUpload.route) { launchSingleTop = true }
-            } else {
-                appSettings.setInitialStreamingRoute(Screen.LanMusicUpload.route)
-                if (!navController.popBackStack()) safeNavigateToMain(navController)
-            }
         } else if (route == SettingsRoutes.DEVICE_ADMIN) {
             if (navController.graph.findNode(Screen.DeviceAdmin.route) != null) {
                 navController.navigate(Screen.DeviceAdmin.route) { launchSingleTop = true }

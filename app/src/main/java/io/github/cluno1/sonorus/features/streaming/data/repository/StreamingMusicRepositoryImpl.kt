@@ -21,6 +21,7 @@ import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderArtist
 import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderPlaylist
 import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderSong
 import io.github.cluno1.sonorus.features.streaming.data.provider.SubsonicApiClient
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicApiClient
 import io.github.cluno1.sonorus.features.streaming.data.provider.UserTrustManager
 import io.github.cluno1.sonorus.features.streaming.domain.model.BrowseCategory
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
@@ -31,6 +32,7 @@ import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingService
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingSong
 import io.github.cluno1.sonorus.features.streaming.domain.repository.StreamingMusicRepository
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
+import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.network.NetworkClient
 import io.github.cluno1.sonorus.network.DeezerApiService
 import android.net.Uri
@@ -65,6 +67,10 @@ class StreamingMusicRepositoryImpl(
         check(ProductCapabilities.subsonicMusic) { "Subsonic is disabled in this build" }
         SubsonicApiClient(context)
     }
+    private val publicMusicClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        check(ProductCapabilities.lanSubsonicOnly)
+        PublicMusicApiClient(context)
+    }
     private val jellyfinClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         check(ProductCapabilities.jellyfinMusic) { "Jellyfin is disabled in this build" }
         JellyfinApiClient(context)
@@ -72,6 +78,18 @@ class StreamingMusicRepositoryImpl(
 
     // Reuse the active session, including sessions whose password is not saved on the phone.
     fun lanMetadataClient(): SubsonicApiClient = subsonicClient
+
+    suspend fun publicMusicMetadata(song: Song, manual: Boolean = false): io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata? {
+        if (!ProductCapabilities.lanSubsonicOnly) return null
+        val providerId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) ?: return null
+        val metadata = publicMusicClient.metadata(
+            providerId, song.title, song.artist, song.album, song.duration, song.artworkUri?.toString(), manual,
+        )
+        if (metadata != null) applyLanMetadata(metadata)
+        return metadata
+    }
+
+    fun publicMusicClient(): PublicMusicApiClient = publicMusicClient
 
     fun applyLanMetadata(metadata: io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata) {
         val id = LanSubsonicPlaybackPolicy.mediaId(metadata.trackId)
@@ -174,6 +192,11 @@ class StreamingMusicRepositoryImpl(
         password: String,
         saveCredentials: Boolean = true
     ): ServiceConnectionInfo {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            require(serviceId.equals(StreamingServiceId.SUBSONIC, ignoreCase = true))
+            val connection = publicMusicClient.connect(serverUrl)
+            return ServiceConnectionInfo(connection.displayName, connection.serverUrl)
+        }
         if (ProductCapabilities.lanSubsonicOnly &&
             !serviceId.equals(StreamingServiceId.SUBSONIC, ignoreCase = true)
         ) {
@@ -195,6 +218,11 @@ class StreamingMusicRepositoryImpl(
     }
 
     suspend fun disconnect(serviceId: String) {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            publicMusicClient.disconnect()
+            clearInMemoryCatalog()
+            return
+        }
         when (normalizeServiceId(serviceId)) {
             StreamingServiceId.SUBSONIC -> subsonicClient.logout()
             StreamingServiceId.JELLYFIN -> jellyfinClient.logout()
@@ -206,6 +234,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     fun isServiceConnected(serviceId: String): Boolean {
+        if (ProductCapabilities.lanSubsonicOnly) return publicMusicClient.isConnected()
         return when (normalizeServiceId(serviceId)) {
             StreamingServiceId.SUBSONIC -> subsonicClient.isConnected()
             StreamingServiceId.JELLYFIN -> jellyfinClient.isConnected()
@@ -218,6 +247,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun authenticate(): Boolean {
+        if (ProductCapabilities.lanSubsonicOnly) return publicMusicClient.ping()
         return when (activeServiceId()) {
             StreamingServiceId.SUBSONIC -> subsonicClient.ping().isSuccess
             StreamingServiceId.JELLYFIN -> jellyfinClient.ping().isSuccess
@@ -536,6 +566,10 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun getStreamingUrl(songId: String): String? {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            val providerId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(songId) ?: return null
+            return if (publicMusicClient.isConnected()) publicMusicClient.streamUrl(providerId) else null
+        }
         if (ProductCapabilities.lanSubsonicOnly &&
             LanSubsonicPlaybackPolicy.trackIdFromMediaId(songId) == null
         ) {
@@ -1038,6 +1072,12 @@ class StreamingMusicRepositoryImpl(
     }
 
     override suspend fun searchSongs(query: String): List<PlayableItem> {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            if (!publicMusicClient.isConnected() || query.isBlank()) return emptyList()
+            val songs = publicMusicClient.searchSongs(query).map { mapProviderSong(StreamingServiceId.SUBSONIC, it) }
+            mergeCatalog(songs)
+            return songs
+        }
         if (!ProductCapabilities.richStreamingFeatures) return emptyList()
         if (appSettings.offlineMode.value) {
             val results = downloadedSongsMap.values.filter {
@@ -1148,6 +1188,14 @@ class StreamingMusicRepositoryImpl(
     override suspend fun getSongById(id: String): PlayableItem? = songCache[id]
 
     override suspend fun syncCatalog(limit: Int): List<StreamingSong> {
+        if (ProductCapabilities.lanSubsonicOnly) {
+            val songs = if (publicMusicClient.isConnected()) {
+                publicMusicClient.recommendedSongs(limit.coerceIn(1, 200))
+                    .map { mapProviderSong(StreamingServiceId.SUBSONIC, it) }
+            } else emptyList()
+            replaceCatalog(songs)
+            return songs
+        }
         if (appSettings.offlineMode.value) {
             val downloadedList = downloadedSongsMap.values.toList()
             replaceCatalog(downloadedList)

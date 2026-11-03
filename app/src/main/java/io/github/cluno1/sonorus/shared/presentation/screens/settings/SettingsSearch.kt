@@ -840,18 +840,9 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
                 id = "lan_music",
                 title = context.getString(R.string.settings_lan_music),
                 description = context.getString(R.string.settings_lan_music_desc),
-                keywords = listOf("lan", "gateway", "subsonic", "局域网", "局域網", "网关", "閘道"),
-                icon = MaterialSymbolIcon("lan"),
+                keywords = listOf("公共音乐", "聚合", "音乐库", "music", "gateway"),
+                icon = MaterialSymbolIcon("music_note"),
                 route = SettingsRoutes.LAN_SUBSONIC,
-                parentScreen = context.getString(R.string.settings_section_notifications_services),
-            ))
-            add(SearchableSettingItem(
-                id = "lan_music_upload",
-                title = context.getString(R.string.lan_upload_title),
-                description = context.getString(R.string.lan_upload_settings_desc),
-                keywords = listOf("upload", "gateway", "music", "上传", "上傳", "网关", "閘道"),
-                icon = RhythmIcons.ArrowUpward,
-                route = SettingsRoutes.LAN_MUSIC_UPLOAD,
                 parentScreen = context.getString(R.string.settings_section_notifications_services),
             ))
         }

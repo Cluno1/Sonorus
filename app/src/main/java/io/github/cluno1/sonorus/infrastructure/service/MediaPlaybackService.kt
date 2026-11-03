@@ -1530,7 +1530,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
     private fun toggleCurrentSongFavorite() {
         val currentMediaItem = player.currentMediaItem
         if (isLanSubsonicMediaItem(currentMediaItem)) {
-            Log.w(TAG, "Ignoring favorite mutation for read-only LAN Subsonic media")
+            Log.w(TAG, "Ignoring favorite mutation for read-only public music media")
             return
         }
         if (currentMediaItem?.mediaId?.startsWith("rhythm-catalog:") == true) {
@@ -2447,7 +2447,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                     FAVORITE_OFF,
                 )
             if (readOnlyLanCommand) {
-                Log.w(TAG, "Rejected non-playback command for read-only LAN Subsonic media")
+                Log.w(TAG, "Rejected non-playback command for read-only public music media")
                 return Futures.immediateFuture(SessionResult(SessionError.ERROR_NOT_SUPPORTED))
             }
             

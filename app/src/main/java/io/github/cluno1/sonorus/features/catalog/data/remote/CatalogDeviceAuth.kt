@@ -298,6 +298,8 @@ internal class CatalogDeviceAuthClient(
         val isRead = request.method == "GET" || request.method == "HEAD"
         val isLyricWrite = request.method == "PUT" &&
             request.url.encodedPath.matches(Regex("^/v2/renditions/[^/]+/lyrics/[^/]+$"))
+        val isMusicMetadataWrite = request.method == "PUT" &&
+            request.url.encodedPath.matches(Regex("^/v2/music/sources/[a-z][a-z0-9_-]{1,39}/songs/[A-Za-z0-9_-]{1,80}/metadata$"))
         val isOwnedImageWrite = (
             request.url.encodedPath.startsWith("/v2/labs/image-upload") ||
                 request.url.encodedPath.startsWith("/v2/labs/images")
@@ -308,7 +310,7 @@ internal class CatalogDeviceAuthClient(
         val isWorkTagWrite = request.method == "PATCH" &&
             request.url.encodedPath.matches(Regex("^/v2/works/[^/]+/tags$"))
         require(
-            isRead || isLyricWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite ||
+            isRead || isLyricWrite || isMusicMetadataWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite ||
                 isCatalogRoomWrite(request.method, request.url.encodedPath) ||
                 isCatalogWorkLyricWrite(request.method, request.url.encodedPath),
         ) {

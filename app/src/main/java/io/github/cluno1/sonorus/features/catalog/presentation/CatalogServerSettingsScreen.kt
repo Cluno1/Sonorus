@@ -105,7 +105,7 @@ private fun CatalogDeviceEnrollmentScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var serverUrl by rememberSaveable { mutableStateOf("") }
+    var serverUrl by rememberSaveable(state.serverUrl) { mutableStateOf(state.serverUrl) }
     var inviteCode by rememberSaveable { mutableStateOf("") }
     var smartText by rememberSaveable { mutableStateOf("") }
     val miniPlayerBottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding()
@@ -113,7 +113,7 @@ private fun CatalogDeviceEnrollmentScreen(
 
     LaunchedEffect(state.deviceRegistered) {
         if (state.deviceRegistered) {
-            serverUrl = ""
+            serverUrl = state.serverUrl
             inviteCode = ""
             smartText = ""
         }
@@ -256,7 +256,7 @@ private fun CatalogAdminInviteScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var serverUrl by rememberSaveable { mutableStateOf("") }
+    var serverUrl by rememberSaveable(state.serverUrl) { mutableStateOf(state.serverUrl) }
     var adminUsername by rememberSaveable { mutableStateOf("") }
     var adminPassword by rememberSaveable { mutableStateOf("") }
     var userId by rememberSaveable { mutableStateOf("") }

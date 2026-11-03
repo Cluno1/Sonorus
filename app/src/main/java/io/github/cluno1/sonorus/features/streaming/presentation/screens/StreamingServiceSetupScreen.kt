@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceRules
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceId
@@ -71,6 +72,10 @@ fun StreamingServiceSetupScreen(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (ProductCapabilities.lanSubsonicOnly) {
+        PublicMusicSetupScreen(viewModel, onBackClick, modifier)
+        return
+    }
     val context = LocalContext.current
     val appSettings = remember(context) { AppSettings.getInstance(context) }
     val sessions by viewModel.serviceSessions.collectAsState()
@@ -376,5 +381,59 @@ fun StreamingServiceSetupScreen(
                 showDiscoverySheet = false
             }
         )
+    }
+}
+
+@Composable
+private fun PublicMusicSetupScreen(
+    viewModel: StreamingMusicViewModel,
+    onBackClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val registered = remember(context) { CatalogCredentialsStore(context).loadDevice() }
+    val sessions by viewModel.serviceSessions.collectAsState()
+    val session = sessions[StreamingServiceId.SUBSONIC] ?: viewModel.getServiceSession(StreamingServiceId.SUBSONIC)
+    val loading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    var serverUrl by rememberSaveable(registered?.serverUrl) {
+        mutableStateOf(registered?.serverUrl ?: session.serverUrl)
+    }
+    CollapsibleHeaderScreen(
+        title = stringResource(R.string.settings_lan_music),
+        showBackButton = true,
+        onBackClick = onBackClick,
+    ) { contentModifier ->
+        Column(
+            modifier = modifier.then(contentModifier).fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(stringResource(R.string.settings_lan_music_desc))
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                label = { Text(stringResource(R.string.catalog_server_address)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                if (registered == null) "请先在音乐库服务器设置中使用邀请码登记设备。"
+                else "已使用音乐库服务器的登记身份；无需再输入音乐账号密码。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Button(
+                onClick = { viewModel.connectService(StreamingServiceId.SUBSONIC, serverUrl, "", "") },
+                enabled = !loading && registered != null && serverUrl.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (session.isConnected) "重新连接" else "连接公共音乐聚合服务") }
+            if (session.isConnected) {
+                OutlinedButton(
+                    onClick = { viewModel.disconnectService(StreamingServiceId.SUBSONIC) },
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("断开连接") }
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
     }
 }
