@@ -151,6 +151,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.shared.data.model.PlaybackLocation
 import io.github.cluno1.sonorus.shared.data.model.Playlist
 import io.github.cluno1.sonorus.shared.data.model.Song
@@ -356,7 +358,10 @@ fun MaterialPlayerScreen(
     val playerProgressThumbRotate by appSettingsInstance.playerProgressThumbRotate.collectAsState()
     
     // Enhanced seeking settings
-    val enhancedSeekingEnabled by appSettingsInstance.enhancedSeekingEnabled.collectAsState()
+    val enhancedSeekingPreference by appSettingsInstance.enhancedSeekingEnabled.collectAsState()
+    val enhancedSeekingEnabled = enhancedSeekingPreference ||
+        (ProductCapabilities.lanSubsonicOnly &&
+            song?.id?.startsWith(LanSubsonicPlaybackPolicy.MEDIA_ID_PREFIX) == true)
     val showLyricsTranslation by appSettingsInstance.showLyricsTranslation.collectAsState()
     val showLyricsRomanization by appSettingsInstance.showLyricsRomanization.collectAsState()
     val keepScreenOnLyrics by appSettingsInstance.keepScreenOnLyrics.collectAsState()

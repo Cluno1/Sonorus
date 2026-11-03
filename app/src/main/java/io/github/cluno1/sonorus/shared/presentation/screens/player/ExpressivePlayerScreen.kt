@@ -96,6 +96,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.media3.common.Player
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.core.ProductCapabilities
+import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.ExtraControlBottomSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AddToPlaylistBottomSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.PlaybackBottomSheet
@@ -371,7 +373,11 @@ fun ExpressivePlayerScreen(
     val playerProgressStyle by appSettings.playerProgressStyle.collectAsState()
     val playerProgressThumbStyle by appSettings.playerProgressThumbStyle.collectAsState()
     val playerProgressThumbRotate by appSettings.playerProgressThumbRotate.collectAsState()
-    val enhancedSeekingEnabled by appSettings.enhancedSeekingEnabled.collectAsState()
+    val enhancedSeekingPreference by appSettings.enhancedSeekingEnabled.collectAsState()
+    // Network music should issue one Range request when a drag ends, not one for every pixel.
+    val enhancedSeekingEnabled = enhancedSeekingPreference ||
+        (ProductCapabilities.lanSubsonicOnly &&
+            song?.id?.startsWith(LanSubsonicPlaybackPolicy.MEDIA_ID_PREFIX) == true)
     val playerAmbientBackdropEnabled by appSettings.playerAmbientBackdropEnabled.collectAsState()
     val playerAmbientBackdropIntensity by appSettings.playerAmbientBackdropIntensity.collectAsState()
     val playerAmbientInfiniteZoom by appSettings.playerAmbientInfiniteZoom.collectAsState()
@@ -1570,12 +1576,19 @@ fun ExpressivePlayerScreen(
                                                 val ps = try { ProgressStyle.valueOf(playerProgressStyle) } catch (e: IllegalArgumentException) { ProgressStyle.NORMAL }
                                                 val ts = ThumbStyle.fromStorage(playerProgressThumbStyle)
                                                 Box(Modifier.fillMaxWidth().height(32.dp), contentAlignment = Alignment.Center) {
-                                                    StyledProgressBar(progress = progressValue, style = ps, modifier = Modifier.fillMaxWidth(),
+                                                    StyledProgressBar(progress = if (isScrubbing && enhancedSeekingEnabled) scrubProgress else progressValue, style = ps, modifier = Modifier.fillMaxWidth(),
                                                         progressColor = primaryColor, trackColor = onSurfaceColor.copy(alpha = 0.2f),
                                                         height = when (ps) { ProgressStyle.THIN -> 2.dp; ProgressStyle.THICK -> 12.dp; else -> 8.dp },
                                                         isPlaying = isPlaying, showThumb = ts != ThumbStyle.NONE, thumbStyle = ts, thumbSize = 14.dp, rotateThumbWhenPlaying = playerProgressThumbRotate, waveAmplitudeWhenPlaying = 3.dp, waveLength = 60.dp)
-                                                    Slider(value = progressValue, onValueChange = { onSeek(it) }, modifier = Modifier.fillMaxWidth(), enabled = canSeek,
-                                                        onValueChangeFinished = { HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT) },
+                                                    Slider(value = if (isScrubbing && enhancedSeekingEnabled) scrubProgress else progressValue,
+                                                        onValueChange = { value ->
+                                                            if (enhancedSeekingEnabled) { isScrubbing = true; scrubProgress = value }
+                                                            else onSeek(value)
+                                                        }, modifier = Modifier.fillMaxWidth(), enabled = canSeek,
+                                                        onValueChangeFinished = {
+                                                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                                                            if (enhancedSeekingEnabled && isScrubbing) { onSeek(scrubProgress); isScrubbing = false }
+                                                        },
                                                         colors = SliderDefaults.colors(thumbColor = Color.Transparent, activeTrackColor = Color.Transparent, inactiveTrackColor = Color.Transparent))
                                                 }
                                             }
