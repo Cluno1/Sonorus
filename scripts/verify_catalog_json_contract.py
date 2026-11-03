@@ -51,6 +51,7 @@ REMOTE_SOURCES = (
     "CatalogApi.kt",
     "CatalogDeviceAuth.kt",
     "CatalogDtos.kt",
+    "CatalogMusicApi.kt",
     "CatalogRoomDtos.kt",
 )
 EXPLICIT_MODELS = {

@@ -9,40 +9,40 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 internal data class PublicMusicSourceDto(
-    val id: String,
-    val name: String,
+    @SerializedName("id") val id: String,
+    @SerializedName("name") val name: String,
 )
 
-internal data class PublicMusicSourcesDto(val items: List<PublicMusicSourceDto>)
+internal data class PublicMusicSourcesDto(@SerializedName("items") val items: List<PublicMusicSourceDto>)
 
 internal data class PublicMusicSongDto(
     @SerializedName("source_id") val sourceId: String,
     @SerializedName("external_id") val externalId: String,
-    val title: String = "",
-    val artists: List<String> = emptyList(),
-    val album: String? = null,
+    @SerializedName("title") val title: String = "",
+    @SerializedName("artists") val artists: List<String> = emptyList(),
+    @SerializedName("album") val album: String? = null,
     @SerializedName("duration_ms") val durationMs: Long? = null,
     @SerializedName("artwork_url") val artworkUrl: String? = null,
     @SerializedName("artist_avatar_url") val artistAvatarUrl: String? = null,
     @SerializedName("lyrics_lrc") val lyricsLrc: String? = null,
-    val qualities: List<String> = emptyList(),
-    val mode: String? = null,
+    @SerializedName("qualities") val qualities: List<String> = emptyList(),
+    @SerializedName("mode") val mode: String? = null,
 )
 
-internal data class PublicMusicPageDto(val items: List<PublicMusicSongDto>)
-internal data class PublicMusicSearchDto(val sources: List<PublicMusicPageDto>)
-internal data class PublicMusicLyricsDto(val lrc: String)
+internal data class PublicMusicPageDto(@SerializedName("items") val items: List<PublicMusicSongDto>)
+internal data class PublicMusicSearchDto(@SerializedName("sources") val sources: List<PublicMusicPageDto>)
+internal data class PublicMusicLyricsDto(@SerializedName("lrc") val lrc: String)
 
 internal data class PublicMusicMetadataWriteDto(
-    val title: String,
-    val artists: List<String>,
-    val album: String?,
+    @SerializedName("title") val title: String,
+    @SerializedName("artists") val artists: List<String>,
+    @SerializedName("album") val album: String?,
     @SerializedName("duration_ms") val durationMs: Long?,
     @SerializedName("artwork_url") val artworkUrl: String?,
     @SerializedName("artist_avatar_url") val artistAvatarUrl: String?,
     @SerializedName("lyrics_lrc") val lyricsLrc: String?,
-    val qualities: List<String>,
-    val mode: String,
+    @SerializedName("qualities") val qualities: List<String>,
+    @SerializedName("mode") val mode: String,
 )
 
 internal interface CatalogMusicApi {
