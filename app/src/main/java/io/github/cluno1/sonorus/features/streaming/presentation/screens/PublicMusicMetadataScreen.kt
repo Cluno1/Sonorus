@@ -23,7 +23,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicException
+import io.github.cluno1.sonorus.features.streaming.data.provider.publicMusicErrorMessage
 import io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl
 import io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
@@ -64,31 +68,31 @@ fun PublicMusicMetadataScreen(
                 artwork = metadata.artworkUrl.orEmpty()
             }
         } catch (failure: Exception) {
-            error = failure.message
+            error = context.publicMusicErrorMessage(failure)
         } finally {
             busy = false
         }
     }
 
     CollapsibleHeaderScreen(
-        title = "公共音乐元数据", showBackButton = true, onBackClick = onBack,
+        title = stringResource(R.string.public_music_metadata_title), showBackButton = true, onBackClick = onBack,
     ) { contentModifier ->
         Column(
             modifier = contentModifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("优先显示后端已保存的信息。可以重新从公共来源获取，或手动修改后推送到后端。")
+            Text(stringResource(R.string.public_music_metadata_desc))
             if (song == null) {
-                Text("歌曲不可用", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.public_music_song_unavailable), color = MaterialTheme.colorScheme.error)
                 return@Column
             }
             if (busy) CircularProgressIndicator()
-            OutlinedTextField(title, { title = it }, label = { Text("歌名") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(artist, { artist = it }, label = { Text("歌手") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(album, { album = it }, label = { Text("专辑") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(artwork, { artwork = it }, label = { Text("封面地址") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(avatar, { avatar = it }, label = { Text("歌手头像地址") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(lyrics, { lyrics = it }, label = { Text("歌词 / LRC") }, minLines = 5, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(title, { title = it }, label = { Text(stringResource(R.string.public_music_field_title)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(artist, { artist = it }, label = { Text(stringResource(R.string.public_music_field_artist)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(album, { album = it }, label = { Text(stringResource(R.string.public_music_field_album)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(artwork, { artwork = it }, label = { Text(stringResource(R.string.public_music_field_artwork)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(avatar, { avatar = it }, label = { Text(stringResource(R.string.public_music_field_artist_avatar)) }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(lyrics, { lyrics = it }, label = { Text(stringResource(R.string.public_music_field_lyrics)) }, minLines = 5, modifier = Modifier.fillMaxWidth())
             OutlinedButton(
                 onClick = {
                     busy = true; error = null
@@ -102,32 +106,33 @@ fun PublicMusicMetadataScreen(
                                 artwork = metadata.artworkUrl.orEmpty()
                                 onSaved(metadata)
                             }
-                        } catch (failure: Exception) { error = failure.message }
+                        } catch (failure: Exception) { error = context.publicMusicErrorMessage(failure) }
                         finally { busy = false }
                     }
                 },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("从公共来源手动重新获取并保存") }
+            ) { Text(stringResource(R.string.public_music_refetch_and_save)) }
             Button(
                 onClick = {
                     busy = true; error = null
                     scope.launch {
                         try {
-                            val providerId = requireNotNull(LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id))
+                            val providerId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id)
+                                ?: throw PublicMusicException(PublicMusicException.Kind.INVALID_SONG_ID)
                             val saved = repository.publicMusicClient().saveManual(
                                 providerId, title, artist, album, lyrics,
                                 artwork.takeIf(String::isNotBlank), avatar.takeIf(String::isNotBlank),
                             )
                             repository.applyLanMetadata(saved)
                             onSaved(saved)
-                        } catch (failure: Exception) { error = failure.message }
+                        } catch (failure: Exception) { error = context.publicMusicErrorMessage(failure) }
                         finally { busy = false }
                     }
                 },
                 enabled = !busy && title.isNotBlank() && artist.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("保存手动元数据") }
+            ) { Text(stringResource(R.string.public_music_save_manual)) }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }

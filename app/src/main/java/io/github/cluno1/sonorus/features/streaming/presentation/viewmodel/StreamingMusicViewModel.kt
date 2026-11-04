@@ -38,6 +38,8 @@ import android.net.Uri
 import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.MusicViewModel
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicException
+import io.github.cluno1.sonorus.features.streaming.data.provider.publicMusicErrorMessage
 import io.github.cluno1.sonorus.core.ProductCapabilities
 import android.util.Log
 import androidx.core.net.toUri
@@ -301,6 +303,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 notificationManager.notifyAuthenticationSuccess(getSourceTypeName(sourceTypeFromServiceId(normalizedServiceId)))
             } catch (e: Exception) {
                 val userMessage = when {
+                    e is PublicMusicException -> getApplication<Application>().publicMusicErrorMessage(e)
                     e is java.net.ConnectException ||
                     e is java.net.SocketTimeoutException ||
                     (e is java.io.IOException && (e.message?.contains("connect", ignoreCase = true) == true ||
@@ -498,7 +501,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
                 if (!NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value)) {
                     clearContent()
-                    _error.value = "公共音乐聚合服务在当前网络不可用"
+                    _error.value = getApplication<Application>().getString(R.string.public_music_network_unavailable)
                     return@launch
                 }
 
@@ -522,7 +525,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _downloadedSongs.value = emptyList()
             } catch (e: Exception) {
                 Log.e("StreamingMusicViewModel", "Public music recommendations failed", e)
-                _error.value = "公共音乐加载失败： ${e.message}"
+                _error.value = getApplication<Application>().getString(R.string.public_music_load_failed, getApplication<Application>().publicMusicErrorMessage(e))
             } finally {
                 _hasLoadedHomeContent.value = true
                 _hasLoadedLibrary.value = true
@@ -795,7 +798,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     playlists = playlists
                 )
             } catch (e: Exception) {
-                _error.value = "Search failed: ${e.message}"
+                _error.value = "Search failed: ${getApplication<Application>().publicMusicErrorMessage(e)}"
             } finally {
                 _isLoading.value = false
             }
@@ -1647,7 +1650,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      */
     private fun getSourceTypeName(sourceType: SourceType): String {
         if (ProductCapabilities.lanSubsonicOnly && sourceType == SourceType.SUBSONIC) {
-            return "公共音乐聚合服务"
+            return getApplication<Application>().getString(R.string.settings_lan_music)
         }
         return when (sourceType) {
             SourceType.SUBSONIC -> "Subsonic"
@@ -1689,7 +1692,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
-                        _error.value = "公共音乐歌曲 ID 无效"
+                        _error.value = getApplication<Application>().getString(R.string.public_music_error_invalid_song)
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)
@@ -1740,7 +1743,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
-                        _error.value = "公共音乐歌曲 ID 无效"
+                        _error.value = getApplication<Application>().getString(R.string.public_music_error_invalid_song)
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)

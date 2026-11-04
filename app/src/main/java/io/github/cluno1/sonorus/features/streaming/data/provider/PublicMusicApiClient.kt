@@ -1,7 +1,10 @@
 package io.github.cluno1.sonorus.features.streaming.data.provider
 
 import android.content.Context
+import android.content.res.Configuration
+import android.util.Log
 import androidx.core.content.edit
+import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogApiClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogEndpoint
@@ -10,16 +13,26 @@ import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicMetadata
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicSongDto
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
-import java.io.IOException
+import java.util.Locale
 
 /** The first-party, device-authenticated gateway replacing LX01 in private builds. */
 class PublicMusicApiClient(context: Context) {
+    private val appContext = context.applicationContext
     private val credentials = CatalogCredentialsStore(context)
     private val prefs = context.getSharedPreferences("public_music_service", Context.MODE_PRIVATE)
     private var cachedApi: Pair<String, CatalogMusicApi>? = null
 
+    // Cached songs can keep the placeholder of the language active when they were mapped.
+    private val artistPlaceholders: Set<String> by lazy {
+        listOf(Locale.ENGLISH, Locale.SIMPLIFIED_CHINESE, Locale.TRADITIONAL_CHINESE)
+            .mapTo(mutableSetOf(appContext.getString(R.string.unknown_artist))) { locale ->
+                val configuration = Configuration(appContext.resources.configuration).apply { setLocale(locale) }
+                appContext.createConfigurationContext(configuration).getString(R.string.unknown_artist)
+            }
+    }
+
     private fun server(): String = credentials.loadDevice()?.serverUrl
-        ?: throw IllegalStateException("请先登记音乐库服务器和设备")
+        ?: throw PublicMusicException(PublicMusicException.Kind.DEVICE_NOT_REGISTERED)
 
     private fun api(): CatalogMusicApi {
         val url = server()
@@ -39,11 +52,11 @@ class PublicMusicApiClient(context: Context) {
 
     suspend fun connect(rawUrl: String): ProviderConnectionResult {
         val url = CatalogEndpoint.normalize(rawUrl)
-        val device = credentials.loadDevice() ?: error("请先用邀请码登记音乐库服务器")
-        require(device.serverUrl == url) { "公共音乐服务地址须与已登记的音乐库服务器一致" }
+        val device = credentials.loadDevice() ?: throw PublicMusicException(PublicMusicException.Kind.DEVICE_NOT_REGISTERED)
+        if (device.serverUrl != url) throw PublicMusicException(PublicMusicException.Kind.SERVER_MISMATCH)
         val sources = api().sources()
-        check(sources.isSuccessful && !sources.body()?.items.isNullOrEmpty()) {
-            "公共音乐服务不可用，请在 Web 管理台启用至少一个来源"
+        if (!sources.isSuccessful || sources.body()?.items.isNullOrEmpty()) {
+            throw PublicMusicException(PublicMusicException.Kind.SERVICE_UNAVAILABLE, sources.code())
         }
         prefs.edit { putString("server_url", url) }
         return ProviderConnectionResult(device.userId, url)
@@ -57,13 +70,13 @@ class PublicMusicApiClient(context: Context) {
 
     suspend fun searchSongs(query: String): List<ProviderSong> {
         val response = api().search(query)
-        if (!response.isSuccessful) throw IOException("音乐搜索失败（${response.code()}）")
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.SEARCH_FAILED, response.code())
         return response.body()?.sources.orEmpty().flatMap { page -> page.items.mapNotNull(::toSong) }
     }
 
     suspend fun recommendedSongs(limit: Int): List<ProviderSong> {
         val sources = api().sources()
-        if (!sources.isSuccessful) throw IOException("音乐来源读取失败（${sources.code()}）")
+        if (!sources.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.SOURCES_FAILED, sources.code())
         return sources.body()?.items.orEmpty().flatMap { source ->
             runCatching { api().recommend(source.id).body()?.items.orEmpty().mapNotNull(::toSong) }
                 .getOrDefault(emptyList())
@@ -85,33 +98,11 @@ class PublicMusicApiClient(context: Context) {
         manual: Boolean = false,
     ): LanSongMetadata? {
         val (source, song) = split(providerId) ?: return null
-        var stored: PublicMusicSongDto? = null
-        if (!manual) {
-            val cached = api().metadata(source, song)
-            if (cached.isSuccessful) {
-                stored = cached.body()
-                if (!stored?.lyricsLrc.isNullOrBlank()) return toMetadata(providerId, stored)
-            }
-            if (!cached.isSuccessful && cached.code() != 404) throw IOException("音乐元数据读取失败（${cached.code()}）")
-        }
-        val detail = runCatching { api().song(source, song, refresh = true).body() }.getOrNull()
-        val lyrics = runCatching { api().lyrics(source, song, refresh = true).body()?.lrc }.getOrNull()
-        if (stored != null && detail == null && lyrics == null) return toMetadata(providerId, stored)
-        val body = PublicMusicMetadataWriteDto(
-            title = stored?.title ?: title.ifBlank { detail?.title.orEmpty() },
-            artists = stored?.artists ?: listOf(artist.ifBlank { detail?.artists?.firstOrNull().orEmpty() }.ifBlank { "未知歌手" }),
-            album = stored?.album ?: album.ifBlank { detail?.album.orEmpty() }.ifBlank { null },
-            durationMs = stored?.durationMs ?: durationMs.takeIf { it > 0 } ?: detail?.durationMs,
-            artworkUrl = stored?.artworkUrl ?: detail?.artworkUrl ?: artworkUrl,
-            artistAvatarUrl = stored?.artistAvatarUrl ?: detail?.artistAvatarUrl,
-            lyricsLrc = stored?.lyricsLrc ?: lyrics,
-            qualities = stored?.qualities ?: detail?.qualities.orEmpty(),
-            mode = if (manual || stored?.mode == "manual") "manual" else "auto",
+        val result = syncPublicMusicMetadata(
+            api(), source, song, title, artist, album, durationMs, artworkUrl, manual, artistPlaceholders,
         )
-        if (body.title.isBlank()) return null
-        val saved = api().saveMetadata(source, song, body)
-        if (!saved.isSuccessful) throw IOException("音乐元数据保存失败（${saved.code()}）")
-        return saved.body()?.let { toMetadata(providerId, it) }
+        if (result.writeSkipped) Log.w(TAG, "Metadata write skipped without a known artist: $providerId")
+        return result.song?.let { toMetadata(providerId, it) }
     }
 
     suspend fun saveManual(
@@ -123,14 +114,14 @@ class PublicMusicApiClient(context: Context) {
         artworkUrl: String?,
         artistAvatarUrl: String?,
     ): LanSongMetadata {
-        val (source, song) = split(providerId) ?: error("歌曲 ID 无效")
+        val (source, song) = split(providerId) ?: throw PublicMusicException(PublicMusicException.Kind.INVALID_SONG_ID)
         val previous = api().metadata(source, song).body()
         val response = api().saveMetadata(source, song, PublicMusicMetadataWriteDto(
             title = title.trim(), artists = listOf(artist.trim()), album = album.trim().ifBlank { null },
             durationMs = previous?.durationMs, artworkUrl = artworkUrl, artistAvatarUrl = artistAvatarUrl,
             lyricsLrc = lyrics.takeIf(String::isNotBlank), qualities = previous?.qualities.orEmpty(), mode = "manual",
         ))
-        if (!response.isSuccessful) throw IOException("手动元数据保存失败（${response.code()}）")
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.MANUAL_SAVE_FAILED, response.code())
         return toMetadata(providerId, requireNotNull(response.body()))
     }
 
@@ -139,7 +130,7 @@ class PublicMusicApiClient(context: Context) {
         return ProviderSong(
             providerId = "${item.sourceId}:${item.externalId}",
             title = item.title,
-            artist = item.artists.joinToString("、").ifBlank { "未知歌手" },
+            artist = item.artists.joinToString(artistSeparator()).ifBlank { appContext.getString(R.string.unknown_artist) },
             album = item.album.orEmpty(),
             durationMs = item.durationMs ?: 0L,
             artworkUrl = displayArtwork(item.artworkUrl),
@@ -148,13 +139,15 @@ class PublicMusicApiClient(context: Context) {
 
     private fun toMetadata(providerId: String, item: PublicMusicSongDto): LanSongMetadata = LanSongMetadata(
         trackId = providerId,
-        fields = mapOf("title" to item.title, "artist" to item.artists.joinToString("、"), "album" to item.album.orEmpty()),
+        fields = mapOf("title" to item.title, "artist" to item.artists.joinToString(artistSeparator()), "album" to item.album.orEmpty()),
         artworkUrl = displayArtwork(item.artworkUrl),
         plainLyrics = item.lyricsLrc?.takeUnless { it.contains(Regex("\\[\\d{2}:\\d{2}")) }.orEmpty(),
         syncedLyrics = item.lyricsLrc?.takeIf { it.contains(Regex("\\[\\d{2}:\\d{2}")) }.orEmpty(),
-        lyricsSource = "公共音乐聚合服务", lyricsExternalId = "",
+        lyricsSource = appContext.getString(R.string.settings_lan_music), lyricsExternalId = "",
         overriddenFields = setOf("title", "artist", "album"),
     )
+
+    private fun artistSeparator(): String = appContext.getString(R.string.public_music_artist_separator)
 
     private fun displayArtwork(value: String?): String? {
         if (value.isNullOrBlank()) return null
@@ -167,5 +160,9 @@ class PublicMusicApiClient(context: Context) {
         val match = Regex("^([a-z][a-z0-9_-]{1,39}):([A-Za-z0-9_-]{1,80})$").matchEntire(providerId)
             ?: return null
         return match.groupValues[1] to match.groupValues[2]
+    }
+
+    private companion object {
+        const val TAG = "PublicMusicApiClient"
     }
 }

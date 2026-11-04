@@ -417,21 +417,23 @@ private fun PublicMusicSetupScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                if (registered == null) "请先在音乐库服务器设置中使用邀请码登记设备。"
-                else "已使用音乐库服务器的登记身份；无需再输入音乐账号密码。",
+                stringResource(
+                    if (registered == null) R.string.public_music_setup_register_first
+                    else R.string.public_music_setup_registered,
+                ),
                 style = MaterialTheme.typography.bodySmall,
             )
             Button(
                 onClick = { viewModel.connectService(StreamingServiceId.SUBSONIC, serverUrl, "", "") },
                 enabled = !loading && registered != null && serverUrl.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (session.isConnected) "重新连接" else "连接公共音乐聚合服务") }
+            ) { Text(stringResource(if (session.isConnected) R.string.public_music_reconnect else R.string.public_music_connect)) }
             if (session.isConnected) {
                 OutlinedButton(
                     onClick = { viewModel.disconnectService(StreamingServiceId.SUBSONIC) },
                     enabled = !loading,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("断开连接") }
+                ) { Text(stringResource(R.string.public_music_disconnect)) }
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
