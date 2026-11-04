@@ -14,6 +14,7 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import kotlin.math.max
+import kotlin.math.min
 
 /** Pulses around active note heads without covering or changing their original glyphs. */
 internal class ScorePlaybackOverlayView(context: Context) : View(context) {
@@ -109,6 +110,21 @@ internal class ScorePlaybackOverlayView(context: Context) : View(context) {
 
     fun refresh(lookup: BoundsLookup?) {
         updateMarkers(lookup)
+    }
+
+    /** The printed bar number sits just above the left edge of its first staff. */
+    fun barIndexAt(xPx: Float, yPx: Float, lookup: BoundsLookup?): Int? {
+        if (lookup?.isFinished != true) return null
+        val x = xPx / density
+        val y = yPx / density
+        return lookup.staffSystems.toList().asSequence()
+            .flatMap { it.bars.toList().asSequence() }
+            .firstOrNull { bar ->
+                val bounds = bar.visualBounds
+                x >= bounds.x - 8.0 &&
+                    x <= min(bounds.x + 80.0, bounds.x + bounds.w) &&
+                    y >= bounds.y - 28.0 && y <= bounds.y + 18.0
+            }?.index?.toInt()
     }
 
     private fun updateMarkers(lookup: BoundsLookup?) {

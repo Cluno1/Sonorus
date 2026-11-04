@@ -3017,6 +3017,8 @@
     <string name="score_pause_at_end">播完暫停</string>
     <string name="score_loop_current">循環目前樂譜</string>
     <string name="score_metronome">節拍器</string>
+    <string name="score_count_in">播放前預備拍（一小節）</string>
+    <string name="score_count_in_progress">預備拍 %1$d/%2$d</string>
     <string name="score_metronome_on">開</string>
     <string name="score_metronome_off">關</string>
     <string name="labs_lyrics_editor">歌詞編輯器</string>

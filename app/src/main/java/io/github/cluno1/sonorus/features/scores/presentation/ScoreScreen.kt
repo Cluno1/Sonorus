@@ -24,6 +24,8 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.SystemClock
 import android.view.View
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.ViewTreeObserver
 import android.widget.RelativeLayout
 import android.widget.ScrollView
@@ -116,6 +118,7 @@ import io.github.cluno1.sonorus.shared.data.repository.PlaybackDurationAccumulat
 import io.github.cluno1.sonorus.shared.data.repository.PlaybackStatsRepository
 import io.github.cluno1.sonorus.shared.data.repository.PlaybackSubject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class ScoreViewMode {
@@ -131,6 +134,12 @@ private enum class ScorePlaybackStatus {
     PAUSED,
     ERROR
 }
+
+private data class ScoreCountInCue(
+    val token: Long,
+    val beats: Int,
+    val beatDurationMs: Long,
+)
 
 enum class ScorePlaybackCommandAction { PLAY, PAUSE, STOP }
 
@@ -195,6 +204,7 @@ private class ScorePlaybackController(
     private val onPlaybackStarted: () -> Unit = {},
     private val onPlaybackPaused: () -> Unit = {},
     private val onPositionChanged: (tick: Long, timeMs: Long) -> Unit = { _, _ -> },
+    private val onCountInChanged: (ScoreCountInCue?) -> Unit = {},
 ) {
     private var view: AlphaTabView? = null
     private var score: Score? = null
@@ -208,6 +218,10 @@ private class ScorePlaybackController(
     private var activePositions: List<ScorePlaybackBeatPosition> = emptyList()
     private var playbackSpeed = 1.0
     private var metronomeEnabled = false
+    private var countInEnabled = false
+    private var countInCue: ScoreCountInCue? = null
+    private var countInStartedAtMs = 0L
+    private var pendingBarIndex: Int? = null
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private var audioFocusRequest: AudioFocusRequest? = null
     private var isPlaying = false
@@ -228,7 +242,7 @@ private class ScorePlaybackController(
                 if (resumeAfterTransientFocusLoss) {
                     resumeAfterTransientFocusLoss = false
                     view?.post {
-                        if (!isPlaying) view?.api?.playPause()
+                        if (!isPlaying) playPause()
                     }
                 }
             }
@@ -236,6 +250,7 @@ private class ScorePlaybackController(
     }
 
     fun attach(view: AlphaTabView, score: Score) {
+        clearCountIn()
         this.view = view
         this.score = score
         playerIsReady = false
@@ -246,6 +261,7 @@ private class ScorePlaybackController(
 
     fun detach(view: AlphaTabView) {
         if (this.view === view) {
+            clearCountIn()
             this.view = null
             score = null
             playerIsReady = false
@@ -261,7 +277,12 @@ private class ScorePlaybackController(
             playerIsReady = true
             view.api.playbackSpeed = playbackSpeed
             applyMetronome()
+            view.api.countInVolume = if (countInEnabled) SCORE_METRONOME_VOLUME else 0.0
             applyMutedTracks()
+            pendingBarIndex?.let { index ->
+                pendingBarIndex = null
+                seekToBar(index)
+            }
         }
     }
 
@@ -297,11 +318,56 @@ private class ScorePlaybackController(
         Log.i(SCORE_PLAYBACK_TAG, "metronome=${if (enabled) "on" else "off"}")
     }
 
+    fun setCountInEnabled(enabled: Boolean) {
+        if (enabled == countInEnabled) return
+        countInEnabled = enabled
+        if (!enabled) clearCountIn()
+        applyCountIn()
+        Log.i(SCORE_PLAYBACK_TAG, "count-in=${if (enabled) "on" else "off"}")
+    }
+
+    fun queueBarSeekForNextScore(index: Int) {
+        pendingBarIndex = index
+        clearCountIn()
+    }
+
+    fun seekToBar(index: Int) {
+        val currentView = view
+        if (currentView == null || !playerIsReady) {
+            pendingBarIndex = index
+            return
+        }
+        val target = (currentView.api.tickCache?.masterBars?.toList() ?: return)
+            .firstOrNull { it.masterBar.index.toInt() == index } ?: return
+        if (completionTracker.consumeFinished()) currentView.api.stop()
+        clearCountIn()
+        currentTick = target.start
+        currentTime = 0.0
+        endTime = 0.0
+        activePositions = emptyList()
+        currentView.api.tickPosition = target.start
+        displayBindings.forEach { (displayView, binding) ->
+            displayView.post {
+                if (displayBindings[displayView] === binding) {
+                    displayView.api.tickPosition = target.start
+                    if (binding.mode == ScorePlaybackIndicatorMode.PULSE) {
+                        binding.onPulsePositions(emptyList())
+                    }
+                }
+            }
+        }
+        Log.i(SCORE_PLAYBACK_TAG, "bar seek index=$index tick=${target.start}")
+        if (!isPlaying) playPause()
+    }
+
     fun playPause() {
         val currentView = view ?: return
         if (!isPlaying) {
             pauseMainPlayer()
             if (!requestAudioFocus()) return
+            startCountInIfEnabled(currentView)
+        } else {
+            clearCountIn()
         }
         if (completionTracker.consumeFinished()) {
             // alphaTab's Android player runs commands on a FIFO worker queue. Queueing stop
@@ -323,12 +389,15 @@ private class ScorePlaybackController(
         if (!isPlaying) return
         val currentView = view ?: return
         isPlaying = false
+        clearCountIn()
         onPlaybackPaused()
         currentView.api.playPause()
     }
 
     fun stop() {
         completionTracker.reset()
+        pendingBarIndex = null
+        clearCountIn()
         isPlaying = false
         onPlaybackPaused()
         resumeAfterTransientFocusLoss = false
@@ -339,6 +408,7 @@ private class ScorePlaybackController(
 
     fun onPlayerFinished(view: AlphaTabView) {
         if (this.view === view) {
+            clearCountIn()
             completionTracker.markFinished()
             isPlaying = false
             onPlaybackPaused()
@@ -359,6 +429,7 @@ private class ScorePlaybackController(
 
     fun onPlayerPaused(view: AlphaTabView) {
         if (this.view === view) {
+            clearCountIn()
             isPlaying = false
             onPlaybackPaused()
             updateDisplayPlaybackState(playing = false)
@@ -376,6 +447,13 @@ private class ScorePlaybackController(
         currentTick = tick
         currentTime = time
         endTime = totalTime
+        val cue = countInCue
+        if (cue != null && isPlaying &&
+            SystemClock.elapsedRealtime() - countInStartedAtMs >=
+                cue.beatDurationMs * cue.beats - cue.beatDurationMs / 2
+        ) {
+            clearCountIn()
+        }
         onPositionChanged(tick.toLong(), time.toLong())
         displayBindings.forEach { (displayView, binding) ->
             displayView.post {
@@ -531,6 +609,38 @@ private class ScorePlaybackController(
         }
     }
 
+    private fun applyCountIn() {
+        val currentView = view ?: return
+        currentView.post {
+            if (view === currentView && playerIsReady) {
+                currentView.api.countInVolume = if (countInEnabled) SCORE_METRONOME_VOLUME else 0.0
+            }
+        }
+    }
+
+    private fun startCountInIfEnabled(currentView: AlphaTabView) {
+        clearCountIn()
+        if (!countInEnabled || !playerIsReady) return
+        val bars = currentView.api.tickCache?.masterBars?.toList() ?: return
+        val bar = bars
+            .lastOrNull { it.start <= currentTick && currentTick < it.end }
+            ?: bars.firstOrNull() ?: return
+        val beats = bar.masterBar.timeSignatureNumerator.toInt().coerceIn(1, 32)
+        val denominator = bar.masterBar.timeSignatureDenominator.takeIf { it > 0.0 } ?: 4.0
+        val tempo = bar.tempo.takeIf { it.isFinite() && it > 0.0 } ?: return
+        val beatDurationMs = (60_000.0 * 4.0 / denominator / tempo / playbackSpeed)
+            .toLong().coerceAtLeast(60L)
+        countInCue = ScoreCountInCue(SystemClock.elapsedRealtimeNanos(), beats, beatDurationMs)
+        countInStartedAtMs = SystemClock.elapsedRealtime()
+        onCountInChanged(countInCue)
+    }
+
+    private fun clearCountIn() {
+        if (countInCue == null) return
+        countInCue = null
+        onCountInChanged(null)
+    }
+
     private fun requestAudioFocus(): Boolean {
         if (audioFocusRequest != null) return true
         val attributes = AudioAttributes.Builder()
@@ -568,6 +678,7 @@ private class ScorePlaybackController(
         val currentView = view ?: return
         if (!isPlaying) return
         isPlaying = false
+        clearCountIn()
         onPlaybackPaused()
         currentView.post {
             if (view === currentView) currentView.api.playPause()
@@ -867,6 +978,11 @@ private fun ScoreReadyContent(
     var metronomeEnabled by remember {
         mutableStateOf(initialGlobalSettings.metronomeEnabled)
     }
+    var countInEnabled by remember {
+        mutableStateOf(initialGlobalSettings.countInEnabled)
+    }
+    var countInCue by remember { mutableStateOf<ScoreCountInCue?>(null) }
+    var countInBeat by remember { mutableIntStateOf(1) }
     var playbackEndBehavior by remember {
         mutableStateOf(
             runCatching {
@@ -944,9 +1060,21 @@ private fun ScoreReadyContent(
             onPlaybackStarted = { scoreUsageRecorder?.onPlaybackStarted() },
             onPlaybackPaused = { scoreUsageRecorder?.onPlaybackPaused() },
             onPositionChanged = { tick, timeMs -> currentPositionCallback(tick, timeMs) },
+            onCountInChanged = { countInCue = it },
         )
     }
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(countInCue?.token) {
+        val cue = countInCue ?: return@LaunchedEffect
+        countInBeat = 1
+        repeat(cue.beats - 1) {
+            delay(cue.beatDurationMs)
+            countInBeat++
+        }
+        delay(cue.beatDurationMs + 1_500L)
+        if (countInCue?.token == cue.token) countInCue = null
+    }
 
     LaunchedEffect(playbackCommand) {
         when (playbackCommand?.action) {
@@ -990,6 +1118,7 @@ private fun ScoreReadyContent(
         indicatorMode: ScorePlaybackIndicatorMode = playbackIndicatorMode,
         followScroll: Boolean = followScrollEnabled,
         metronome: Boolean = metronomeEnabled,
+        countIn: Boolean = countInEnabled,
         endBehavior: ScorePlaybackEndBehavior = playbackEndBehavior,
         layout: ScoreNotationLayout = notationLayout,
         colorMode: ScorePartColorMode = partColorMode,
@@ -1000,6 +1129,7 @@ private fun ScoreReadyContent(
                 playbackIndicatorMode = indicatorMode.name,
                 followScrollEnabled = followScroll,
                 metronomeEnabled = metronome,
+                countInEnabled = countIn,
                 playbackEndBehavior = endBehavior.name,
                 notationLayout = layout.name,
                 partColorMode = colorMode.name,
@@ -1129,6 +1259,9 @@ private fun ScoreReadyContent(
     LaunchedEffect(playbackController, metronomeEnabled) {
         playbackController.setMetronomeEnabled(metronomeEnabled)
     }
+    LaunchedEffect(playbackController, countInEnabled) {
+        playbackController.setCountInEnabled(countInEnabled)
+    }
 
     val editSaveSuccess = stringResource(R.string.score_edit_save_success)
     val editApplyError = stringResource(R.string.score_edit_apply_error)
@@ -1233,6 +1366,16 @@ private fun ScoreReadyContent(
         }
     }
 
+    fun seekBar(variant: BundledScoreVariant, index: Int) {
+        if (editSession != null || !playbackInteractionEnabled) return
+        if (variant == playbackVariant) {
+            playbackController.seekToBar(index)
+        } else {
+            playbackController.queueBarSeekForNextScore(index)
+            playbackVariant = variant
+        }
+    }
+
     Column(modifier = modifier) {
         ScorePlaybackControls(
             title = title,
@@ -1244,6 +1387,7 @@ private fun ScoreReadyContent(
             indicatorMode = playbackIndicatorMode,
             followScrollEnabled = followScrollEnabled,
             metronomeEnabled = metronomeEnabled,
+            countInEnabled = countInEnabled,
             sourceBpm = displayedSourceBpm,
             targetBpm = targetPlaybackBpm,
             hasCustomBpm = customPlaybackBpm != null,
@@ -1259,6 +1403,10 @@ private fun ScoreReadyContent(
             onMetronomeEnabledChange = {
                 metronomeEnabled = it
                 persistGlobalSettings(metronome = it)
+            },
+            onCountInEnabledChange = {
+                countInEnabled = it
+                persistGlobalSettings(countIn = it)
             },
             onTargetBpmChange = { bpm ->
                 val nextBpm = bpm.coerceIn(
@@ -1441,6 +1589,7 @@ private fun ScoreReadyContent(
                                 editMessage = null
                             }
                         },
+                        onBarTap = { index -> seekBar(BundledScoreVariant.OCR, index) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1475,6 +1624,7 @@ private fun ScoreReadyContent(
                                 editMessage = null
                             }
                         },
+                        onBarTap = { index -> seekBar(BundledScoreVariant.MIDI, index) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -1491,6 +1641,7 @@ private fun ScoreReadyContent(
                         playbackController = playbackController,
                         mergedDisplayScore = currentMergedScores?.get(BundledScoreVariant.OCR),
                         selectedTrackIndexes = selectedTrackIndexes,
+                        onBarTap = { index -> seekBar(BundledScoreVariant.OCR, index) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
@@ -1506,6 +1657,7 @@ private fun ScoreReadyContent(
                         playbackController = playbackController,
                         mergedDisplayScore = currentMergedScores?.get(BundledScoreVariant.MIDI),
                         selectedTrackIndexes = selectedTrackIndexes,
+                        onBarTap = { index -> seekBar(BundledScoreVariant.MIDI, index) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
@@ -1525,6 +1677,25 @@ private fun ScoreReadyContent(
             }
 
             overlayContent()
+
+            countInCue?.let { cue ->
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shadowElevation = 6.dp,
+                ) {
+                    Text(
+                        text = stringResource(R.string.score_count_in_progress, countInBeat, cue.beats),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
+                    )
+                }
+            }
 
         }
         if (editSession != null) {
@@ -1944,6 +2115,7 @@ private fun ScorePlaybackControls(
     indicatorMode: ScorePlaybackIndicatorMode,
     followScrollEnabled: Boolean,
     metronomeEnabled: Boolean,
+    countInEnabled: Boolean,
     sourceBpm: Int,
     targetBpm: Int,
     hasCustomBpm: Boolean,
@@ -1951,6 +2123,7 @@ private fun ScorePlaybackControls(
     onIndicatorModeChange: (ScorePlaybackIndicatorMode) -> Unit,
     onFollowScrollChange: (Boolean) -> Unit,
     onMetronomeEnabledChange: (Boolean) -> Unit,
+    onCountInEnabledChange: (Boolean) -> Unit,
     onTargetBpmChange: (Int) -> Unit,
     onResetBpm: () -> Unit,
     endBehavior: ScorePlaybackEndBehavior,
@@ -2214,6 +2387,28 @@ private fun ScorePlaybackControls(
                         )
                     }
                 }
+                ScoreSettingsCard(
+                    icon = RhythmIcons.Player.Timer,
+                    title = stringResource(R.string.score_count_in),
+                ) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ScoreModeChip(
+                            selected = countInEnabled,
+                            onClick = { onCountInEnabledChange(true) },
+                            label = stringResource(R.string.score_metronome_on),
+                            enabled = interactionEnabled,
+                        )
+                        ScoreModeChip(
+                            selected = !countInEnabled,
+                            onClick = { onCountInEnabledChange(false) },
+                            label = stringResource(R.string.score_metronome_off),
+                            enabled = interactionEnabled,
+                        )
+                    }
+                }
                 settingsFooterContent()
             }
           }
@@ -2365,6 +2560,7 @@ private fun ScoreComparePane(
     playbackController: ScorePlaybackController,
     mergedDisplayScore: MergedDisplayScore?,
     selectedTrackIndexes: Set<Int>,
+    onBarTap: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -2396,6 +2592,7 @@ private fun ScoreComparePane(
                 playbackController = playbackController,
                 mergedDisplayScore = mergedDisplayScore,
                 selectedTrackIndexes = selectedTrackIndexes,
+                onBarTap = onBarTap,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -2543,9 +2740,62 @@ private data class AlphaTabScoreViewState(
     val renderSurface: View,
     val renderSurfaceLayoutListener: View.OnLayoutChangeListener?,
     val innerScroll: ScrollView,
+    val barTapListener: ScoreBarTapTouchListener?,
     // issue 119: drives the back-to-top button; removed with the view.
     val backToTopListener: ViewTreeObserver.OnScrollChangedListener,
 )
+
+private class ScoreBarTapTouchListener(
+    private val overlay: ScorePlaybackOverlayView,
+    private val renderSurface: View,
+    private val displayView: AlphaTabView,
+    context: Context,
+) : View.OnTouchListener {
+    var onBarTap: (Int) -> Unit = {}
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private val surfaceLocation = IntArray(2)
+    private val scrollLocation = IntArray(2)
+    private var downX = 0f
+    private var downY = 0f
+    private var downBar: Int? = null
+    private var moved = false
+
+    override fun onTouch(view: View, event: MotionEvent): Boolean {
+        if (event.pointerCount > 1) {
+            downBar = null
+            return false
+        }
+        val bar = {
+            renderSurface.getLocationOnScreen(surfaceLocation)
+            view.getLocationOnScreen(scrollLocation)
+            overlay.barIndexAt(
+                event.x + scrollLocation[0] - surfaceLocation[0],
+                event.y + scrollLocation[1] - surfaceLocation[1],
+                displayView.api.renderer.boundsLookup,
+            )
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                moved = false
+                downBar = bar()
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (kotlin.math.abs(event.x - downX) > touchSlop ||
+                    kotlin.math.abs(event.y - downY) > touchSlop
+                ) moved = true
+            }
+            MotionEvent.ACTION_UP -> {
+                val selected = downBar
+                if (!moved && selected != null && selected == bar()) onBarTap(selected)
+                downBar = null
+            }
+            MotionEvent.ACTION_CANCEL -> downBar = null
+        }
+        return false // ScrollView keeps ownership of scrolling and fling gestures.
+    }
+}
 
 @Composable
 private fun AlphaTabScore(
@@ -2562,6 +2812,7 @@ private fun AlphaTabScore(
     canonicalNotes: List<ScoreNoteRef> = emptyList(),
     selectedNoteId: String? = null,
     onNoteSelected: (String?) -> Unit = {},
+    onBarTap: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (notationLayout == ScoreNotationLayout.MERGED_STAVES && mergedDisplayScore == null) {
@@ -2695,6 +2946,15 @@ private fun AlphaTabScore(
                     val renderWrapper =
                         findViewById<RelativeLayout>(net.alphatab.R.id.renderWrapper)
                     val renderSurface = findViewById<View>(net.alphatab.R.id.renderSurface)
+                    val barTapListener = if (!editMode) {
+                        ScoreBarTapTouchListener(
+                            playbackOverlay, renderSurface, displayView, context,
+                        ).also {
+                            renderSurface.setOnTouchListener(it)
+                            renderWrapper.setOnTouchListener(it)
+                            innerScroll.setOnTouchListener(it)
+                        }
+                    } else null
                     var followHandler: ScorePlaybackScrollHandler? = null
                     val scrollRenderRecovery = ScoreScrollRenderRecovery(
                         renderSurface = renderSurface,
@@ -2800,6 +3060,7 @@ private fun AlphaTabScore(
                         renderSurface = renderSurface,
                         renderSurfaceLayoutListener = renderSurfaceLayoutListener,
                         innerScroll = innerScroll,
+                        barTapListener = barTapListener,
                         backToTopListener = backToTopListener,
                     )
                     scoreViewHolder[0] = displayView
@@ -2811,6 +3072,7 @@ private fun AlphaTabScore(
                 if (!editMode) {
                     val viewState = displayView.tag as AlphaTabScoreViewState
                     val playbackOverlay = viewState.playbackOverlay
+                    viewState.barTapListener?.onBarTap = onBarTap
                     viewState.playbackScrollHandler?.setEnabled(followScrollEnabled)
                     playbackOverlay.setMode(playbackIndicatorMode)
                     if (playbackIndicatorMode == ScorePlaybackIndicatorMode.LINE) {
@@ -2847,6 +3109,9 @@ private fun AlphaTabScore(
                     state.renderReadiness.release()
                     state.playbackScrollHandler?.close()
                     state.scrollRenderRecovery.close()
+                    state.innerScroll.setOnTouchListener(null)
+                    state.renderSurface.setOnTouchListener(null)
+                    (state.renderSurface.parent as? View)?.setOnTouchListener(null)
                     if (state.renderSurfaceLayoutListener != null) {
                         state.renderSurface.removeOnLayoutChangeListener(
                             state.renderSurfaceLayoutListener,

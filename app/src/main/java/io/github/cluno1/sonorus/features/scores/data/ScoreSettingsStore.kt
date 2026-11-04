@@ -14,6 +14,7 @@ internal data class ScoreGlobalSettings(
     val playbackIndicatorMode: String = "LINE",
     val followScrollEnabled: Boolean = true,
     val metronomeEnabled: Boolean = false,
+    val countInEnabled: Boolean = false,
     val playbackEndBehavior: String = "PAUSE_AT_END",
     val notationLayout: String = "SEPARATE_PARTS",
     val partColorMode: String = "DEFAULT",
@@ -41,6 +42,7 @@ internal object ScoreSettingsCodec {
         addProperty("playbackIndicatorMode", settings.playbackIndicatorMode)
         addProperty("followScrollEnabled", settings.followScrollEnabled)
         addProperty("metronomeEnabled", settings.metronomeEnabled)
+        addProperty("countInEnabled", settings.countInEnabled)
         addProperty("playbackEndBehavior", settings.playbackEndBehavior)
         addProperty("notationLayout", settings.notationLayout)
         addProperty("partColorMode", settings.partColorMode)
@@ -55,6 +57,7 @@ internal object ScoreSettingsCodec {
                 ?: "LINE",
             followScrollEnabled = json.boolean("followScrollEnabled") ?: true,
             metronomeEnabled = json.boolean("metronomeEnabled") ?: false,
+            countInEnabled = json.boolean("countInEnabled") ?: false,
             playbackEndBehavior = json.string("playbackEndBehavior")
                 ?.takeIf(endBehaviors::contains)
                 ?: "PAUSE_AT_END",

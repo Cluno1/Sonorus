@@ -16,6 +16,7 @@ class ScoreSettingsStoreTest {
             playbackIndicatorMode = "PULSE",
             followScrollEnabled = false,
             metronomeEnabled = true,
+            countInEnabled = true,
             playbackEndBehavior = "LOOP_CURRENT",
             notationLayout = "MERGED_STAVES",
             partColorMode = "ENHANCED",
@@ -31,6 +32,7 @@ class ScoreSettingsStoreTest {
                 "playbackIndicatorMode":"unknown",
                 "followScrollEnabled":false,
                 "metronomeEnabled":"not-a-boolean",
+                "countInEnabled":"not-a-boolean",
                 "playbackEndBehavior":"bad",
                 "notationLayout":"MERGED_STAVES",
                 "partColorMode":"bad"
@@ -40,6 +42,7 @@ class ScoreSettingsStoreTest {
         assertEquals("LINE", restored.playbackIndicatorMode)
         assertEquals(false, restored.followScrollEnabled)
         assertEquals(false, restored.metronomeEnabled)
+        assertEquals(false, restored.countInEnabled)
         assertEquals("PAUSE_AT_END", restored.playbackEndBehavior)
         assertEquals("MERGED_STAVES", restored.notationLayout)
         assertEquals("DEFAULT", restored.partColorMode)
@@ -52,6 +55,7 @@ class ScoreSettingsStoreTest {
         )
 
         assertEquals(false, restored.metronomeEnabled)
+        assertEquals(false, restored.countInEnabled)
     }
 
     @Test

@@ -3025,6 +3025,8 @@
     <string name="score_pause_at_end">播完暂停</string>
     <string name="score_loop_current">当前循环</string>
     <string name="score_metronome">节拍器</string>
+    <string name="score_count_in">播放前预备拍（一小节）</string>
+    <string name="score_count_in_progress">预备拍 %1$d/%2$d</string>
     <string name="score_metronome_on">开</string>
     <string name="score_metronome_off">关</string>
     <string name="labs_lyrics_editor">歌词编辑器</string>
