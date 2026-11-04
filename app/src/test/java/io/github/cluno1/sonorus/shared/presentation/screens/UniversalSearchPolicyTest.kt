@@ -7,6 +7,18 @@ import org.junit.Test
 
 class UniversalSearchPolicyTest {
     @Test
+    fun explicitSearchesEnterRecentSearchesTrimmed() {
+        assertEquals("周杰伦", universalSearchHistoryEntry("  周杰伦 ", UniversalSearchSubmitSource.USER_INPUT))
+        assertEquals("周杰伦", universalSearchHistoryEntry("周杰伦", UniversalSearchSubmitSource.HISTORY))
+    }
+
+    @Test
+    fun genreShortcutsAndBlankTextDoNotEnterRecentSearches() {
+        assertEquals(null, universalSearchHistoryEntry("Rock", UniversalSearchSubmitSource.GENRE))
+        assertEquals(null, universalSearchHistoryEntry("   ", UniversalSearchSubmitSource.USER_INPUT))
+    }
+
+    @Test
     fun songQueryMatchesTitleArtistAndAlbumIgnoringCaseAndOuterWhitespace() {
         assertTrue(matchesUniversalSongQuery("  fountain  ", "Fountain of Life", "Asaph", "ihope"))
         assertTrue(matchesUniversalSongQuery("ASAPH", "Fountain of Life", "Asaph", "ihope"))

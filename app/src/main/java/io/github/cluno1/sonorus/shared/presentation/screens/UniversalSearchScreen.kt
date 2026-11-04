@@ -192,9 +192,10 @@ fun UniversalSearchScreen(
     LaunchedEffect(query) {
         if (query.isBlank()) searchedQuery = ""
     }
-    val submitSearch: (String) -> Unit = { text ->
+    val submitSearch: (String, UniversalSearchSubmitSource) -> Unit = { text, source ->
         query = text
         searchedQuery = text.trim()
+        universalSearchHistoryEntry(text, source)?.let(localViewModel::addSearchQuery)
         focusManager.clearFocus()
     }
     val focusRequester = remember { FocusRequester() }
@@ -690,7 +691,7 @@ fun UniversalSearchScreen(
                                         },
                                         onClick = {
                                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                            submitSearch(item)
+                                            submitSearch(item, UniversalSearchSubmitSource.HISTORY)
                                         }
                                     )
                                 }
@@ -717,7 +718,7 @@ fun UniversalSearchScreen(
                                     isGenreDetectionComplete = isGenreDetectionComplete,
                                     onGenreClick = { genre ->
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                        submitSearch(genre)
+                                        submitSearch(genre, UniversalSearchSubmitSource.GENRE)
                                     }
                                 )
                             }
@@ -796,7 +797,7 @@ fun UniversalSearchScreen(
                                         },
                                         onClick = {
                                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                            submitSearch(item)
+                                            submitSearch(item, UniversalSearchSubmitSource.HISTORY)
                                         }
                                     )
                                 }
@@ -896,7 +897,7 @@ fun UniversalSearchScreen(
                                 isGenreDetectionComplete = isGenreDetectionComplete,
                                 onGenreClick = { genre ->
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                    submitSearch(genre)
+                                    submitSearch(genre, UniversalSearchSubmitSource.GENRE)
                                 }
                             )
                         }
@@ -1535,7 +1536,7 @@ fun UniversalSearchScreen(
                             onValueChange = { query = it },
                             modifier = Modifier.weight(1f).focusRequester(focusRequester),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { if (query.isNotBlank()) submitSearch(query) }),
+                            keyboardActions = KeyboardActions(onSearch = { if (query.isNotBlank()) submitSearch(query, UniversalSearchSubmitSource.USER_INPUT) }),
                             textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                             singleLine = true,
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -1572,7 +1573,7 @@ fun UniversalSearchScreen(
                             IconButton(
                                 onClick = {
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                    submitSearch(query)
+                                    submitSearch(query, UniversalSearchSubmitSource.USER_INPUT)
                                 },
                                 enabled = query.isNotBlank(),
                             ) {
@@ -2305,7 +2306,7 @@ fun UniversalSearchSongItem(
                         )
                         Text(
                             text = if (mode == "STREAMING") {
-                                if (ProductCapabilities.lanSubsonicOnly) "公共音乐聚合服务" else "Streaming"
+                                if (ProductCapabilities.lanSubsonicOnly) stringResource(R.string.settings_lan_music) else "Streaming"
                             } else "Local",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
                             color = if (mode == "STREAMING")
@@ -2458,7 +2459,7 @@ private fun SearchGridCard(
                     )
                     Text(
                         text = if (item.mode == "STREAMING") {
-                            if (ProductCapabilities.lanSubsonicOnly) "公共音乐聚合服务" else "Streaming"
+                            if (ProductCapabilities.lanSubsonicOnly) stringResource(R.string.settings_lan_music) else "Streaming"
                         } else "Local",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
                         color = if (item.mode == "STREAMING")

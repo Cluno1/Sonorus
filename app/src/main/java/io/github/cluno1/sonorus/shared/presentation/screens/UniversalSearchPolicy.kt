@@ -4,6 +4,12 @@ import io.github.cluno1.sonorus.features.catalog.domain.CATALOG_SONG_ID_PREFIX
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import java.util.Locale
 
+internal enum class UniversalSearchSubmitSource { USER_INPUT, HISTORY, GENRE }
+
+/** Explicit searches enter recent searches even without results; genre shortcuts are not user input. */
+internal fun universalSearchHistoryEntry(text: String, source: UniversalSearchSubmitSource): String? =
+    text.trim().takeIf { it.isNotEmpty() && source != UniversalSearchSubmitSource.GENRE }
+
 internal fun normalizedUniversalSearchQuery(query: String): String =
     query.trim().lowercase(Locale.ROOT)
 
