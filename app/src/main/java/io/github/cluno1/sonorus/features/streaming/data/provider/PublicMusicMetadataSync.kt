@@ -17,6 +17,10 @@ import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicSongDto
  * are stored as one name, as before; the separator now follows the device language. This is cosmetic and
  * splitting back is unsafe because a real name can contain the separator. It ends when writes move server-side.
  */
+/** The backend picks the audio format from the order configured for the source. */
+internal fun publicMusicStreamPath(source: String, song: String): String =
+    "/v2/music/sources/$source/songs/$song/stream?quality=auto"
+
 internal data class PublicMusicMetadataSyncResult(val song: PublicMusicSongDto?, val writeSkipped: Boolean = false)
 
 internal fun publicMusicWriteArtists(

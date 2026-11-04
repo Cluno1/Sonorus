@@ -85,7 +85,7 @@ class PublicMusicApiClient(context: Context) {
 
     fun streamUrl(providerId: String): String? {
         val pair = split(providerId) ?: return null
-        return "${server()}/v2/music/sources/${pair.first}/songs/${pair.second}/stream?quality=mp3"
+        return "${server()}${publicMusicStreamPath(pair.first, pair.second)}"
     }
 
     suspend fun metadata(

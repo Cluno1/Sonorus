@@ -48,6 +48,11 @@ class PublicMusicMetadataSyncTest {
     }
 
     @Test
+    fun streamPathLetsTheBackendChooseTheAudioFormat() {
+        assertEquals("/v2/music/sources/feiniao/songs/1/stream?quality=auto", publicMusicStreamPath("feiniao", "1"))
+    }
+
+    @Test
     fun placeholderArtistIsNeverWrittenButLyricsStillReturn() {
         val api = FakeApi()
         val result = sync(api, placeholder)
