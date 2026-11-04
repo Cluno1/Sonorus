@@ -9,6 +9,17 @@
     <string name="rooms_create_date">派對日期</string>
     <string name="rooms_create_date_hint">當天全天可見，次日起自動消失</string>
     <string name="rooms_create_confirm">建立</string>
+    <string name="rooms_template">房間範本</string>
+    <string name="rooms_template_blank">空白房間</string>
+    <string name="rooms_template_sections">%1$d 個段</string>
+    <string name="rooms_manage_sections">管理段</string>
+    <string name="rooms_section_no_assignee">未指定負責人</string>
+    <string name="rooms_save">儲存</string>
+    <string name="rooms_section_name">段名</string>
+    <string name="rooms_section_leader">段負責人</string>
+    <string name="rooms_section_no_leader">不指定負責人</string>
+    <string name="rooms_section_save">儲存段</string>
+    <string name="rooms_choose_section">選擇段</string>
     <string name="rooms_cancel">取消</string>
     <string name="rooms_ok">確定</string>
     <string name="rooms_date_pattern" formatted="false">M月d日 EEEE</string>

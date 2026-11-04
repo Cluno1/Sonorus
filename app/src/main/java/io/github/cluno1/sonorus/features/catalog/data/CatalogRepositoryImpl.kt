@@ -38,9 +38,12 @@ import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogRoomMapper
 import io.github.cluno1.sonorus.features.catalog.data.remote.RoomConflictDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.RoomCreateDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.RoomItemCreateDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.RoomSectionPatchDto
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoom
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSectionOrder
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSummary
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomTemplate
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomUser
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -644,19 +647,43 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
         CatalogRoomMapper.room(client().roomsApi.room(validUuid(roomId)).roomBodyOrThrow())
     }
 
+    override suspend fun listRoomTemplates(): Result<List<CatalogRoomTemplate>> = guarded {
+        CatalogRoomMapper.templates(client().roomsApi.templates().roomBodyOrThrow())
+    }
+
+    override suspend fun listRoomUsers(): Result<List<CatalogRoomUser>> = guarded {
+        CatalogRoomMapper.users(client().roomsApi.users().roomBodyOrThrow())
+    }
+
     override suspend fun createRoom(
         name: String,
         serviceDate: java.time.LocalDate,
         idempotencyKey: String,
+        templateId: String?,
     ): Result<CatalogRoom> = guarded {
         val trimmed = name.trim()
         require(trimmed.isNotEmpty() && trimmed.length <= 60) { "room name must be 1..60 characters" }
         val room = CatalogRoomMapper.room(
-            client().roomsApi.createRoom(idempotencyKey, RoomCreateDto(trimmed, serviceDate.toString()))
+            client().roomsApi.createRoom(
+                idempotencyKey, RoomCreateDto(trimmed, serviceDate.toString(), templateId?.let(::validUuid)),
+            )
                 .roomBodyOrThrow(),
         )
         android.util.Log.i(ROOMS_TAG, "room created (room=${room.id}, date=${room.serviceDate})")
         room
+    }
+
+    override suspend fun updateRoomSection(
+        roomId: String, sectionId: String, name: String?, assigneeUserId: String?,
+        expectedRevision: Int,
+    ): Result<CatalogRoom> = guarded {
+        require(expectedRevision > 0) { "room revision must be positive" }
+        val response = client().roomsApi.updateSection(
+            validUuid(roomId), validUuid(sectionId), "\"rev-$expectedRevision\"",
+            RoomSectionPatchDto(name?.trim(), assigneeUserId),
+        )
+        if (response.code() == 412) throw CatalogFailure.StaleRevision(null)
+        CatalogRoomMapper.room(response.roomBodyOrThrow())
     }
 
     override suspend fun addRoomSong(

@@ -41,17 +41,20 @@ class CatalogApiReadOnlyTest {
 
     @Test
     fun roomsApiOnlyTouchesRoomPaths() {
-        // issue 124: the rooms surface must not become a general write channel.
+        // issue 124/152: the rooms surface must not become a general write channel.
         val methods = CatalogRoomsApi::class.java.declaredMethods.filterNot { it.name.endsWith("\$default") }
-        assertTrue(methods.size == 7)
+        assertTrue(methods.size == 10)
         methods.forEach { method ->
             val path = method.getAnnotation(GET::class.java)?.value
                 ?: method.getAnnotation(POST::class.java)?.value
                 ?: method.getAnnotation(PUT::class.java)?.value
+                ?: method.getAnnotation(PATCH::class.java)?.value
                 ?: method.getAnnotation(DELETE::class.java)?.value
             assertTrue("${method.name} must declare a verb", path != null)
-            assertTrue("${method.name} path $path must stay under v2/rooms", path!!.startsWith("v2/rooms"))
-            assertTrue("${method.name} must not PATCH", method.getAnnotation(PATCH::class.java) == null)
+            assertTrue("${method.name} path $path must stay on room endpoints",
+                path!!.startsWith("v2/rooms") || path == "v2/room-templates" || path == "v2/room-users")
+            assertTrue("${method.name} PATCH must only edit a section",
+                method.getAnnotation(PATCH::class.java) == null || path == "v2/rooms/{id}/sections/{sectionId}")
         }
     }
 

@@ -7,12 +7,35 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSection
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSectionOrder
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSectionSummary
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSummary
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomTemplate
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomTemplateSection
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomUser
 import java.time.LocalDate
 
 /** issue 124: validates `/v2/rooms` payloads into domain models; malformed data fails loudly. */
 internal object CatalogRoomMapper {
     fun rooms(dto: RoomListDto): List<CatalogRoomSummary> = dto.items.orEmpty().map(::summary)
+
+    fun templates(dto: RoomTemplateListDto): List<CatalogRoomTemplate> = dto.items.orEmpty().map { template ->
+        val sections = template.sections.orEmpty().map { section ->
+            CatalogRoomTemplateSection(
+                id = text(section.id, "template_section.id"),
+                name = text(section.name, "template_section.name"),
+                position = positive(section.position, "template_section.position"),
+                assigneeUserId = section.assigneeUserId,
+            )
+        }.sortedBy(CatalogRoomTemplateSection::position)
+        require(sections.isNotEmpty()) { "template has no section" }
+        CatalogRoomTemplate(
+            id = text(template.id, "template.id"),
+            name = text(template.name, "template.name"),
+            revision = positive(template.revision, "template.revision"),
+            sections = sections,
+        )
+    }
+
+    fun users(dto: RoomUserListDto): List<CatalogRoomUser> =
+        dto.items.orEmpty().map { user(it, "room_user") }
 
     fun room(dto: RoomDto): CatalogRoom {
         val sections = dto.sections.orEmpty().map(::section).sortedBy(CatalogRoomSection::position)

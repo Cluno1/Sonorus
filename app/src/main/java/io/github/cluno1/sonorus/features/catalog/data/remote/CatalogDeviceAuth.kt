@@ -450,6 +450,7 @@ private val CATALOG_ROOM_WRITES = listOf(
     "POST" to Regex("^/v2/rooms/[^/]+/items$"),
     "DELETE" to Regex("^/v2/rooms/[^/]+/items/[^/]+$"),
     "PUT" to Regex("^/v2/rooms/[^/]+/order$"),
+    "PATCH" to Regex("^/v2/rooms/[^/]+/sections/[^/]+$"),
 )
 
 /** issue 125: a Work's plain lyrics of one language — the one extra Work write a device may sign. */

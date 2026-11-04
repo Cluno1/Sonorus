@@ -5,15 +5,27 @@ import java.time.LocalDate
 /**
  * issue 124: rooms where several people pick and order the songs of one gathering.
  *
- * Every song sits in a section. Today a room has one unnamed default section and the UI shows a
- * plain list; admin room templates (named sections such as 开场/圣餐/结束) and section assignees
- * are a later phase that only adds data — [CatalogRoomSection.name], [CatalogRoomSection.assignee]
- * and [rankRoomTargets] are where it plugs in.
+ * Every song sits in a section. A blank room has one unnamed section and shows a plain list;
+ * template rooms copy named sections and default assignees when created.
  */
 data class CatalogRoomUser(
     val userId: String,
     /** Null when the user has no nickname; show [roomUserLabel] instead. */
     val displayName: String?,
+)
+
+data class CatalogRoomTemplateSection(
+    val id: String,
+    val name: String,
+    val position: Int,
+    val assigneeUserId: String?,
+)
+
+data class CatalogRoomTemplate(
+    val id: String,
+    val name: String,
+    val revision: Int,
+    val sections: List<CatalogRoomTemplateSection>,
 )
 
 data class CatalogRoomSectionSummary(
@@ -84,7 +96,18 @@ interface CatalogRoomsRepository {
 
     suspend fun room(roomId: String): Result<CatalogRoom>
 
-    suspend fun createRoom(name: String, serviceDate: LocalDate, idempotencyKey: String): Result<CatalogRoom>
+    suspend fun listRoomTemplates(): Result<List<CatalogRoomTemplate>>
+
+    suspend fun listRoomUsers(): Result<List<CatalogRoomUser>>
+
+    suspend fun createRoom(
+        name: String, serviceDate: LocalDate, idempotencyKey: String, templateId: String? = null,
+    ): Result<CatalogRoom>
+
+    suspend fun updateRoomSection(
+        roomId: String, sectionId: String, name: String?, assigneeUserId: String?,
+        expectedRevision: Int,
+    ): Result<CatalogRoom>
 
     /** Appends to [sectionId], or to the last section when null. Same key = same request (no duplicate). */
     suspend fun addRoomSong(
@@ -114,16 +137,15 @@ fun roomUserLabel(user: CatalogRoomUser, fallbackPrefix: String): String =
 /** Where "add to room" may put a song: a room, or a room's section. */
 data class CatalogRoomTarget(
     val room: CatalogRoomSummary,
-    /** Null = the room's last section (the only one today). */
+    /** Null = the room's last section. */
     val section: CatalogRoomSectionSummary?,
-    /** The current user is assigned to [section] (phase 2; never true today). */
+    /** The current user is assigned to [section]. */
     val assignedToMe: Boolean,
 )
 
 /**
- * Order of the "add to room" sheet. Today: nearest gathering first, one target per room.
- * Phase 2 (section assignees): sections assigned to [currentUserId] come first, each as its own
- * target, then every room as before — recommendation only, every room stays selectable.
+ * Assigned sections come first, then each room by gathering date. Every other section remains
+ * reachable through its room; the recommendation never changes who may add a song.
  */
 fun rankRoomTargets(rooms: List<CatalogRoomSummary>, currentUserId: String?): List<CatalogRoomTarget> {
     val byDate = rooms.sortedWith(compareBy(CatalogRoomSummary::serviceDate, CatalogRoomSummary::name))

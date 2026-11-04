@@ -9,6 +9,17 @@
     <string name="rooms_create_date">Party date</string>
     <string name="rooms_create_date_hint">Visible all that day, removed from the next day</string>
     <string name="rooms_create_confirm">Create</string>
+    <string name="rooms_template">Template</string>
+    <string name="rooms_template_blank">Blank room</string>
+    <string name="rooms_template_sections">%1$d sections</string>
+    <string name="rooms_manage_sections">Manage sections</string>
+    <string name="rooms_section_no_assignee">No assignee</string>
+    <string name="rooms_save">Save</string>
+    <string name="rooms_section_name">Section name</string>
+    <string name="rooms_section_leader">Section leader</string>
+    <string name="rooms_section_no_leader">No leader</string>
+    <string name="rooms_section_save">Save section</string>
+    <string name="rooms_choose_section">Choose a section</string>
     <string name="rooms_cancel">Cancel</string>
     <string name="rooms_ok">OK</string>
     <string name="rooms_date_pattern" formatted="false">EEE, MMM d</string>

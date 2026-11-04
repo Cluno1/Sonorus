@@ -42,6 +42,7 @@ import io.github.cluno1.sonorus.features.catalog.di.CatalogModule
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogFailure
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoom
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSummary
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSectionSummary
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomTarget
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomWriteGate
 import io.github.cluno1.sonorus.features.catalog.domain.rankRoomTargets
@@ -53,7 +54,7 @@ import java.util.UUID
 
 /**
  * issue 124: "添加到房间" from a Work's lyrics page. Lists the rooms that have not expired (ranked by
- * [rankRoomTargets]: nearest gathering first; later, sections the reader leads come first), marks
+ * [rankRoomTargets]: sections the reader leads first, then nearest gathering), marks
  * rooms that already hold this song with who added it, and adds with one tap — appended at the end.
  * A new room can be created right here; the song is then added to it.
  */
@@ -73,6 +74,7 @@ fun CatalogAddToRoomSheet(
     var error by remember { mutableStateOf<String?>(null) }
     var addingRoomId by remember { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var expandedRoomId by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(reloadKey) {
@@ -150,12 +152,31 @@ fun CatalogAddToRoomSheet(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(current, key = { "${it.room.id}:${it.section?.id}:${it.assignedToMe}" }) { target ->
-                        RoomTargetRow(
-                            target = target,
-                            adding = addingRoomId == target.room.id,
-                            enabled = addingRoomId == null,
-                            onClick = { add(target) },
-                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val expandable = target.section == null && target.room.sections.size > 1
+                            RoomTargetRow(
+                                target = target,
+                                adding = addingRoomId == target.room.id,
+                                enabled = addingRoomId == null,
+                                onClick = {
+                                    if (expandable) {
+                                        expandedRoomId = if (expandedRoomId == target.room.id) null else target.room.id
+                                    } else {
+                                        add(target)
+                                    }
+                                },
+                            )
+                            if (expandable && expandedRoomId == target.room.id) {
+                                target.room.sections.forEach { section ->
+                                    RoomTargetRow(
+                                        target = CatalogRoomTarget(target.room, section, assignedToMe = false),
+                                        adding = addingRoomId == target.room.id,
+                                        enabled = addingRoomId == null,
+                                        onClick = { add(CatalogRoomTarget(target.room, section, assignedToMe = false)) },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -173,23 +194,28 @@ fun CatalogAddToRoomSheet(
             onDismiss = { creating = false },
             onCreated = { room ->
                 creating = false
-                add(
-                    CatalogRoomTarget(
-                        room = CatalogRoomSummary(
-                            id = room.id,
-                            name = room.name,
-                            serviceDate = room.serviceDate,
-                            createdBy = room.createdBy,
-                            itemCount = room.itemCount,
-                            revision = room.revision,
-                            canDelete = room.canDelete,
-                            sections = emptyList(),
-                            containsWork = null,
-                        ),
-                        section = null,
-                        assignedToMe = false,
-                    ),
+                val newRoom = CatalogRoomSummary(
+                    id = room.id,
+                    name = room.name,
+                    serviceDate = room.serviceDate,
+                    createdBy = room.createdBy,
+                    itemCount = room.itemCount,
+                    revision = room.revision,
+                    canDelete = room.canDelete,
+                    sections = room.sections.map { section ->
+                        CatalogRoomSectionSummary(
+                            id = section.id, name = section.name, position = section.position,
+                            assignee = section.assignee, itemCount = section.items.size,
+                        )
+                    },
+                    containsWork = null,
                 )
+                if (newRoom.sections.size == 1) {
+                    add(CatalogRoomTarget(newRoom, newRoom.sections.single(), assignedToMe = false))
+                } else {
+                    targets = listOf(CatalogRoomTarget(newRoom, section = null, assignedToMe = false)) + targets.orEmpty()
+                    expandedRoomId = newRoom.id
+                }
             },
         )
     }
@@ -227,12 +253,25 @@ private fun RoomTargetRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                target.section?.takeIf { target.assignedToMe }?.let { section ->
+                target.section?.let { section ->
                     Text(
-                        text = stringResource(
+                        text = if (target.assignedToMe) stringResource(
                             R.string.rooms_assigned_to_me,
                             section.name ?: stringResource(R.string.rooms_section_untitled, section.position),
-                        ),
+                        ) else section.assignee?.let {
+                            stringResource(
+                                R.string.rooms_section_assignee,
+                                section.name ?: stringResource(R.string.rooms_section_untitled, section.position),
+                                roomUserName(it),
+                            )
+                        } ?: (section.name ?: stringResource(R.string.rooms_section_untitled, section.position)),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                if (target.section == null && room.sections.size > 1) {
+                    Text(
+                        text = stringResource(R.string.rooms_choose_section),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )

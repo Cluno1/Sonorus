@@ -22,6 +22,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,6 +55,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibrarySearchSong
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoom
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomOrder
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomRow
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomUser
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomWriteGate
 import io.github.cluno1.sonorus.shared.presentation.components.common.DragDropLazyColumn
 import io.github.cluno1.sonorus.shared.presentation.components.common.M3CircularLoader
@@ -70,7 +73,7 @@ import kotlinx.coroutines.launch
  * Long-press drag (committed once on drop) or the up/down menu reorder; every reorder carries the
  * room revision, so when someone else changed the room first the server answers 412 and the list
  * reloads instead of silently overwriting their change. One write at a time ([CatalogRoomWriteGate]).
- * Named sections (room templates, a later phase) show as headers; today the list is plain.
+ * Named sections show as headers and the creator can edit each section's name and assignee.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +98,13 @@ fun CatalogRoomDetailScreen(
     var reloadKey by remember { mutableIntStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var manageSections by remember { mutableStateOf(false) }
+    var users by remember { mutableStateOf<List<CatalogRoomUser>>(emptyList()) }
+    var selectedSectionId by remember { mutableStateOf<String?>(null) }
+    var sectionName by remember { mutableStateOf("") }
+    var assigneeId by remember { mutableStateOf<String?>(null) }
+    var sectionMenuOpen by remember { mutableStateOf(false) }
+    var userMenuOpen by remember { mutableStateOf(false) }
     val bottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding()
     val listState = rememberLazyListState()
 
@@ -183,6 +193,21 @@ fun CatalogRoomDetailScreen(
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.rooms_manage_sections)) },
+                                    leadingIcon = { Icon(MaterialSymbolIcon("edit"), contentDescription = null) },
+                                    onClick = {
+                                        menuOpen = false
+                                        selectedSectionId = room?.sections?.firstOrNull()?.id
+                                        sectionName = room?.sections?.firstOrNull()?.name.orEmpty()
+                                        assigneeId = room?.sections?.firstOrNull()?.assignee?.userId
+                                        manageSections = true
+                                        scope.launch {
+                                            repository.listRoomUsers().onSuccess { users = it }
+                                                .onFailure(::fail)
+                                        }
+                                    },
+                                )
+                                DropdownMenuItem(
                                     text = { Text(stringResource(R.string.rooms_delete)) },
                                     leadingIcon = { Icon(MaterialSymbolIcon("delete"), contentDescription = null) },
                                     onClick = {
@@ -219,7 +244,7 @@ fun CatalogRoomDetailScreen(
                     action = stringResource(R.string.rooms_retry),
                     onAction = { reloadKey++ },
                 )
-                current.itemCount == 0 -> RoomsMessage(
+                current.itemCount == 0 && current.isPlainList -> RoomsMessage(
                     title = stringResource(R.string.rooms_detail_empty),
                     body = "",
                     action = null,
@@ -230,7 +255,7 @@ fun CatalogRoomDetailScreen(
                     Column(Modifier.fillMaxSize()) {
                         if (writing) LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text(
-                            text = stringResource(R.string.rooms_reorder_hint),
+                            text = stringResource(if (current.itemCount == 0) R.string.rooms_detail_empty else R.string.rooms_reorder_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -269,6 +294,76 @@ fun CatalogRoomDetailScreen(
                 }
             }
         }
+    }
+
+    if (manageSections) {
+        val current = room
+        AlertDialog(
+            onDismissRequest = { if (!writing) manageSections = false },
+            title = { Text(stringResource(R.string.rooms_manage_sections)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box {
+                        OutlinedButton(onClick = { sectionMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(current?.sections?.firstOrNull { it.id == selectedSectionId }?.name
+                                ?: stringResource(R.string.rooms_section_untitled,
+                                    current?.sections?.firstOrNull { it.id == selectedSectionId }?.position ?: 1))
+                        }
+                        DropdownMenu(expanded = sectionMenuOpen, onDismissRequest = { sectionMenuOpen = false }) {
+                            current?.sections?.forEach { section ->
+                                DropdownMenuItem(
+                                    text = { Text(section.name ?: stringResource(R.string.rooms_section_untitled, section.position)) },
+                                    onClick = {
+                                        selectedSectionId = section.id
+                                        sectionName = section.name.orEmpty()
+                                        assigneeId = section.assignee?.userId
+                                        sectionMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = sectionName,
+                        onValueChange = { sectionName = it.take(60) },
+                        label = { Text(stringResource(R.string.rooms_section_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Box {
+                        OutlinedButton(onClick = { userMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(users.firstOrNull { it.userId == assigneeId }?.let { roomUserName(it) }
+                                ?: stringResource(R.string.rooms_section_no_assignee))
+                        }
+                        DropdownMenu(expanded = userMenuOpen, onDismissRequest = { userMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.rooms_section_no_assignee)) },
+                                onClick = { assigneeId = null; userMenuOpen = false },
+                            )
+                            users.forEach { user ->
+                                DropdownMenuItem(
+                                    text = { Text(roomUserName(user)) },
+                                    onClick = { assigneeId = user.userId; userMenuOpen = false },
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !writing && (sectionName.isNotBlank() || current?.sections?.size == 1),
+                    onClick = {
+                        val sectionId = selectedSectionId ?: return@TextButton
+                        val snapshot = current ?: return@TextButton
+                        val name = sectionName.trim().ifEmpty { null }
+                        manageSections = false
+                        write { repository.updateRoomSection(snapshot.id, sectionId, name, assigneeId, snapshot.revision) }
+                    },
+                ) { Text(stringResource(R.string.rooms_save)) }
+            },
+            dismissButton = { TextButton(onClick = { manageSections = false }) { Text(stringResource(R.string.rooms_cancel)) } },
+        )
     }
 
     if (confirmDelete) {

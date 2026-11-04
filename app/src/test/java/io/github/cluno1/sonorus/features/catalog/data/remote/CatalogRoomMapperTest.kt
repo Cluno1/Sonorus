@@ -69,12 +69,29 @@ class CatalogRoomMapperTest {
     }
 
     @Test
-    fun `设备只为房间的五个写接口签名`() {
+    fun `模板和负责人按服务端契约解析`() {
+        val templates = CatalogRoomMapper.templates(Gson().fromJson("""
+            {"items":[{"id":"template-1","name":"主日聚会","enabled":true,"revision":2,
+              "sections":[{"id":"s2","name":"结束","position":2,"assignee_user_id":null},
+                          {"id":"s1","name":"开场","position":1,"assignee_user_id":"alice"}]}]}
+        """.trimIndent(), RoomTemplateListDto::class.java))
+        assertEquals(listOf("开场", "结束"), templates.single().sections.map { it.name })
+        assertEquals("alice", templates.single().sections.first().assigneeUserId)
+        assertEquals(2, templates.single().revision)
+        val users = CatalogRoomMapper.users(Gson().fromJson(
+            """{"items":[{"user_id":"alice","display_name":"小明"}]}""", RoomUserListDto::class.java,
+        ))
+        assertEquals("小明", users.single().displayName)
+    }
+
+    @Test
+    fun `设备只为房间的六个写接口签名`() {
         assertTrue(isCatalogRoomWrite("POST", "/v2/rooms"))
         assertTrue(isCatalogRoomWrite("DELETE", "/v2/rooms/r1"))
         assertTrue(isCatalogRoomWrite("POST", "/v2/rooms/r1/items"))
         assertTrue(isCatalogRoomWrite("DELETE", "/v2/rooms/r1/items/i1"))
         assertTrue(isCatalogRoomWrite("PUT", "/v2/rooms/r1/order"))
+        assertTrue(isCatalogRoomWrite("PATCH", "/v2/rooms/r1/sections/s1"))
         assertFalse(isCatalogRoomWrite("PATCH", "/v2/rooms/r1"))
         assertFalse(isCatalogRoomWrite("PUT", "/v2/rooms/r1"))
         assertFalse(isCatalogRoomWrite("POST", "/v2/rooms/r1/items/i1"))

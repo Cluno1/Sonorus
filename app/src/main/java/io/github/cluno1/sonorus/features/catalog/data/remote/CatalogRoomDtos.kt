@@ -6,6 +6,34 @@ import com.google.gson.annotations.SerializedName
 internal data class RoomCreateDto(
     @SerializedName("name") val name: String,
     @SerializedName("service_date") val serviceDate: String,
+    @SerializedName("template_id") val templateId: String? = null,
+)
+
+internal data class RoomTemplateListDto(
+    @SerializedName("items") val items: List<RoomTemplateDto>?,
+)
+
+internal data class RoomTemplateDto(
+    @SerializedName("id") val id: String?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("revision") val revision: Int?,
+    @SerializedName("sections") val sections: List<RoomTemplateSectionDto>?,
+)
+
+internal data class RoomTemplateSectionDto(
+    @SerializedName("id") val id: String?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("position") val position: Int?,
+    @SerializedName("assignee_user_id") val assigneeUserId: String? = null,
+)
+
+internal data class RoomUserListDto(
+    @SerializedName("items") val items: List<RoomUserDto>?,
+)
+
+internal data class RoomSectionPatchDto(
+    @SerializedName("name") val name: String?,
+    @SerializedName("assignee_user_id") val assigneeUserId: String?,
 )
 
 internal data class RoomItemCreateDto(

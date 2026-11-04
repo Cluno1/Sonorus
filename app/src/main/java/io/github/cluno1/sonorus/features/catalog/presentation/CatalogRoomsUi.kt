@@ -2,12 +2,15 @@ package io.github.cluno1.sonorus.features.catalog.presentation
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +38,7 @@ import io.github.cluno1.sonorus.features.catalog.di.CatalogModule
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogFailure
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoom
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomUser
+import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomTemplate
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomWriteGate
 import io.github.cluno1.sonorus.features.catalog.domain.roomUserLabel
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
@@ -95,6 +100,16 @@ internal fun CatalogCreateRoomDialog(
     var picking by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var templates by remember { mutableStateOf<List<CatalogRoomTemplate>>(emptyList()) }
+    var selectedTemplateId by remember { mutableStateOf<String?>(null) }
+    var templateMenuOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        CatalogModule.rooms(context).listRoomTemplates().fold(
+            onSuccess = { templates = it },
+            onFailure = { error = roomErrorMessage(context, it) },
+        )
+    }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -119,6 +134,28 @@ internal fun CatalogCreateRoomDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Box {
+                    OutlinedButton(onClick = { templateMenuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            stringResource(R.string.rooms_template) + " · " +
+                                (templates.firstOrNull { it.id == selectedTemplateId }?.name
+                                    ?: stringResource(R.string.rooms_template_blank)),
+                        )
+                    }
+                    DropdownMenu(expanded = templateMenuOpen, onDismissRequest = { templateMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.rooms_template_blank)) },
+                            onClick = { selectedTemplateId = null; templateMenuOpen = false },
+                        )
+                        templates.forEach { template ->
+                            DropdownMenuItem(
+                                text = { Text(template.name + " · " +
+                                    stringResource(R.string.rooms_template_sections, template.sections.size)) },
+                                onClick = { selectedTemplateId = template.id; templateMenuOpen = false },
+                            )
+                        }
+                    }
+                }
                 error?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
@@ -133,7 +170,7 @@ internal fun CatalogCreateRoomDialog(
                     error = null
                     scope.launch {
                         try {
-                            CatalogModule.rooms(context).createRoom(name, date, idempotencyKey).fold(
+                            CatalogModule.rooms(context).createRoom(name, date, idempotencyKey, selectedTemplateId).fold(
                                 onSuccess = onCreated,
                                 onFailure = { error = roomErrorMessage(context, it) },
                             )

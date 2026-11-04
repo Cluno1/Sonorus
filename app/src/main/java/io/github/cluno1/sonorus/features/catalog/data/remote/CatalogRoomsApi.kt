@@ -5,6 +5,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -15,6 +16,12 @@ import retrofit2.http.Query
  * which device tokens receive on their next refresh. Every path stays under `v2/rooms`.
  */
 internal interface CatalogRoomsApi {
+    @GET("v2/room-templates")
+    suspend fun templates(): Response<RoomTemplateListDto>
+
+    @GET("v2/room-users")
+    suspend fun users(): Response<RoomUserListDto>
+
     @GET("v2/rooms")
     suspend fun rooms(@Query("work_id") workId: String? = null): Response<RoomListDto>
 
@@ -45,5 +52,13 @@ internal interface CatalogRoomsApi {
         @Path("id") roomId: String,
         @Header("If-Match") ifMatch: String,
         @Body body: RoomOrderDto,
+    ): Response<RoomDto>
+
+    @PATCH("v2/rooms/{id}/sections/{sectionId}")
+    suspend fun updateSection(
+        @Path("id") roomId: String,
+        @Path("sectionId") sectionId: String,
+        @Header("If-Match") ifMatch: String,
+        @Body body: RoomSectionPatchDto,
     ): Response<RoomDto>
 }
