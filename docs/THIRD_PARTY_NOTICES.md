@@ -4,7 +4,7 @@ Sonorus itself remains GPL-3.0-or-later and retains the copyright/SPDX notices f
 
 | Component or asset | License / status | Project or source |
 | --- | --- | --- |
-| alphaTab 1.8.4 | MPL-2.0 | <https://github.com/CoderLine/alphaTab> |
+| alphaTab 1.8.4 with Sonorus Android audio worker patch | MPL-2.0 | <https://github.com/CoderLine/alphaTab>; patched source and rebuild script in `third_party/alphatab-1.8.4/` |
 | AndroidX / Jetpack Compose / Media3 / Room / WorkManager / Glance | Apache-2.0 | <https://github.com/androidx/androidx> |
 | OkHttp / Retrofit / Gson / Kotlin coroutines | Apache-2.0 | respective upstream projects listed in the app's Open Source Libraries sheet |
 | JAudioTagger | LGPL family; verify the exact bundled artifact notice before public release | <https://github.com/ijabz/jaudiotagger> |

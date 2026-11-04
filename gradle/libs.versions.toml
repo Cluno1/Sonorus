@@ -42,7 +42,7 @@ macrobenchmark = "1.4.1"
 profileinstaller = "1.4.1"
 uiautomator = "2.4.0"
 window = "1.5.1"
-alphaTab = "1.8.4"
+alphaTab = "1.8.4-sonorus"
 tink = "1.23.0"
 
 [libraries]

@@ -20,6 +20,7 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        maven { url = uri("third_party/alphatab-1.8.4/maven") }
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
