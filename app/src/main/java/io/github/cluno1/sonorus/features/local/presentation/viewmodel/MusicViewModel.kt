@@ -8397,16 +8397,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             lyricsFetchJob = viewModelScope.launch {
                 _isLoadingLyrics.value = true
                 try {
-                    val metadata = streamingRepository.publicMusicMetadata(song, manual = forceRefresh)
-                    if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) {
-                        // Read the shared lyrics and tags, including edits made by another user.
-                        if (metadata != null) {
-                            if (showLyrics.value) _currentLyrics.value = metadata.lyrics()
-                            _currentSong.value = metadata.applyTo(_currentSong.value ?: song)
-                            _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map {
-                                if (it.id == song.id) metadata.applyTo(it) else it
-                            })
-                            streamingRepository.applyLanMetadata(metadata)
+                    guardPublicMusicLoad(
+                        onFailure = { error -> Log.w(TAG, "Public music metadata unavailable for ${song.id}", error) },
+                    ) {
+                        val metadata = streamingRepository.publicMusicMetadata(song, manual = forceRefresh)
+                        if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) {
+                            // Read the shared lyrics and tags, including edits made by another user.
+                            if (metadata != null) {
+                                if (showLyrics.value) _currentLyrics.value = metadata.lyrics()
+                                _currentSong.value = metadata.applyTo(_currentSong.value ?: song)
+                                _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map {
+                                    if (it.id == song.id) metadata.applyTo(it) else it
+                                })
+                                streamingRepository.applyLanMetadata(metadata)
+                            }
                         }
                     }
                 } finally {
