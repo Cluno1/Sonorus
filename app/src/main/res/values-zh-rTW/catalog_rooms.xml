@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- issue 124: rooms for picking and ordering a gathering's songs together -->
+<!-- issue 124: rooms for picking and ordering a party's songs together -->
 <resources>
     <string name="rooms_title">房間</string>
     <string name="rooms_empty">還沒有房間</string>
