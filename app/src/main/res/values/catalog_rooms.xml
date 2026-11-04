@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- issue 124: rooms for picking and ordering a gathering's songs together -->
+<!-- issue 124: rooms for picking and ordering a party's songs together -->
 <resources>
     <string name="rooms_title">Rooms</string>
     <string name="rooms_empty">No rooms yet</string>
-    <string name="rooms_empty_hint">Create a room to pick the songs for a gathering together.</string>
+    <string name="rooms_empty_hint">Hi friend, planning a party together? Create a room and pick songs with your friends.</string>
     <string name="rooms_create">New room</string>
     <string name="rooms_create_name">Room name</string>
-    <string name="rooms_create_date">Gathering date</string>
+    <string name="rooms_create_date">Party date</string>
     <string name="rooms_create_date_hint">Visible all that day, removed from the next day</string>
     <string name="rooms_create_confirm">Create</string>
     <string name="rooms_cancel">Cancel</string>

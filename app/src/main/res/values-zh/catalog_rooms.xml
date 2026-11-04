@@ -3,10 +3,10 @@
 <resources>
     <string name="rooms_title">房间</string>
     <string name="rooms_empty">还没有房间</string>
-    <string name="rooms_empty_hint">新建一个房间，和大家一起挑选这次聚会要唱的诗歌。</string>
+    <string name="rooms_empty_hint">hi，朋友，协作一起开派对吗！新建房间，和朋友一起挑选歌曲。</string>
     <string name="rooms_create">新建房间</string>
     <string name="rooms_create_name">房间名称</string>
-    <string name="rooms_create_date">聚会日期</string>
+    <string name="rooms_create_date">派对日期</string>
     <string name="rooms_create_date_hint">当天全天可见，次日起自动消失</string>
     <string name="rooms_create_confirm">创建</string>
     <string name="rooms_cancel">取消</string>
