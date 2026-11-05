@@ -12,8 +12,19 @@ import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogMusicApi
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicMetadataWriteDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicSongDto
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.Locale
+
+data class PublicMusicPlaylist(
+    val sourceId: String,
+    val externalId: String,
+    val name: String,
+    val artworkUrl: String?,
+    val songCount: Int,
+)
 
 /** The first-party, device-authenticated gateway replacing LX01 in private builds. */
 class PublicMusicApiClient(context: Context) {
@@ -81,6 +92,31 @@ class PublicMusicApiClient(context: Context) {
             runCatching { api().recommend(source.id).body()?.items.orEmpty().mapNotNull(::toSong) }
                 .getOrDefault(emptyList())
         }.take(limit)
+    }
+
+    suspend fun recommendedPlaylists(limit: Int): List<PublicMusicPlaylist> {
+        val response = api().recommendedAlbums(limit)
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.SOURCES_FAILED, response.code())
+        return response.body()?.items.orEmpty()
+            .filter { it.name.isNotBlank() && split("${it.sourceId}:${it.externalId}") != null }
+            .map { PublicMusicPlaylist(it.sourceId, it.externalId, it.name, displayArtwork(it.artworkUrl), it.songCount) }
+    }
+
+    /** Loads at most [MAX_PLAYLIST_PAGES] pages so opening a large playlist stays fast. */
+    suspend fun playlistSongs(sourceId: String, externalId: String): List<ProviderSong> {
+        val first = api().playlist(sourceId, externalId, 1)
+        if (!first.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.SOURCES_FAILED, first.code())
+        val page = first.body() ?: return emptyList()
+        val rest = if (!page.hasMore) emptyList() else coroutineScope {
+            (2..MAX_PLAYLIST_PAGES).map { number ->
+                async {
+                    runCatching { api().playlist(sourceId, externalId, number).body()?.items.orEmpty() }
+                        .onFailure { Log.w(TAG, "Playlist page failed: source=$sourceId page=$number", it) }
+                        .getOrDefault(emptyList())
+                }
+            }.awaitAll().flatten()
+        }
+        return (page.items + rest).mapNotNull(::toSong).distinctBy { it.providerId }
     }
 
     fun streamUrl(providerId: String): String? {
@@ -164,5 +200,6 @@ class PublicMusicApiClient(context: Context) {
 
     private companion object {
         const val TAG = "PublicMusicApiClient"
+        const val MAX_PLAYLIST_PAGES = 5
     }
 }

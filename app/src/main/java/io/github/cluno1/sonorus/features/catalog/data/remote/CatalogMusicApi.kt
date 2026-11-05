@@ -29,7 +29,20 @@ internal data class PublicMusicSongDto(
     @SerializedName("mode") val mode: String? = null,
 )
 
-internal data class PublicMusicPageDto(@SerializedName("items") val items: List<PublicMusicSongDto>)
+internal data class PublicMusicPageDto(
+    @SerializedName("items") val items: List<PublicMusicSongDto>,
+    @SerializedName("has_more") val hasMore: Boolean = false,
+)
+
+internal data class PublicMusicRecommendedAlbumDto(
+    @SerializedName("source_id") val sourceId: String,
+    @SerializedName("external_id") val externalId: String,
+    @SerializedName("name") val name: String = "",
+    @SerializedName("artwork_url") val artworkUrl: String? = null,
+    @SerializedName("song_count") val songCount: Int = 0,
+)
+
+internal data class PublicMusicRecommendedAlbumsDto(@SerializedName("items") val items: List<PublicMusicRecommendedAlbumDto>)
 internal data class PublicMusicSearchDto(@SerializedName("sources") val sources: List<PublicMusicPageDto>)
 internal data class PublicMusicLyricsDto(@SerializedName("lrc") val lrc: String)
 
@@ -54,6 +67,12 @@ internal interface CatalogMusicApi {
 
     @GET("v2/music/sources/{source}/recommend")
     suspend fun recommend(@Path("source") source: String, @Query("page") page: Int = 1): Response<PublicMusicPageDto>
+
+    @GET("v2/music/recommended-albums")
+    suspend fun recommendedAlbums(@Query("limit") limit: Int): Response<PublicMusicRecommendedAlbumsDto>
+
+    @GET("v2/music/sources/{source}/playlists/{playlist}")
+    suspend fun playlist(@Path("source") source: String, @Path("playlist") playlist: String, @Query("page") page: Int): Response<PublicMusicPageDto>
 
     @GET("v2/music/sources/{source}/songs/{song}/metadata")
     suspend fun metadata(@Path("source") source: String, @Path("song") song: String): Response<PublicMusicSongDto>

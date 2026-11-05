@@ -3493,6 +3493,8 @@
     <string name="public_music_network_unavailable">Public music aggregation is unavailable on the current network</string>
     <string name="public_music_load_failed">Failed to load public music: %1$s</string>
     <string name="public_music_artist_separator">", "</string>
+    <string name="public_music_discover_label">Discover</string>
+    <string name="public_music_discover_load_failed">Couldn\'t load this playlist. Try again later.</string>
     <string name="public_music_error_not_registered">Register the music library server with an invite code first</string>
     <string name="public_music_error_server_mismatch">The public music address must match the registered music library server</string>
     <string name="public_music_error_service_unavailable">Public music is unavailable. Enable at least one source in the web console</string>

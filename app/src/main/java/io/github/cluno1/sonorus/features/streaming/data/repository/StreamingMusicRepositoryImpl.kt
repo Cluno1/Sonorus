@@ -22,6 +22,7 @@ import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderPlaylis
 import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderSong
 import io.github.cluno1.sonorus.features.streaming.data.provider.SubsonicApiClient
 import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicApiClient
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylist
 import io.github.cluno1.sonorus.features.streaming.data.provider.UserTrustManager
 import io.github.cluno1.sonorus.features.streaming.domain.model.BrowseCategory
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
@@ -90,6 +91,12 @@ class StreamingMusicRepositoryImpl(
     }
 
     fun publicMusicClient(): PublicMusicApiClient = publicMusicClient
+
+    suspend fun discoverPlaylists(limit: Int): List<PublicMusicPlaylist> =
+        if (publicMusicClient.isConnected()) publicMusicClient.recommendedPlaylists(limit) else emptyList()
+
+    suspend fun discoverPlaylistSongs(sourceId: String, externalId: String): List<StreamingSong> =
+        publicMusicClient.playlistSongs(sourceId, externalId).map { mapProviderSong(StreamingServiceId.SUBSONIC, it) }
 
     fun applyLanMetadata(metadata: io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata) {
         val id = LanSubsonicPlaybackPolicy.mediaId(metadata.trackId)

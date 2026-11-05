@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.navigation
 
+import io.github.cluno1.sonorus.features.streaming.domain.DiscoverPlaylistIds
 import io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy
 
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -1292,6 +1293,41 @@ private fun LocalNavigationContent(
             id = { it.id },
         )
     }
+    // issue 158: the library shows only local and catalog albums; public ones stay in the carousel.
+    val libraryAlbums = remember(albums, catalogAlbums) {
+        UnifiedLibraryPolicy.mergeById(albums, catalogAlbums, id = { it.id })
+    }
+    val discoverPlaylists by streamingMusicViewModel.discoverPlaylists.collectAsState()
+    val discoverSongs by streamingMusicViewModel.discoverSongs.collectAsState()
+    val discoverLoadingIds by streamingMusicViewModel.discoverLoadingIds.collectAsState()
+    val discoverLabel = context.getString(R.string.public_music_discover_label)
+    val discoverLoadFailed = context.getString(R.string.public_music_discover_load_failed)
+    val discoverAlbums = remember(discoverPlaylists, discoverSongs, discoverLabel) {
+        discoverPlaylists.map { playlist ->
+            val id = DiscoverPlaylistIds.encode(playlist.sourceId, playlist.externalId)
+            val loaded = discoverSongs[id].orEmpty().map { it.toLibrarySong() }
+            Album(
+                id = id,
+                title = playlist.name,
+                artist = discoverLabel,
+                artworkUri = playlist.artworkUrl?.let(Uri::parse),
+                songs = loaded,
+                numberOfSongs = if (loaded.isEmpty()) playlist.songCount else loaded.size,
+            )
+        }
+    }
+    val carouselGroups = remember(libraryAlbums, discoverAlbums, streamingMappedAlbums) {
+        listOf(libraryAlbums, discoverAlbums, streamingMappedAlbums)
+    }
+    val loadDiscoverAlbum: (String, (List<Song>) -> Unit) -> Unit = { id, onLoaded ->
+        streamingMusicViewModel.loadDiscoverPlaylist(id) { songs ->
+            if (songs.isEmpty()) {
+                coroutineScope.launch { snackbarHostState.showSnackbar(discoverLoadFailed) }
+            } else {
+                onLoaded(songs.map { it.toLibrarySong() })
+            }
+        }
+    }
     val openNativeAlbum: (Album) -> Unit = { album ->
         navController.navigate(Screen.AlbumDetail.createRoute(album.id, album.title)) {
             launchSingleTop = true
@@ -2318,6 +2354,7 @@ private fun LocalNavigationContent(
                             musicViewModel = viewModel,
                             songs = nativeSongs,
                             albums = nativeAlbums,
+                            carouselGroups = carouselGroups,
                             artists = artists,
                             recentlyPlayed = recentlyPlayed,
                             currentSong = currentSong,
@@ -2329,7 +2366,11 @@ private fun LocalNavigationContent(
                             additionalRefreshInProgress = catalogState.refreshing || streamingIsLoading,
                             onAlbumClick = openNativeAlbum,
                             onPlayAlbum = { album ->
-                                playCatalogQueue(album.songs, 0, false)
+                                if (DiscoverPlaylistIds.isDiscover(album.id)) {
+                                    loadDiscoverAlbum(album.id) { songs -> playCatalogQueue(songs, 0, false) }
+                                } else {
+                                    playCatalogQueue(album.songs, 0, false)
+                                }
                             },
                             onArtistClick = onPlayArtist,
                             onPlayPause = onPlayPause,
@@ -3969,7 +4010,7 @@ private fun LocalNavigationContent(
 
                     LibraryScreen(
                         songs = if (isStreamingMode) streamingMappedSongs else nativeSongs,
-                        albums = if (isStreamingMode) streamingMappedAlbums else nativeAlbums,
+                        albums = if (isStreamingMode) streamingMappedAlbums else libraryAlbums,
                         playlists = if (isStreamingMode) streamingMappedPlaylists else playlists,
                         artists = if (isStreamingMode) streamingMappedArtists else artists,
                         currentSong = currentSong,
@@ -4708,6 +4749,10 @@ private fun LocalNavigationContent(
                         ?: streamingMappedAlbums.firstOrNull {
                             ProductCapabilities.lanSubsonicOnly && it.id == albumId
                         }
+                        ?: discoverAlbums.firstOrNull { it.id == albumId }
+                    LaunchedEffect(albumId) {
+                        if (DiscoverPlaylistIds.isDiscover(albumId)) loadDiscoverAlbum(albumId) {}
+                    }
 
                     // Write permission launcher for Android 11+ metadata editing
                     val writePermissionLauncher = rememberLauncherForActivityResult(
@@ -4793,7 +4838,8 @@ private fun LocalNavigationContent(
                         albumOverride = remoteAlbum,
                         songsOverride = remoteAlbum?.songs,
                         isContentLoadingOverride = remoteAlbum?.let { album ->
-                            if (UnifiedLibraryPolicy.isLan(album.id)) streamingIsLoading
+                            if (DiscoverPlaylistIds.isDiscover(album.id)) album.id in discoverLoadingIds
+                            else if (UnifiedLibraryPolicy.isLan(album.id)) streamingIsLoading
                             else catalogState.loading
                         },
                         isStreamingMode = remoteAlbum != null,

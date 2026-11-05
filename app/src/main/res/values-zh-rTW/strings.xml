@@ -3187,6 +3187,8 @@
     <string name="public_music_network_unavailable">公共音樂聚合服務在目前網路無法使用</string>
     <string name="public_music_load_failed">公共音樂載入失敗：%1$s</string>
     <string name="public_music_artist_separator">、</string>
+    <string name="public_music_discover_label">發現</string>
+    <string name="public_music_discover_load_failed">歌單載入失敗，請稍後重試</string>
     <string name="public_music_error_not_registered">請先用邀請碼登記音樂庫伺服器</string>
     <string name="public_music_error_server_mismatch">公共音樂服務位址須與已登記的音樂庫伺服器一致</string>
     <string name="public_music_error_service_unavailable">公共音樂服務無法使用，請在 Web 管理台啟用至少一個來源</string>

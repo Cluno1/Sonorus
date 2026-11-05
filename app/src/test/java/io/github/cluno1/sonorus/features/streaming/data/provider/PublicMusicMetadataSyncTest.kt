@@ -27,6 +27,8 @@ class PublicMusicMetadataSyncTest {
         val saveCode: Int = 200,
     ) : CatalogMusicApi {
         val writes = mutableListOf<PublicMusicMetadataWriteDto>()
+        override suspend fun recommendedAlbums(limit: Int) = error("unused")
+        override suspend fun playlist(source: String, playlist: String, page: Int) = error("unused")
         override suspend fun sources(): Response<PublicMusicSourcesDto> = error("unused")
         override suspend fun search(query: String, page: Int): Response<PublicMusicSearchDto> = error("unused")
         override suspend fun recommend(source: String, page: Int): Response<PublicMusicPageDto> = error("unused")

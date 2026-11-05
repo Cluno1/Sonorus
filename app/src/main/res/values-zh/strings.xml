@@ -3229,6 +3229,8 @@
     <string name="public_music_network_unavailable">公共音乐聚合服务在当前网络不可用</string>
     <string name="public_music_load_failed">公共音乐加载失败：%1$s</string>
     <string name="public_music_artist_separator">、</string>
+    <string name="public_music_discover_label">发现</string>
+    <string name="public_music_discover_load_failed">歌单加载失败，请稍后重试</string>
     <string name="public_music_error_not_registered">请先用邀请码登记音乐库服务器</string>
     <string name="public_music_error_server_mismatch">公共音乐服务地址须与已登记的音乐库服务器一致</string>
     <string name="public_music_error_service_unavailable">公共音乐服务不可用，请在 Web 管理台启用至少一个来源</string>

@@ -12,6 +12,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.features.streaming.domain.DiscoverCarousel
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
@@ -283,6 +284,7 @@ fun HomeScreen(
     streamingViewModel: io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.StreamingMusicViewModel? = null,
     streamingSongs: List<Song> = emptyList(),
     streamingAlbums: List<Album> = emptyList(),
+    carouselGroups: List<List<Album>> = emptyList(),
     streamingArtists: List<Artist> = emptyList(),
     streamingPlaylists: List<io.github.cluno1.sonorus.shared.data.model.Playlist> = emptyList(),
     streamingRecentlyPlayed: List<Song> = emptyList(),
@@ -684,6 +686,7 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(bottom = if (currentSong != null) 0.dp else 0.dp),
                 featuredContent = featuredContent,
+                carouselGroups = carouselGroups,
                 albums = albums,
                 topArtists = topArtists,
                 newReleases = currentYearReleases,
@@ -1411,6 +1414,7 @@ private fun StreamingHomePlaylistCard(
 private fun ModernScrollableContent(
     modifier: Modifier = Modifier,
     featuredContent: List<Album>,
+    carouselGroups: List<List<Album>>,
     albums: List<Album>,
     topArtists: List<Artist>,
     newReleases: List<Album>,
@@ -1532,47 +1536,28 @@ private fun ModernScrollableContent(
     // Featured albums with stable ID preservation across library & background metadata updates
     var currentFeaturedAlbums by remember { mutableStateOf<List<Album>>(emptyList()) }
 
-    // Synchronize currentFeaturedAlbums when library/albums change without reshuffling
-    LaunchedEffect(albums, discoverItemCount) {
-        if (albums.isEmpty()) {
-            currentFeaturedAlbums = emptyList()
-            return@LaunchedEffect
-        }
-        val targetCount = discoverItemCount.coerceAtLeast(1)
-        if (currentFeaturedAlbums.isEmpty()) {
-            currentFeaturedAlbums = albums.shuffled().take(targetCount)
-        } else {
-            val albumsById = albums.associateBy { it.id }
-            val updated = currentFeaturedAlbums.mapNotNull { albumsById[it.id] }
-            if (updated.size < targetCount && albums.size > updated.size) {
-                val existingIds = updated.map { it.id }.toSet()
-                val remaining = albums.filter { it.id !in existingIds }.shuffled()
-                currentFeaturedAlbums = (updated + remaining).take(targetCount)
-            } else if (updated.size > targetCount) {
-                currentFeaturedAlbums = updated.take(targetCount)
-            } else if (updated.isNotEmpty()) {
-                currentFeaturedAlbums = updated
-            } else {
-                currentFeaturedAlbums = albums.shuffled().take(targetCount)
-            }
-        }
+    // Pick again when the set of albums changes, so late recommendations join the carousel.
+    val carouselIds = remember(carouselGroups) { carouselGroups.flatten().mapTo(HashSet()) { it.id } }
+    LaunchedEffect(carouselIds, discoverItemCount) {
+        currentFeaturedAlbums = DiscoverCarousel.pick(carouselGroups, discoverItemCount.coerceAtLeast(1))
+    }
+
+    // Same albums with new content, such as loaded songs, keep their order.
+    LaunchedEffect(carouselGroups) {
+        val albumsById = carouselGroups.flatten().associateBy { it.id }
+        currentFeaturedAlbums = currentFeaturedAlbums.mapNotNull { albumsById[it.id] }
     }
 
     // Auto-refresh featured content periodically every 45s (stable loop, decoupled from album list emissions)
-    val latestAlbums by rememberUpdatedState(albums)
+    val latestCarouselGroups by rememberUpdatedState(carouselGroups)
     val latestDiscoverItemCount by rememberUpdatedState(discoverItemCount)
     LaunchedEffect(Unit) {
         while (true) {
             delay(45000)
-            val currentList = latestAlbums
             val targetCount = latestDiscoverItemCount.coerceAtLeast(1)
-            if (currentList.isNotEmpty()) {
-                currentFeaturedAlbums = if (currentList.size > targetCount) {
-                    currentList.shuffled().take(targetCount)
-                } else {
-                    currentList.shuffled()
-                }
-            }
+            DiscoverCarousel.pick(latestCarouselGroups, targetCount)
+                .takeIf { it.isNotEmpty() }
+                ?.let { currentFeaturedAlbums = it }
         }
     }
 

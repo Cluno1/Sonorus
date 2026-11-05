@@ -27,6 +27,9 @@ import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingSong
 import io.github.cluno1.sonorus.features.streaming.infrastructure.notification.StreamingNotificationManager
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.util.ArtistSeparator
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylist
+import io.github.cluno1.sonorus.features.streaming.domain.DiscoverPlaylistIds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +51,8 @@ import androidx.core.net.toUri
  * ViewModel for managing streaming music playback and library.
  * Handles authentication, browsing, and playback for streaming services.
  */
+private const val DISCOVER_PLAYLIST_LIMIT = 12
+
 class StreamingMusicViewModel(application: Application) : AndroidViewModel(application) {
     private val appSettings = AppSettings.getInstance(application)
 
@@ -128,6 +133,15 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private val _likedSongs = MutableStateFlow<List<StreamingSong>>(emptyList())
     val likedSongs: StateFlow<List<StreamingSong>> = _likedSongs.asStateFlow()
     
+    private val _discoverPlaylists = MutableStateFlow<List<PublicMusicPlaylist>>(emptyList())
+    val discoverPlaylists: StateFlow<List<PublicMusicPlaylist>> = _discoverPlaylists.asStateFlow()
+
+    private val _discoverSongs = MutableStateFlow<Map<String, List<StreamingSong>>>(emptyMap())
+    val discoverSongs: StateFlow<Map<String, List<StreamingSong>>> = _discoverSongs.asStateFlow()
+
+    private val _discoverLoadingIds = MutableStateFlow<Set<String>>(emptySet())
+    val discoverLoadingIds: StateFlow<Set<String>> = _discoverLoadingIds.asStateFlow()
+
     private val _savedAlbums = MutableStateFlow<List<StreamingAlbum>>(emptyList())
     val savedAlbums: StateFlow<List<StreamingAlbum>> = _savedAlbums.asStateFlow()
     
@@ -505,6 +519,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     return@launch
                 }
 
+                refreshDiscoverPlaylists()
                 val songs = repository.syncCatalog(
                     limit = LanSubsonicPlaybackPolicy.MAX_LIBRARY_SONGS,
                 )
@@ -539,6 +554,44 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         }
     }
     
+    private fun refreshDiscoverPlaylists() {
+        viewModelScope.launch {
+            try {
+                providerRepository?.discoverPlaylists(DISCOVER_PLAYLIST_LIMIT)?.let { _discoverPlaylists.value = it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The carousel still works without these cards, so a failure only keeps the old ones.
+                Log.w("StreamingMusicViewModel", "Discover playlists failed: ${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    /** A second request for a playlist that is still loading is dropped, so one tap plays once. */
+    fun loadDiscoverPlaylist(id: String, onResult: (List<StreamingSong>) -> Unit) {
+        _discoverSongs.value[id]?.let {
+            onResult(it)
+            return
+        }
+        val (sourceId, externalId) = DiscoverPlaylistIds.decode(id) ?: return
+        if (id in _discoverLoadingIds.value) return
+        _discoverLoadingIds.value += id
+        viewModelScope.launch {
+            val songs = try {
+                providerRepository?.discoverPlaylistSongs(sourceId, externalId).orEmpty()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("StreamingMusicViewModel", "Discover playlist failed: source=$sourceId ${e.javaClass.simpleName}")
+                emptyList()
+            } finally {
+                _discoverLoadingIds.value -= id
+            }
+            if (songs.isNotEmpty()) _discoverSongs.value += id to songs
+            onResult(songs)
+        }
+    }
+
     /**
      * Refresh home screen content.
      */
@@ -1406,6 +1459,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      * Clear all loaded content.
      */
     private fun clearContent() {
+        _discoverPlaylists.value = emptyList()
+        _discoverSongs.value = emptyMap()
         _recommendations.value = emptyList()
         _newReleases.value = emptyList()
         _featuredPlaylists.value = emptyList()
