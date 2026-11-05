@@ -135,7 +135,8 @@ fun CatalogAnnouncementsScreen(
             else -> LazyColumn(
                 state = listState,
                 modifier = modifier,
-                contentPadding = PaddingValues(bottom = bottomPadding + 16.dp),
+                // The collapsible header fades over its bottom 24 dp; start the content below that.
+                contentPadding = PaddingValues(top = 24.dp, bottom = bottomPadding + 16.dp),
             ) {
                 items(state.items, key = { it.id }) { item ->
                     AnnouncementRow(

@@ -157,7 +157,8 @@ private fun AnnouncementArticle(
     val bottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding()
     LazyColumn(
         modifier = modifier,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = bottomPadding + 24.dp),
+        // The collapsible header fades over its bottom 24 dp; start the content below that.
+        contentPadding = PaddingValues(start = 16.dp, top = 24.dp, end = 16.dp, bottom = bottomPadding + 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(key = "header") {
