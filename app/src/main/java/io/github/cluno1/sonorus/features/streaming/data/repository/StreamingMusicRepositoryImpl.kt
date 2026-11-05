@@ -1474,9 +1474,9 @@ class StreamingMusicRepositoryImpl(
     private fun mapProviderSong(serviceId: String, providerSong: ProviderSong): StreamingSong {
         val encodedId = encodeSongId(serviceId, providerSong.providerId)
         val sourceType = serviceToSourceType(serviceId)
-        val encodedAlbumId = providerSong.albumId
-            ?.takeIf { it.isNotBlank() }
-            ?.let { encodeAlbumId(serviceId, it) }
+        val encodedAlbumId = StreamingAlbumIds.forSong(
+            serviceId, providerSong.albumId, providerSong.artist, providerSong.album,
+        )
         val streamingUrl = if (ProductCapabilities.lanSubsonicOnly) {
             null
         } else {
@@ -1767,7 +1767,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     private fun buildLegacyAlbumId(serviceId: String, artist: String, album: String): String {
-        return "$serviceId::album::${normalizeKey(artist)}::${normalizeKey(album)}"
+        return StreamingAlbumIds.fromNames(serviceId, artist, album)
     }
 
     private fun decodeAlbumId(albumId: String): DecodedAlbumId? {
@@ -1812,8 +1812,7 @@ class StreamingMusicRepositoryImpl(
     }
 
     private fun encodeAlbumId(serviceId: String, providerAlbumId: String): String {
-        val safeProviderId = providerAlbumId.replace("/", "_slash_")
-        return "$serviceId::album::$safeProviderId"
+        return StreamingAlbumIds.fromProviderId(serviceId, providerAlbumId)
     }
 
     private fun legacyAlbumIdForSong(song: StreamingSong, fallbackServiceId: String?): String {
