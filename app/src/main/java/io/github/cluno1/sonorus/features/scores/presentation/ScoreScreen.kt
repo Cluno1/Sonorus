@@ -631,7 +631,7 @@ private class ScorePlaybackController(
         val beatDurationMs = (60_000.0 * 4.0 / denominator / tempo / playbackSpeed)
             .toLong().coerceAtLeast(60L)
         countInCue = ScoreCountInCue(SystemClock.elapsedRealtimeNanos(), beats, beatDurationMs)
-        countInStartedAtMs = SystemClock.elapsedRealtime()
+        countInStartedAtMs = SystemClock.elapsedRealtime() + alphaTab.platform.android.AndroidAudioWorker.leadInMillis()
         onCountInChanged(countInCue)
     }
 
@@ -1068,6 +1068,8 @@ private fun ScoreReadyContent(
     LaunchedEffect(countInCue?.token) {
         val cue = countInCue ?: return@LaunchedEffect
         countInBeat = 1
+        // The first click sounds after the audio worker's lead-in silence.
+        delay(alphaTab.platform.android.AndroidAudioWorker.leadInMillis().toLong())
         repeat(cue.beats - 1) {
             delay(cue.beatDurationMs)
             countInBeat++
