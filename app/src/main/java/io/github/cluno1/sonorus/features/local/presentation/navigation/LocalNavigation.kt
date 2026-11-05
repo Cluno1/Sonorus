@@ -1738,15 +1738,12 @@ private fun LocalNavigationContent(
                         } else {
                             {
                                 val targetSong = currentSong
-                                val wasFavorite = playerIsFavorite
-                                onToggleFavorite()
-                                coroutineScope.launch {
+                                // The prompt follows what really changed, not the tap.
+                                val messageRes = viewModel.toggleFavorite(targetSong).messageRes
+                                if (messageRes != null) coroutineScope.launch {
                                     snackbarHostState.currentSnackbarData?.dismiss()
                                     val result = snackbarHostState.showSnackbar(
-                                        message = context.getString(
-                                            if (wasFavorite) R.string.player_favorite_removed_message
-                                            else R.string.player_favorite_added_message
-                                        ),
+                                        message = context.getString(messageRes),
                                         actionLabel = context.getString(R.string.action_undo),
                                         duration = androidx.compose.material3.SnackbarDuration.Short,
                                     )

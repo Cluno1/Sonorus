@@ -75,6 +75,20 @@ class UnifiedPlaylistPolicyTest {
     }
 
     @Test
+    fun `公共歌曲保留不含凭据的公开封面`() {
+        val lanId = LanSubsonicPlaybackPolicy.mediaId("feiniao:123")
+        val artwork = "https://img1.kuwo.cn/star/albumcover/500/a.jpg"
+        assertEquals(artwork, UnifiedPlaylistPolicy.canonicalArtworkUri(lanId, artwork))
+    }
+
+    @Test
+    fun `公共歌曲不保存带用户信息或非网页地址的封面`() {
+        val lanId = LanSubsonicPlaybackPolicy.mediaId("feiniao:123")
+        assertEquals(null, UnifiedPlaylistPolicy.canonicalArtworkUri(lanId, "https://user:pw@img1.kuwo.cn/a.jpg"))
+        assertEquals(null, UnifiedPlaylistPolicy.canonicalArtworkUri(lanId, "/v2/music/images/a.jpg"))
+    }
+
+    @Test
     fun `drops authenticated and expiring remote artwork urls`() {
         val lanId = LanSubsonicPlaybackPolicy.mediaId("track-42")
         assertEquals(

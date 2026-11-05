@@ -1225,7 +1225,7 @@ fun AlbumDetailScreen(
                 handleArtistTap(song)
             },
             isFavorite = favoriteSongs.contains(selectedSongForOptions!!.id),
-            onToggleFavorite = if (readOnlyLan) null else ({
+            onToggleFavorite = ({
                 onToggleFavorite(selectedSongForOptions!!)
                 showSongOptionsSheet = false
             }),

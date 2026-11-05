@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.viewmodel
 
+import io.github.cluno1.sonorus.features.local.data.model.FavoriteChange
 import android.app.Activity
 import android.app.Application
 import android.content.BroadcastReceiver
@@ -7009,10 +7010,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Toggle favorite status for a specific song
      */
-    fun toggleFavorite(song: Song) {
-        if (io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy.isLan(song.id)) return
+    fun toggleFavorite(song: Song): FavoriteChange {
         val favoriteSong = song.toFavoriteSnapshot()
         val songId = favoriteSong.id
+        val wasFavorite = songId in _favoriteSongs.value
         val currentFavorites = _favoriteSongs.value.toMutableSet()
         
         if (currentFavorites.contains(songId)) {
@@ -7078,6 +7079,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
+        return FavoriteChange.between(wasFavorite, songId in _favoriteSongs.value)
     }
 
     /**

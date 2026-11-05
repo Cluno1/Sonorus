@@ -1506,7 +1506,6 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
     
     private fun isCurrentSongFavorite(): Boolean {
         val currentMediaItem = player.currentMediaItem
-        if (isLanSubsonicMediaItem(currentMediaItem)) return false
         return if (currentMediaItem != null) {
             // Get favorite songs from settings
             val favoriteSongsJson = appSettings.favoriteSongs.value
@@ -1530,7 +1529,10 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
     private fun toggleCurrentSongFavorite() {
         val currentMediaItem = player.currentMediaItem
         if (isLanSubsonicMediaItem(currentMediaItem)) {
-            Log.w(TAG, "Ignoring favorite mutation for read-only public music media")
+            // issue 159: only the ViewModel can add the song to Liked; writing just the ID here would
+            // light the heart while the song stays missing from the list.
+            sendBroadcast(Intent("io.github.cluno1.sonorus.action.WIDGET_TOGGLE_FAVORITE").setPackage(packageName))
+            scheduleCustomLayoutUpdate(300)
             return
         }
         if (currentMediaItem?.mediaId?.startsWith("rhythm-catalog:") == true) {
@@ -2443,8 +2445,6 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                 customCommand.customAction in setOf(
                     "UPDATE_ACTIVE_LYRIC",
                     "UPDATE_LYRICS_DATA",
-                    FAVORITE_ON,
-                    FAVORITE_OFF,
                 )
             if (readOnlyLanCommand) {
                 Log.w(TAG, "Rejected non-playback command for read-only public music media")

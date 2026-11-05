@@ -9,6 +9,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.CATALOG_SONG_ID_PREFIX
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogArtworkPolicy
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogPlaybackPolicy
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
+import java.net.URI
 
 enum class UnifiedPlaylistSource {
     DEVICE_OR_LEGACY,
@@ -50,9 +51,16 @@ object UnifiedPlaylistPolicy {
             UnifiedPlaylistSource.CATALOG -> artworkUri?.takeIf {
                 CatalogArtworkPolicy.assetId(it) != null
             }
-            UnifiedPlaylistSource.LAN_SUBSONIC -> null
+            UnifiedPlaylistSource.LAN_SUBSONIC -> artworkUri?.takeIf(::isPublicImageUrl)
             UnifiedPlaylistSource.DEVICE_OR_LEGACY -> artworkUri
         }
+
+    /** Signed or authenticated URLs carry a query or user info and must never be persisted. */
+    private fun isPublicImageUrl(value: String): Boolean {
+        val uri = runCatching { URI(value) }.getOrNull() ?: return false
+        return (uri.scheme == "https" || uri.scheme == "http") &&
+            !uri.host.isNullOrBlank() && uri.rawUserInfo == null && uri.rawQuery == null
+    }
 
     fun mayPersistInLibrarySongTable(source: UnifiedPlaylistSource): Boolean =
         source == UnifiedPlaylistSource.DEVICE_OR_LEGACY

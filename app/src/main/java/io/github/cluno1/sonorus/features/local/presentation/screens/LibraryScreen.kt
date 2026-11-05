@@ -2159,7 +2159,7 @@ fun LibraryScreen(
                                             if (isStreamingMode) onStreamingPlayNext?.invoke(song) else onPlayNext(song)
                                         },
                                         onToggleFavorite = if (readOnlyStreaming) null else if (isStreamingMode) onStreamingToggleFavorite else { song ->
-                                            musicViewModel.toggleFavorite(song)
+                                            musicViewModel.toggleFavorite(song); Unit
                                         },
                                         favoriteSongs = favoriteSongs,
                                         onGoToArtist = onArtistClick,
@@ -2209,7 +2209,7 @@ fun LibraryScreen(
                                             if (isStreamingMode) onStreamingPlayNext?.invoke(song) else onPlayNext(song)
                                         },
                                         onToggleFavorite = if (isStreamingMode) onStreamingToggleFavorite else { song ->
-                                            musicViewModel.toggleFavorite(song)
+                                            musicViewModel.toggleFavorite(song); Unit
                                         },
                                         favoriteSongs = favoriteSongs,
                                         onGoToArtist = onArtistClick,
@@ -3041,8 +3041,7 @@ fun SingleCardSongsContent(
                             },
                             onAddToQueue = { onAddToQueue(song) },
                             onPlayNext = { onPlayNext(song) },
-                            onToggleFavorite = if (UnifiedLibraryPolicy.isLan(song.id)) null
-                                else onToggleFavorite?.let { fn -> { fn(song) } },
+                            onToggleFavorite = onToggleFavorite?.let { fn -> { fn(song) } },
                             isFavorite = favoriteSongs.contains(song.id),
                             onGoToArtist = { 
                                 val artist = if (groupByAlbumArtist) {
@@ -7068,7 +7067,7 @@ fun YearGroupedSongsContent(
                             onMoreClick = { onAddToPlaylist(song) },
                             onAddToQueue = { onAddToQueue(song) },
                             onPlayNext = { onPlayNext(song) },
-                            onToggleFavorite = if (UnifiedLibraryPolicy.isLan(song.id)) null else ({ onToggleFavorite(song) }),
+                            onToggleFavorite = { onToggleFavorite(song) },
                             isFavorite = favoriteSongs.contains(song.id),
                             onGoToArtist = { onGoToArtist(Artist(id = "", name = song.artist)) },
                             onGoToAlbum = {
