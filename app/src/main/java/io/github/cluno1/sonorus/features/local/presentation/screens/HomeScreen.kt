@@ -301,6 +301,8 @@ fun HomeScreen(
     scoreArtworkServerUrl: String? = null,
     onScoreWorkClick: (io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryScoreWork) -> Unit = {},
     onViewAllScores: () -> Unit = {},
+    onOpenAnnouncements: () -> Unit = {},
+    onOpenAnnouncement: (String) -> Unit = {},
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
@@ -316,6 +318,17 @@ fun HomeScreen(
     val iconVisibilityMode by appSettings.homeAppIconVisibility.collectAsState()
     val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsState()
     val streamingDisconnected = isStreamingMode && !streamingServiceConnected && !streamingIsLoading
+
+    // issue 154: a failed fetch only leaves the entry as it was; it can never reach the player.
+    val announcementsController = remember {
+        io.github.cluno1.sonorus.features.catalog.di.CatalogModule.announcements(context)
+    }
+    val announcementsState by announcementsController.state.collectAsState()
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        coroutineScope.launch { announcementsController.refresh() }
+        onPauseOrDispose { }
+    }
+    val announcementBanner = announcementsState.banner.takeUnless { streamingDisconnected }
 
     // State for AddToPlaylist bottom sheet
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -552,10 +565,44 @@ fun HomeScreen(
         alwaysCollapsed = streamingDisconnected,
         showAppIcon = showAppIcon,
         iconVisibilityMode = iconVisibilityMode,
+        headerContent = announcementBanner?.let { banner ->
+            {
+                io.github.cluno1.sonorus.features.catalog.presentation.CatalogAnnouncementBanner(
+                    announcement = banner,
+                    onOpen = { onOpenAnnouncement(banner.id) },
+                    onDismiss = { announcementsController.dismissBanner(banner.id) },
+                )
+            }
+        },
         actions = {
             val showReorder = !isLandscapeTablet && !streamingDisconnected
             val showSettings = !isTablet && floatingNavigationBar
 
+            if (announcementsState.items.isNotEmpty() && !streamingDisconnected) {
+                ExpressiveFilledTonalIconButton(
+                    onClick = {
+                        HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                        onOpenAnnouncements()
+                    },
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    modifier = Modifier.padding(end = if (showReorder || showSettings) 8.dp else 16.dp)
+                ) {
+                    androidx.compose.material3.BadgedBox(
+                        badge = { if (announcementsState.hasUnread) androidx.compose.material3.Badge() }
+                    ) {
+                        Icon(
+                            imageVector = MaterialSymbolIcon("campaign", filled = true),
+                            contentDescription = context.getString(
+                                if (announcementsState.hasUnread) R.string.announcements_unread else R.string.announcements_open
+                            ),
+                            modifier = Modifier.size(25.dp)
+                        )
+                    }
+                }
+            }
             if (showReorder) {
                 ExpressiveFilledTonalIconButton(
                     onClick = {

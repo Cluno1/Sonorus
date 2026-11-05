@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.cluno1.sonorus.features.catalog.data.local.CatalogCache
 import io.github.cluno1.sonorus.features.catalog.data.local.CatalogQueueStore
 import io.github.cluno1.sonorus.features.catalog.data.local.CatalogOfflineCache
+import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogAnnouncementMapper
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogApiClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.AdminDeviceDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogDeviceAuthClient
@@ -52,7 +53,10 @@ import java.io.IOException
 import java.security.MessageDigest
 import java.util.UUID
 
-class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsRepository {
+class CatalogRepositoryImpl(context: Context) :
+    CatalogRepository,
+    CatalogRoomsRepository,
+    io.github.cluno1.sonorus.features.catalog.domain.CatalogAnnouncementsRepository {
     private val applicationContext = context.applicationContext
     private val credentials = CatalogCredentialsStore(context)
     private val cache = CatalogCache(context)
@@ -753,6 +757,21 @@ class CatalogRepositoryImpl(context: Context) : CatalogRepository, CatalogRoomsR
     private fun roomFailure(code: Int): CatalogFailure {
         if (code == 403 || code >= 500) android.util.Log.w(ROOMS_TAG, "room request failed (status=$code)")
         return if (code == 404) CatalogFailure.RoomUnavailable() else httpFailure(code)
+    }
+
+    override suspend fun listAnnouncements(
+        cursor: String?,
+        etag: String?,
+    ): Result<io.github.cluno1.sonorus.features.catalog.domain.CatalogAnnouncementFetch> = guarded {
+        CatalogAnnouncementMapper.fetch(client().announcementsApi.list(cursor, etag), ::httpFailure)
+    }
+
+    override suspend fun announcement(
+        id: String,
+    ): Result<io.github.cluno1.sonorus.features.catalog.domain.CatalogAnnouncementDetail> = guarded {
+        val response = client().announcementsApi.detail(id)
+        if (!response.isSuccessful) throw CatalogAnnouncementMapper.failure(response.code(), ::httpFailure)
+        CatalogAnnouncementMapper.detail(response.body() ?: throw CatalogFailure.InvalidData("服务器返回空响应"))
     }
 
     private fun client(): CatalogApiClient {

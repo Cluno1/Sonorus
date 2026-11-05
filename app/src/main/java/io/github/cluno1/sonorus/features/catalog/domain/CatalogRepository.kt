@@ -12,6 +12,8 @@ sealed class CatalogFailure(message: String, cause: Throwable? = null) : IOExcep
     class Unreachable(cause: Throwable? = null) : CatalogFailure("无法连接私有作品库", cause)
     class Server(val statusCode: Int) : CatalogFailure("服务器暂时不可用（$statusCode）")
     class InvalidData(detail: String, cause: Throwable? = null) : CatalogFailure("服务器数据无效：$detail", cause)
+    /** issue 154: an administrator took the announcement down after this device listed it. */
+    class AnnouncementUnavailable : CatalogFailure("公告已下架")
     /** issue 124: the room expired (lazily removed the day after its date) or was deleted. */
     class RoomUnavailable : CatalogFailure("房间已不存在或已过期")
     /** issue 124: the Work is already in the room; [addedBy] is who put it there. */

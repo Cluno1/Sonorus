@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 154: announcements published by administrators -->
+<resources>
+    <string name="announcements_title">公告</string>
+    <string name="announcements_open">開啟公告</string>
+    <string name="announcements_unread">有未讀公告</string>
+    <string name="announcements_dismiss">關閉</string>
+    <string name="announcements_empty">暫無公告</string>
+    <string name="announcements_load_failed">載入失敗，請檢查網路後重試</string>
+    <string name="announcements_retry">重試</string>
+    <string name="announcements_gone">這則公告已下架</string>
+    <string name="announcements_update_required">部分內容需要更新 App 才能查看</string>
+    <string name="announcements_image">公告圖片</string>
+    <string name="announcements_image_failed">圖片載入失敗</string>
+    <string name="announcements_link_failed">沒有可開啟此連結的應用程式</string>
+    <string name="announcements_close">關閉</string>
+</resources>

@@ -48,6 +48,7 @@ PROTECTED_CLASS_PATTERNS = tuple(
 )
 REMOTE_SOURCES = (
     "CatalogAdminApi.kt",
+    "CatalogAnnouncementDtos.kt",
     "CatalogApi.kt",
     "CatalogDeviceAuth.kt",
     "CatalogDtos.kt",

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 154: announcements published by administrators -->
+<resources>
+    <string name="announcements_title">Announcements</string>
+    <string name="announcements_open">Open announcements</string>
+    <string name="announcements_unread">Unread announcements</string>
+    <string name="announcements_dismiss">Dismiss</string>
+    <string name="announcements_empty">No announcements</string>
+    <string name="announcements_load_failed">Could not load. Check your connection and try again.</string>
+    <string name="announcements_retry">Retry</string>
+    <string name="announcements_gone">This announcement has been taken down.</string>
+    <string name="announcements_update_required">Part of this content needs a newer version of the app.</string>
+    <string name="announcements_image">Announcement image</string>
+    <string name="announcements_image_failed">The image could not be loaded.</string>
+    <string name="announcements_link_failed">No app can open this link.</string>
+    <string name="announcements_close">Close</string>
+</resources>

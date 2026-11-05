@@ -154,6 +154,8 @@ import io.github.cluno1.sonorus.features.catalog.presentation.CatalogWorkLyricsS
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogExternalLyricsScreen
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsItem
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogExternalLyricsSource
+import io.github.cluno1.sonorus.features.catalog.presentation.CatalogAnnouncementDetailScreen
+import io.github.cluno1.sonorus.features.catalog.presentation.CatalogAnnouncementsScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRoomDetailScreen
 import io.github.cluno1.sonorus.features.catalog.presentation.CatalogRoomsScreen
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogLibraryTag
@@ -314,6 +316,11 @@ sealed class Screen(val route: String) {
     object Rooms : Screen("rooms")
     object RoomDetail : Screen("room/{roomId}?name={name}") {
         fun createRoute(roomId: String, name: String) = "room/${Uri.encode(roomId)}?name=${Uri.encode(name)}"
+    }
+    /** issue 154: announcements published by administrators; entered from the home header. */
+    object Announcements : Screen("announcements")
+    object AnnouncementDetail : Screen("announcement/{announcementId}") {
+        fun createRoute(id: String) = "announcement/${Uri.encode(id)}"
     }
     object AddToPlaylist : Screen("add_to_playlist")
     object PlaylistDetail : Screen("playlist/{playlistId}") {
@@ -2378,6 +2385,10 @@ private fun LocalNavigationContent(
                                 navController.navigate(Screen.Library.createRoute(LibraryTab.SCORES))
                             },
                             onSkipNext = onSkipNext,
+                            onOpenAnnouncements = { navController.navigate(Screen.Announcements.route) },
+                            onOpenAnnouncement = { id ->
+                                navController.navigate(Screen.AnnouncementDetail.createRoute(id))
+                            },
                             onSearchClick = {
                                 navigateToTopLevel(Screen.Search.route)
                             },
@@ -2721,6 +2732,23 @@ private fun LocalNavigationContent(
                 }
 
                 // issue 124
+                composable(Screen.Announcements.route) {
+                    CatalogAnnouncementsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpen = { id -> navController.navigate(Screen.AnnouncementDetail.createRoute(id)) },
+                    )
+                }
+
+                composable(
+                    route = Screen.AnnouncementDetail.route,
+                    arguments = listOf(navArgument("announcementId") { type = NavType.StringType }),
+                ) { backStackEntry ->
+                    CatalogAnnouncementDetailScreen(
+                        id = backStackEntry.arguments?.getString("announcementId")?.let(Uri::decode).orEmpty(),
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+
                 composable(Screen.Rooms.route) {
                     CatalogRoomsScreen(
                         onOpenRoom = { roomId, name ->
