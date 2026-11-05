@@ -219,6 +219,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MusicViewModel"
+        private const val EXTRA_FAVORITE_CHANGED_BY_VIEW_MODEL = "favorite_changed_by_view_model"
         private const val COLOR_SOURCE_ALBUM_ART = "ALBUM_ART"
         /**
          * Threshold above which we skip per-item moveMediaItem calls and use
@@ -444,6 +445,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 "io.github.cluno1.sonorus.action.FAVORITE_CHANGED" -> {
+                    // issue 159: this ViewModel already holds the newest state. Reloading on its own
+                    // broadcast reads Room before the debounced save and drops the song it just added;
+                    // public songs cannot be found again, so the like is lost for good.
+                    if (intent.getBooleanExtra(EXTRA_FAVORITE_CHANGED_BY_VIEW_MODEL, false)) return
                     Log.d(TAG, "Received favorite change notification from service")
                     // Refresh favorite songs and playlists from settings
                     refreshFavoriteSongs()
@@ -606,6 +611,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     
                     // 4. Append them
                     val finalSongsList = existingSongsToKeep + newSongs
+                    if (newSongs.size < newFavoriteIds.size) {
+                        Log.w(TAG, "Liked playlist could not resolve ${newFavoriteIds.size - newSongs.size} favorite songs")
+                    }
                     
                     Log.d(TAG, "Syncing Liked playlist: kept ${existingSongsToKeep.size}, added ${newSongs.size} new songs")
                     
@@ -7094,6 +7102,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         // Send broadcast to notify MediaPlaybackService about favorite state change
         val intent = Intent("io.github.cluno1.sonorus.action.FAVORITE_CHANGED").apply {
             setPackage(getApplication<Application>().packageName)
+            putExtra(EXTRA_FAVORITE_CHANGED_BY_VIEW_MODEL, true)
         }
         getApplication<Application>().sendBroadcast(intent)
     }

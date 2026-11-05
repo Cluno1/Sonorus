@@ -6,6 +6,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.features.catalog.domain.toStableCatalogSongId
+import io.github.cluno1.sonorus.features.local.data.model.LikedSongsProjection
 import io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy
 
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
@@ -572,8 +574,13 @@ fun LibraryScreen(
         filterSongsByCategory(preparedSongs, selectedCategory)
     }
 
-    val likedSongs = remember(preparedSongs, favoriteSongs) {
-        preparedSongs.filter { it.id in favoriteSongs }
+    val likedSongs = remember(preparedSongs, playlists, favoriteSongs, isStreamingMode) {
+        LikedSongsProjection.merge(
+            library = preparedSongs,
+            likedPlaylist = if (isStreamingMode) emptyList() else playlists.firstOrNull { it.id == "1" }?.songs.orEmpty(),
+            favoriteIds = favoriteSongs,
+            stableId = { it.id.toStableCatalogSongId() },
+        )
     }
 
     val sortedAlbums = remember(albums, sortOrder) {
