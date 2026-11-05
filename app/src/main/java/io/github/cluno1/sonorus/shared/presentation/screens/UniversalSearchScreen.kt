@@ -80,6 +80,7 @@ import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingSong
+import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceId
 import io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.StreamingMusicViewModel
 import io.github.cluno1.sonorus.shared.data.model.Album
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
@@ -189,12 +190,14 @@ fun UniversalSearchScreen(
     // What results are shown for: set only by the search button, the keyboard's search key, or a
     // history / genre tap, so typing never sends requests. Clearing the box clears the results.
     var searchedQuery by remember { mutableStateOf("") }
+    var searchSubmission by remember { mutableIntStateOf(0) }
     LaunchedEffect(query) {
         if (query.isBlank()) searchedQuery = ""
     }
     val submitSearch: (String, UniversalSearchSubmitSource) -> Unit = { text, source ->
         query = text
         searchedQuery = text.trim()
+        searchSubmission++
         universalSearchHistoryEntry(text, source)?.let(localViewModel::addSearchQuery)
         focusManager.clearFocus()
     }
@@ -296,7 +299,10 @@ fun UniversalSearchScreen(
     val localPlaylists = legacyLocalPlaylists
     val isLocalLoading = catalogSource?.isLoading == true
 
-    val streamingQuery by streamingViewModel.searchQuery.collectAsState()
+    val streamingSessions by streamingViewModel.serviceSessions.collectAsState()
+    val lanConnectionEpoch = if (ProductCapabilities.lanSubsonicOnly) {
+        streamingSessions[StreamingServiceId.SUBSONIC]?.lastConnectedAtEpochMillis ?: 0L
+    } else 0L
     val streamingResults by streamingViewModel.searchResults.collectAsState()
     val isStreamingLoading by streamingViewModel.isLoading.collectAsState()
     val streamingLikedSongs by streamingViewModel.likedSongs.collectAsState()
@@ -331,11 +337,10 @@ fun UniversalSearchScreen(
 
     val normalizedQuery = remember(searchedQuery) { normalizedUniversalSearchQuery(searchedQuery) }
 
-    LaunchedEffect(normalizedQuery) {
+    LaunchedEffect(normalizedQuery, searchSubmission, lanConnectionEpoch) {
         if ((catalogSource == null || ProductCapabilities.lanSubsonicOnly) &&
             (ProductCapabilities.thirdPartyMusicServices || ProductCapabilities.lanSubsonicOnly) &&
-            normalizedQuery.isNotBlank() &&
-            streamingQuery != normalizedQuery
+            normalizedQuery.isNotBlank()
         ) {
             streamingViewModel.search(normalizedQuery)
         }
