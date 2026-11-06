@@ -95,50 +95,9 @@ fun QueueSettingsScreen(onBackClick: () -> Unit) {
             SettingGroup(
                 title = context.getString(R.string.settings_queue_behavior),
                 items = buildList {
-                    add(
-                        SettingItem(
-                            MaterialSymbolIcon("album", filled = true),
-                            context.getString(R.string.settings_respect_album_on_play),
-                            context.getString(R.string.settings_respect_album_on_play_desc),
-                            toggleState = respectAlbumOnPlay,
-                            onToggleChange = { appSettings.setRespectAlbumOnPlay(it) }
-                        )
-                    )
-                    add(
-                        SettingItem(
-                            RhythmIcons.Sort,
-                            context.getString(R.string.settings_list_queue_action_dialog),
-                            when (listQueueActionBehavior) {
-                                "ask" -> context.getString(R.string.settings_list_queue_action_ask)
-                                "play_next" -> context.getString(R.string.settings_list_queue_action_play_next)
-                                "add_to_end" -> context.getString(R.string.settings_list_queue_action_add_to_end)
-                                else -> context.getString(R.string.settings_list_queue_action_replace)
-                            },
-                            onClick = { showListQueueBehaviorDialog = true }
-                        )
-                    )
-                    add(
-                        SettingItem(
-                            MaterialSymbolIcon("help", filled = true),
-                            context.getString(R.string.settings_queue_action_dialog),
-                            when {
-                                clearQueueOnNewSong -> context.getString(R.string.settings_queue_action_dialog_desc_disabled)
-                                showQueueDialog -> context.getString(R.string.settings_queue_action_dialog_desc_ask)
-                                else -> context.getString(R.string.settings_queue_action_dialog_desc_always)
-                            },
-                            onClick = { showQueueDialogSettingDialog = true },
-                            enabled = !clearQueueOnNewSong
-                        )
-                    )
-                    add(
-                        SettingItem(
-                            RhythmIcons.Delete,
-                            context.getString(R.string.settings_clear_queue_on_new_song),
-                            context.getString(R.string.settings_clear_queue_on_new_song_desc),
-                            toggleState = clearQueueOnNewSong,
-                            onToggleChange = { appSettings.setClearQueueOnNewSong(it) }
-                        )
-                    )
+                    // issue 162: single taps always "play now" in the current queue, so the
+                    // album/list-action/dialog/replace-queue switches no longer change anything
+                    // and are hidden. Their stored values are kept.
                     add(
                         SettingItem(
                             RhythmIcons.Shuffle,
@@ -150,41 +109,8 @@ fun QueueSettingsScreen(onBackClick: () -> Unit) {
                     )
                 }
             ),
-            SettingGroup(
-                title = context.getString(R.string.settings_queue_autofill),
-                items = buildList {
-                    add(
-                        SettingItem(
-                            RhythmIcons.AddToQueue,
-                            context.getString(R.string.settings_auto_queue),
-                            context.getString(R.string.settings_auto_queue_desc),
-                            toggleState = autoAddToQueue,
-                            onToggleChange = { appSettings.setAutoAddToQueue(it) }
-                        )
-                    )
-                    add(
-                        SettingItem(
-                            RhythmIcons.Tune,
-                            context.getString(R.string.settings_context_queue_preference),
-                            when (effectiveContextQueuePreference) {
-                                "ARTIST_FIRST" -> context.getString(R.string.settings_context_pref_artist_first)
-                                else -> context.getString(R.string.settings_context_pref_genre_first)
-                            },
-                            onClick = { showContextPrefBottomSheet = true },
-                            enabled = autoAddToQueue
-                        )
-                    )
-                    add(
-                        SettingItem(
-                            RhythmIcons.Repeat,
-                            context.getString(R.string.settings_context_queue_persistence),
-                            context.getString(R.string.settings_context_queue_persistence_desc),
-                            data = "context_queue_persistence",
-                            enabled = autoAddToQueue
-                        )
-                    )
-                }
-            ),
+            // issue 162: the context-queue autofill group (auto queue, preference, persistence)
+            // only fed the old replace-queue path, which taps no longer reach, so it is hidden.
             SettingGroup(
                 title = context.getString(R.string.settings_queue_display),
                 items = listOf(
