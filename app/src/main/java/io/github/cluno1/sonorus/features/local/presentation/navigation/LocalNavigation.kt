@@ -170,6 +170,7 @@ import io.github.cluno1.sonorus.core.ProductCapabilities
 import io.github.cluno1.sonorus.core.ProductRoutePolicy
 import io.github.cluno1.sonorus.shared.presentation.screens.RhythmStatsScreen
 import io.github.cluno1.sonorus.shared.presentation.screens.UniversalSearchCatalogSource
+import io.github.cluno1.sonorus.shared.presentation.screens.universalSearchQueueSongs
 import io.github.cluno1.sonorus.features.local.presentation.screens.EqualizerScreen
 import io.github.cluno1.sonorus.shared.presentation.screens.player.PlayerScreen
 
@@ -2927,11 +2928,16 @@ private fun LocalNavigationContent(
                                     streamingMusicViewModel.playQueue(streamingResults, 0, shuffle)
                                 } else {
                                     playCatalogQueue(
-                                        localResults + streamingResults.mapNotNull { it.toLocalSong() },
+                                        universalSearchQueueSongs(localResults, streamingResults) { it.toLocalSong() },
                                         0,
                                         shuffle,
                                     )
                                 }
+                            },
+                            // issue 168: append every result, in page order, like album detail "add to queue".
+                            onAddAllSongsToQueue = { localResults, streamingResults ->
+                                universalSearchQueueSongs(localResults, streamingResults) { it.toLocalSong() }
+                                    .forEach { song -> queueNativeSong(song, false) }
                             },
                             onStreamingAlbumClick = { streamingAlbum ->
                                 navController.navigate(StreamingRoutes.album(streamingAlbum.id, streamingAlbum.title)) {

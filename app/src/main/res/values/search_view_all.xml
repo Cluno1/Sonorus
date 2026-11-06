@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 168: every search group follows the songs group (preview + "view all" + full list). -->
+<resources>
+    <string name="search_public_playlists_section">Public playlists</string>
+    <string name="search_view_all_public_playlists">View all playlists</string>
+    <string name="search_public_playlists_count">See all %1$d playlists</string>
+    <string name="search_public_playlists_count_more">%1$d+ playlists found</string>
+    <string name="search_public_playlists_loaded">%1$d playlists loaded</string>
+    <string name="search_view_all_lyrics">View all lyrics</string>
+    <string name="search_view_all_external_lyrics">View all online lyrics</string>
+    <string name="search_lyrics_count">See all %1$d results</string>
+    <string name="search_view_all_scores">View all scores</string>
+    <string name="search_scores_count">See all %1$d scores</string>
+</resources>

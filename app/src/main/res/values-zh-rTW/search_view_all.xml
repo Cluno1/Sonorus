@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- issue 168: every search group follows the songs group (preview + "view all" + full list). -->
+<resources>
+    <string name="search_public_playlists_section">歌單</string>
+    <string name="search_view_all_public_playlists">看全部歌單</string>
+    <string name="search_public_playlists_count">查看全部 %1$d 個歌單</string>
+    <string name="search_public_playlists_count_more">已找到 %1$d+ 個歌單</string>
+    <string name="search_public_playlists_loaded">已載入 %1$d 個歌單</string>
+    <string name="search_view_all_lyrics">看全部歌詞</string>
+    <string name="search_view_all_external_lyrics">看全部網路歌詞</string>
+    <string name="search_lyrics_count">查看全部 %1$d 筆</string>
+    <string name="search_view_all_scores">看全部歌譜</string>
+    <string name="search_scores_count">查看全部 %1$d 首歌譜</string>
+    <string name="search_view_all_count_format">查看全部 %1$d 首歌曲</string>
+</resources>

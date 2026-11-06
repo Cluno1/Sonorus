@@ -82,6 +82,7 @@ import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
 import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylist
+import io.github.cluno1.sonorus.features.streaming.domain.PublicPlaylistSearchState
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingSong
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceId
 import io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.StreamingMusicViewModel
@@ -107,7 +108,7 @@ import io.github.cluno1.sonorus.features.catalog.presentation.isWorkNumberQuery
 import androidx.annotation.StringRes
 import androidx.compose.foundation.lazy.LazyListScope
 import android.content.Context
-import io.github.cluno1.sonorus.features.catalog.presentation.components.ScoreWorkGridCard
+import io.github.cluno1.sonorus.features.catalog.presentation.components.ScoreWorkListItem
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsGroup
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsItem
 import io.github.cluno1.sonorus.shared.presentation.components.SettingScope
@@ -162,6 +163,8 @@ fun UniversalSearchScreen(
     onStreamingSongClick: (StreamingSong) -> Unit = {},
     // issue 162: "view all songs" page play all / shuffle (local+Catalog songs, public songs, shuffle).
     onPlayAllSongs: (List<Song>, List<StreamingSong>, Boolean) -> Unit = { _, _, _ -> },
+    // issue 168: "view all songs" page adds every result to the end of the queue, like album detail.
+    onAddAllSongsToQueue: (List<Song>, List<StreamingSong>) -> Unit = { _, _ -> },
     onStreamingAlbumClick: (StreamingAlbum) -> Unit = {},
     onStreamingArtistClick: (StreamingArtist) -> Unit = {},
     onStreamingPlaylistClick: (StreamingPlaylist) -> Unit = {},
@@ -226,6 +229,8 @@ fun UniversalSearchScreen(
     var filterAlbums by remember { mutableStateOf(true) }
     var filterArtists by remember { mutableStateOf(true) }
     var filterPlaylists by remember { mutableStateOf(true) }
+    // issue 168: public playlists (歌单) have their own chip, apart from phone playlists (播放列表).
+    var filterPublicPlaylists by remember { mutableStateOf(true) }
     var filterLyrics by remember { mutableStateOf(true) }
     var filterNumbers by remember { mutableStateOf(true) }
     var filterTags by remember { mutableStateOf(true) }
@@ -242,11 +247,9 @@ fun UniversalSearchScreen(
     var scoreSearchState by remember {
         mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
     }
-    var lyricsSectionExpanded by remember { mutableStateOf(false) }
     var externalLyricsState by remember {
         mutableStateOf<UniversalExternalLyricsSearchState>(UniversalExternalLyricsSearchState.Idle)
     }
-    var externalLyricsSectionExpanded by remember { mutableStateOf(false) }
     var numberSectionExpanded by remember { mutableStateOf(false) }
     var tagSectionExpanded by remember { mutableStateOf(false) }
 
@@ -254,7 +257,14 @@ fun UniversalSearchScreen(
     var pendingAction: (() -> Unit)? by remember { mutableStateOf(null) }
     var targetModeForPendingAction by remember { mutableStateOf("") }
 
-    var showAllSongsPage by remember { mutableStateOf(false) }
+    // issue 168: every group opens its full list on the same page as "view all songs".
+    var allResultsPage by remember { mutableStateOf<UniversalSearchAllPage?>(null) }
+    // Kept while the page slides out, so the closing page keeps its content.
+    var lastAllResultsPage by remember { mutableStateOf(UniversalSearchAllPage.SONGS) }
+    val openAllResults: (UniversalSearchAllPage) -> Unit = { page ->
+        lastAllResultsPage = page
+        allResultsPage = page
+    }
     var showSongOptionsSheet by remember { mutableStateOf(false) }
     var selectedSongForOptions by remember { mutableStateOf<Any?>(null) }
 
@@ -358,7 +368,6 @@ fun UniversalSearchScreen(
     val currentCatalogTextSearch by rememberUpdatedState(catalogSource?.searchLibrary)
     val catalogTextQuery = remember(searchedQuery) { searchedQuery.trim().take(100) }
     LaunchedEffect(catalogTextQuery, filterLyrics, catalogTextSearchAvailable) {
-        lyricsSectionExpanded = false
         val search = currentCatalogTextSearch
         if (search == null || !filterLyrics || catalogTextQuery.isEmpty()) {
             lyricsSearchState = UniversalCatalogTextSearchState.Idle
@@ -373,7 +382,6 @@ fun UniversalSearchScreen(
     val currentExternalLyricsSearch by rememberUpdatedState(catalogSource?.searchExternalLyrics)
     val externalLyricsSearchAvailable = catalogSource?.searchExternalLyrics != null
     LaunchedEffect(catalogTextQuery, filterExternalLyrics, externalLyricsSearchAvailable) {
-        externalLyricsSectionExpanded = false
         val search = currentExternalLyricsSearch
         if (search == null || !filterExternalLyrics || catalogTextQuery.isEmpty()) {
             externalLyricsState = UniversalExternalLyricsSearchState.Idle
@@ -495,24 +503,22 @@ fun UniversalSearchScreen(
     val matchedStreamingArtists = if (catalogSource == null && filterArtists) streamingResults.artists else emptyList()
     val matchedStreamingPlaylists = if (catalogSource == null && filterPlaylists) streamingResults.playlists else emptyList()
     val publicPlaylistSearch by streamingViewModel.publicPlaylistSearch.collectAsState()
-    val matchedPublicPlaylists = if (
-        ProductCapabilities.lanSubsonicOnly && filterPlaylists && publicPlaylistSearch.query == normalizedQuery.trim()
-    ) publicPlaylistSearch.items else emptyList()
-    val publicPlaylistEntries: List<Pair<Triple<String, String, String>, () -> Unit>> = buildList {
-        matchedPublicPlaylists.forEach { playlist ->
-            add(Triple("PUBLIC", playlist.name, context.getString(R.string.public_music_playlist_search_subtitle, playlist.songCount)) to {
-                if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
-                onPublicPlaylistClick(playlist)
-            })
-        }
-        if (ProductCapabilities.lanSubsonicOnly && filterPlaylists && publicPlaylistSearch.query == normalizedQuery.trim()) {
-            val more = when {
-                publicPlaylistSearch.loading -> R.string.public_music_playlist_search_loading
-                publicPlaylistSearch.failed -> R.string.public_music_playlist_search_failed
-                publicPlaylistSearch.hasMore -> R.string.public_music_playlist_search_more
-                else -> null
-            }
-            if (more != null) add(Triple("MORE", context.getString(more), "") to { streamingViewModel.loadMorePublicPlaylists() })
+    val publicPlaylistsShown = ProductCapabilities.lanSubsonicOnly && filterPublicPlaylists &&
+        publicPlaylistSearch.query == normalizedQuery.trim()
+    val matchedPublicPlaylists = if (publicPlaylistsShown) publicPlaylistSearch.items else emptyList()
+    val openPublicPlaylist: (PublicMusicPlaylist) -> Unit = { playlist ->
+        if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
+        onPublicPlaylistClick(playlist)
+    }
+    val publicPlaylistSectionItems: LazyListScope.() -> Unit = {
+        if (publicPlaylistsShown) {
+            universalPublicPlaylistSection(
+                state = publicPlaylistSearch,
+                haptics = haptics,
+                onOpen = openPublicPlaylist,
+                onViewAll = { openAllResults(UniversalSearchAllPage.PUBLIC_PLAYLISTS) },
+                onRetry = { streamingViewModel.loadMorePublicPlaylists() },
+            )
         }
     }
 
@@ -572,10 +578,10 @@ fun UniversalSearchScreen(
             lyricsState = lyricsSearchState,
             numberState = numberSearchState,
             tagState = tagSearchState,
-            lyricsExpanded = lyricsSectionExpanded,
             numbersExpanded = numberSectionExpanded,
             tagsExpanded = tagSectionExpanded,
-            onToggleLyricsExpanded = { lyricsSectionExpanded = !lyricsSectionExpanded },
+            haptics = haptics,
+            onViewAllLyrics = { openAllResults(UniversalSearchAllPage.LYRICS) },
             onToggleNumbersExpanded = { numberSectionExpanded = !numberSectionExpanded },
             onToggleTagsExpanded = { tagSectionExpanded = !tagSectionExpanded },
             onOpenLyrics = openCatalogWorkLyrics,
@@ -585,15 +591,15 @@ fun UniversalSearchScreen(
         )
         universalExternalLyricsSection(
             items = matchedExternalLyricsItems,
-            expanded = externalLyricsSectionExpanded,
-            onToggleExpanded = { externalLyricsSectionExpanded = !externalLyricsSectionExpanded },
+            haptics = haptics,
+            onViewAll = { openAllResults(UniversalSearchAllPage.EXTERNAL_LYRICS) },
             onOpen = openExternalLyrics,
         )
     }
 
     val handleBack = {
-        if (showAllSongsPage) {
-            showAllSongsPage = false
+        if (allResultsPage != null) {
+            allResultsPage = null
         } else if (query.isNotEmpty() || showFilters) {
             query = ""
             showFilters = false
@@ -1047,54 +1053,19 @@ fun UniversalSearchScreen(
                                             val totalSongs = matchedLocalSongs.size + matchedStreamingSongs.size
                                             if (totalSongs > allSongs.size) {
                                                 Spacer(modifier = Modifier.height(12.dp))
-                                                Card(
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                                    ),
-                                                    shape = RoundedCornerShape(16.dp),
-                                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(horizontal = 4.dp)
-                                                        .clickable {
-                                                            HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
-                                                            showAllSongsPage = true
-                                                        }
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .padding(16.dp),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Column {
-                                                            Text(
-                                                                text = context.getString(R.string.search_view_all_songs),
-                                                                style = MaterialTheme.typography.titleMedium,
-                                                                fontWeight = FontWeight.Medium,
-                                                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                                                            )
-                                                            Text(
-                                                                text = stringResource(R.string.search_view_all_count_format, totalSongs),
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                                                            )
-                                                        }
-                                                        Icon(
-                                                            imageVector = RhythmIcons.Back,
-                                                            contentDescription = stringResource(R.string.cd_view_all),
-                                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                            modifier = Modifier.size(24.dp).graphicsLayer { rotationZ = 180f }
-                                                        )
-                                                    }
-                                                }
+                                                UniversalSearchViewAllCard(
+                                                    title = stringResource(R.string.search_view_all_songs),
+                                                    countText = stringResource(R.string.search_view_all_count_format, totalSongs),
+                                                    onClick = { openAllResults(UniversalSearchAllPage.SONGS) },
+                                                )
                                             }
                                         }
                                     }
                                 }
 
                                 catalogTextSearchItems()
+
+                                publicPlaylistSectionItems()
 
                                 val allPlaylists = buildList {
                                     matchedLocalPlaylists.take(5).forEach { playlist ->
@@ -1109,7 +1080,6 @@ fun UniversalSearchScreen(
                                             handleAction("STREAMING") { onStreamingPlaylistClick(playlist) }
                                         })
                                     }
-                                    addAll(publicPlaylistEntries)
                                 }
                                 if (allPlaylists.isNotEmpty()) {
                                     item(key = "playlists_group") {
@@ -1118,7 +1088,6 @@ fun UniversalSearchScreen(
                                             Material3SettingsItem(
                                                 icon = when (mode) {
                                                     "LOCAL" -> RhythmIcons.Playlist
-                                                    "MORE" -> MaterialSymbolIcon("expand_more", filled = true)
                                                     else -> MaterialSymbolIcon("cloud", filled = true)
                                                 },
                                                 scope = if (mode == "LOCAL") SettingScope.LOCAL else SettingScope.STREAMING,
@@ -1176,24 +1145,12 @@ fun UniversalSearchScreen(
                                     }
                                 }
                             }
-                            if (matchedScoreWorks.isNotEmpty()) {
-                                item(key = "scores_header") {
-                                    Text(stringResource(R.string.catalog_scores), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp).animateItem())
-                                }
-                                item(key = "scores_grid") {
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.animateItem()) {
-                                        items(matchedScoreWorks.take(6).size, key = { i -> matchedScoreWorks[i].workId }) { i ->
-                                            val work = matchedScoreWorks[i]
-                                            ScoreWorkGridCard(
-                                                work = work,
-                                                trustedServerUrl = catalogSource?.serverUrl,
-                                                onClick = { onCatalogScoreWorkClick(work) },
-                                                modifier = Modifier.width(160.dp),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            universalScoreSection(
+                                works = matchedScoreWorks,
+                                trustedServerUrl = catalogSource?.serverUrl,
+                                onOpen = onCatalogScoreWorkClick,
+                                onViewAll = { openAllResults(UniversalSearchAllPage.SCORES) },
+                            )
 
                             if (scoreSearchFailure != null) {
                                 item(key = "scores_error") {
@@ -1323,48 +1280,11 @@ fun UniversalSearchScreen(
                                         val totalSongs = matchedLocalSongs.size + matchedStreamingSongs.size
                                         if (totalSongs > allSongs.size) {
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            Card(
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                                ),
-                                                shape = RoundedCornerShape(16.dp),
-                                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 4.dp)
-                                                    .clickable {
-                                                        HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
-                                                        showAllSongsPage = true
-                                                    }
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(16.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Column {
-                                                        Text(
-                                                            text = context.getString(R.string.search_view_all_songs),
-                                                            style = MaterialTheme.typography.titleMedium,
-                                                            fontWeight = FontWeight.Medium,
-                                                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                                                        )
-                                                        Text(
-                                                            text = stringResource(R.string.search_view_all_count_format, totalSongs),
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                                                        )
-                                                    }
-                                                    Icon(
-                                                        imageVector = RhythmIcons.Back,
-                                                        contentDescription = stringResource(R.string.cd_view_all),
-                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                        modifier = Modifier.size(24.dp).graphicsLayer { rotationZ = 180f }
-                                                    )
-                                                }
-                                            }
+                                            UniversalSearchViewAllCard(
+                                                title = stringResource(R.string.search_view_all_songs),
+                                                countText = stringResource(R.string.search_view_all_count_format, totalSongs),
+                                                onClick = { openAllResults(UniversalSearchAllPage.SONGS) },
+                                            )
                                         }
                                     }
                                 }
@@ -1398,24 +1318,12 @@ fun UniversalSearchScreen(
                                     }
                                 }
                             }
-                            if (matchedScoreWorks.isNotEmpty()) {
-                                item(key = "scores_header") {
-                                    Text(stringResource(R.string.catalog_scores), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp).animateItem())
-                                }
-                                item(key = "scores_grid") {
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.animateItem()) {
-                                        items(matchedScoreWorks.take(6).size, key = { i -> matchedScoreWorks[i].workId }) { i ->
-                                            val work = matchedScoreWorks[i]
-                                            ScoreWorkGridCard(
-                                                work = work,
-                                                trustedServerUrl = catalogSource?.serverUrl,
-                                                onClick = { onCatalogScoreWorkClick(work) },
-                                                modifier = Modifier.width(160.dp),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                            universalScoreSection(
+                                works = matchedScoreWorks,
+                                trustedServerUrl = catalogSource?.serverUrl,
+                                onOpen = onCatalogScoreWorkClick,
+                                onViewAll = { openAllResults(UniversalSearchAllPage.SCORES) },
+                            )
 
                             if (scoreSearchFailure != null) {
                                 item(key = "scores_error") {
@@ -1458,6 +1366,8 @@ fun UniversalSearchScreen(
                                 }
                             }
 
+                            publicPlaylistSectionItems()
+
                             val allPlaylists = buildList {
                                 matchedLocalPlaylists.take(5).forEach { playlist ->
                                     add(Triple("LOCAL", playlist.name, "Local Playlist") to {
@@ -1471,7 +1381,6 @@ fun UniversalSearchScreen(
                                         handleAction("STREAMING") { onStreamingPlaylistClick(playlist) }
                                     })
                                 }
-                                addAll(publicPlaylistEntries)
                             }
                             if (allPlaylists.isNotEmpty()) {
                                 item(key = "playlists_group") {
@@ -1480,7 +1389,6 @@ fun UniversalSearchScreen(
                                         Material3SettingsItem(
                                             icon = when (mode) {
                                                     "LOCAL" -> RhythmIcons.Playlist
-                                                    "MORE" -> MaterialSymbolIcon("expand_more", filled = true)
                                                     else -> MaterialSymbolIcon("cloud", filled = true)
                                                 },
                                             scope = if (mode == "LOCAL") SettingScope.LOCAL else SettingScope.STREAMING,
@@ -1786,6 +1694,40 @@ fun UniversalSearchScreen(
                         ),
                         border = null
                     )
+                    if (ProductCapabilities.lanSubsonicOnly) {
+                        val publicPlaylistsCornerRadius by animateDpAsState(
+                            targetValue = if (filterPublicPlaylists) 24.dp else 12.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                            label = "publicPlaylistsCornerRadius"
+                        )
+                        FilterChip(
+                            selected = filterPublicPlaylists,
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
+                                filterPublicPlaylists = !filterPublicPlaylists
+                            },
+                            label = { Text(stringResource(R.string.search_public_playlists_section), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) },
+                            leadingIcon = if (filterPublicPlaylists) {
+                                {
+                                    Icon(
+                                        imageVector = RhythmIcons.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                    )
+                                }
+                            } else null,
+                            shape = RoundedCornerShape(publicPlaylistsCornerRadius),
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                iconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = null
+                        )
+                    }
                     if (catalogTextSearchAvailable) {
                         val filterLyricsCornerRadius by animateDpAsState(
                             targetValue = if (filterLyrics) 24.dp else 12.dp,
@@ -1928,7 +1870,7 @@ fun UniversalSearchScreen(
         } // end Box (gradient wrapper)
 
         AnimatedVisibility(
-            visible = showAllSongsPage,
+            visible = allResultsPage != null,
             enter = fadeIn(animationSpec = tween(300)) + slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = spring(
@@ -1944,24 +1886,102 @@ fun UniversalSearchScreen(
                 )
             )
         ) {
-            UniversalAllSongsPage(
-                localSongs = matchedLocalSongs,
-                streamingSongs = matchedStreamingSongs,
-                onBack = { showAllSongsPage = false },
-                onOptionsClick = { songObj ->
-                    selectedSongForOptions = songObj
-                    showSongOptionsSheet = true
-                },
-                onLocalSongClick = { song ->
-                    handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
-                },
-                onStreamingSongClick = { song -> handleAction("STREAMING") { onStreamingSongClick(song) } },
-                onPlayAll = { shuffle ->
-                    val mode = if (matchedLocalSongs.isNotEmpty()) "LOCAL" else "STREAMING"
-                    handleAction(mode) { onPlayAllSongs(matchedLocalSongs, matchedStreamingSongs, shuffle) }
-                },
-                haptics = haptics
-            )
+            val closeAllResults = { allResultsPage = null }
+            when (allResultsPage ?: lastAllResultsPage) {
+                UniversalSearchAllPage.SONGS -> UniversalAllSongsPage(
+                    localSongs = matchedLocalSongs,
+                    streamingSongs = matchedStreamingSongs,
+                    onBack = closeAllResults,
+                    onOptionsClick = { songObj ->
+                        selectedSongForOptions = songObj
+                        showSongOptionsSheet = true
+                    },
+                    onLocalSongClick = { song ->
+                        handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
+                    },
+                    onStreamingSongClick = { song -> handleAction("STREAMING") { onStreamingSongClick(song) } },
+                    onPlayAll = { shuffle ->
+                        val mode = if (matchedLocalSongs.isNotEmpty()) "LOCAL" else "STREAMING"
+                        handleAction(mode) { onPlayAllSongs(matchedLocalSongs, matchedStreamingSongs, shuffle) }
+                    },
+                    onAddAllToQueue = {
+                        val mode = if (matchedLocalSongs.isNotEmpty()) "LOCAL" else "STREAMING"
+                        handleAction(mode) { onAddAllSongsToQueue(matchedLocalSongs, matchedStreamingSongs) }
+                    },
+                    haptics = haptics
+                )
+                UniversalSearchAllPage.LYRICS -> UniversalSearchResultsPage(
+                    title = stringResource(R.string.search_lyrics_section),
+                    onBack = closeAllResults,
+                ) {
+                    itemsIndexed(matchedLyricsItems, key = { _, item -> item.workId }) { index, item ->
+                        UniversalLyricsSearchRow(
+                            item = item,
+                            haptics = haptics,
+                            index = index,
+                            totalCount = matchedLyricsItems.size,
+                            onClick = { openCatalogWorkLyrics(item) },
+                        )
+                    }
+                }
+                UniversalSearchAllPage.EXTERNAL_LYRICS -> UniversalSearchResultsPage(
+                    title = stringResource(R.string.search_external_lyrics_section),
+                    onBack = closeAllResults,
+                ) {
+                    item(key = "external_lyrics_hint") { UniversalSearchGroupHint(stringResource(R.string.search_external_lyrics_hint)) }
+                    itemsIndexed(matchedExternalLyricsItems, key = { _, item -> item.key }) { index, item ->
+                        UniversalExternalLyricsRow(
+                            item = item,
+                            haptics = haptics,
+                            index = index,
+                            totalCount = matchedExternalLyricsItems.size,
+                            onClick = { openExternalLyrics(item) },
+                        )
+                    }
+                }
+                UniversalSearchAllPage.PUBLIC_PLAYLISTS -> UniversalSearchResultsPage(
+                    title = stringResource(R.string.search_public_playlists_section),
+                    onBack = closeAllResults,
+                ) {
+                    itemsIndexed(
+                        matchedPublicPlaylists,
+                        key = { _, playlist -> "${playlist.sourceId}:${playlist.externalId}" },
+                    ) { index, playlist ->
+                        UniversalPublicPlaylistRow(
+                            playlist = playlist,
+                            haptics = haptics,
+                            index = index,
+                            totalCount = matchedPublicPlaylists.size,
+                            onClick = { openPublicPlaylist(playlist) },
+                        )
+                    }
+                    publicPlaylistLoadMoreRes(publicPlaylistSearch)?.let { labelRes ->
+                        item(key = "public_playlists_more") {
+                            Column {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                UniversalSearchViewAllCard(
+                                    title = stringResource(labelRes),
+                                    countText = stringResource(R.string.search_public_playlists_loaded, matchedPublicPlaylists.size),
+                                    onClick = { streamingViewModel.loadMorePublicPlaylists() },
+                                )
+                            }
+                        }
+                    }
+                }
+                UniversalSearchAllPage.SCORES -> UniversalSearchResultsPage(
+                    title = stringResource(R.string.catalog_scores),
+                    onBack = closeAllResults,
+                ) {
+                    itemsIndexed(matchedScoreWorks, key = { _, work -> work.workId }) { index, work ->
+                        ScoreWorkListItem(
+                            work = work,
+                            trustedServerUrl = catalogSource?.serverUrl,
+                            onClick = { onCatalogScoreWorkClick(work) },
+                            shape = groupedSongItemShape(index, matchedScoreWorks.size),
+                        )
+                    }
+                }
+            }
         }
 
         if (showSongOptionsSheet && selectedSongForOptions != null) {
@@ -2276,7 +2296,10 @@ fun UniversalSearchSongItem(
     onMoreClick: (() -> Unit)?,
     haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
     index: Int = 0,
-    totalCount: Int = 1
+    totalCount: Int = 1,
+    // issue 168: lyrics and playlist results reuse this row; they carry no local/public badge.
+    showModeBadge: Boolean = true,
+    supportingText: String? = null,
 ) {
     val context = LocalContext.current
     Card(
@@ -2328,6 +2351,18 @@ fun UniversalSearchSongItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
+                supportingText?.let { text ->
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                if (showModeBadge) {
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Surface(
@@ -2362,6 +2397,7 @@ fun UniversalSearchSongItem(
                                 MaterialTheme.colorScheme.secondary
                         )
                     }
+                }
                 }
             }
 
@@ -2562,6 +2598,7 @@ fun UniversalAllSongsPage(
     onLocalSongClick: (Song) -> Unit,
     onStreamingSongClick: (StreamingSong) -> Unit,
     onPlayAll: (shuffle: Boolean) -> Unit,
+    onAddAllToQueue: () -> Unit,
     haptics: androidx.compose.ui.hapticfeedback.HapticFeedback
 ) {
     val context = LocalContext.current
@@ -2569,38 +2606,31 @@ fun UniversalAllSongsPage(
         localSongs.forEach { add(it to "LOCAL") }
         streamingSongs.forEach { add(it to "STREAMING") }
     }
+    // issue 168: same press feedback as the album detail "add to queue" button.
+    var addToQueuePressed by remember { mutableStateOf(false) }
+    val addToQueueScale by animateFloatAsState(
+        targetValue = if (addToQueuePressed) 0.96f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "addToQueueScale"
+    )
+    LaunchedEffect(addToQueuePressed) { if (addToQueuePressed) { delay(150); addToQueuePressed = false } }
 
-    val miniPlayerBottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding()
-    val contentBottomPadding = (miniPlayerBottomPadding + 20.dp).coerceAtLeast(96.dp)
-    val isTablet = windowScreenWidthDp() >= 600
-    val horizontalPadding = if (isTablet) 32.dp else 24.dp
-
-    CollapsibleHeaderScreen(
+    UniversalSearchResultsPage(
         title = stringResource(R.string.settings_tab_songs),
-        showBackButton = true,
-        onBackClick = onBack,
-        containerColor = MaterialTheme.colorScheme.background
-    ) { modifier ->
-        LazyColumn(
-            modifier = modifier,
-            contentPadding = PaddingValues(
-                start = horizontalPadding,
-                end = horizontalPadding,
-                top = 12.dp,
-                bottom = contentBottomPadding
-            ),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            item(key = "header_spacer") {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+        onBack = onBack,
+    ) {
             if (allSongs.isNotEmpty()) {
                 // issue 162: explicit collection actions; only these replace the play queue.
+                // issue 168: plus "add to queue", copied from the album detail page.
                 item(key = "play_all_actions") {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         RhythmDetailActionButton(
@@ -2626,6 +2656,38 @@ fun UniversalAllSongsPage(
                             text = stringResource(R.string.action_shuffle),
                             fontWeight = FontWeight.Medium
                         )
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                            addToQueuePressed = true
+                            onAddAllToQueue()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .graphicsLayer {
+                                scaleX = addToQueueScale
+                                scaleY = addToQueueScale
+                            },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Icon(
+                            imageVector = RhythmIcons.Queue,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.action_add_to_queue),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     }
                 }
             }
@@ -2655,6 +2717,247 @@ fun UniversalAllSongsPage(
                     index = index,
                     totalCount = allSongs.size
                 )
+            }
+    }
+}
+
+/**
+ * issue 168: every search group follows the songs group — a header, [UNIVERSAL_SEARCH_PREVIEW_COUNT]
+ * rows in the grouped song-row style, and this "view all" card that opens the group's full list.
+ * The card is the one the songs group always had; other groups reuse it instead of their own toggle.
+ */
+@Composable
+private fun UniversalSearchViewAllCard(
+    title: String,
+    countText: String?,
+    onClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .clickable {
+                HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                onClick()
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                countText?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+            Icon(
+                imageVector = RhythmIcons.Back,
+                contentDescription = stringResource(R.string.cd_view_all),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(24.dp).graphicsLayer { rotationZ = 180f }
+            )
+        }
+    }
+}
+
+/** issue 168: the full list of one group, in the frame of the "view all songs" page. */
+@Composable
+private fun UniversalSearchResultsPage(
+    title: String,
+    onBack: () -> Unit,
+    content: LazyListScope.() -> Unit,
+) {
+    val miniPlayerBottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding()
+    val contentBottomPadding = (miniPlayerBottomPadding + 20.dp).coerceAtLeast(96.dp)
+    val isTablet = windowScreenWidthDp() >= 600
+    val horizontalPadding = if (isTablet) 32.dp else 24.dp
+
+    CollapsibleHeaderScreen(
+        title = title,
+        showBackButton = true,
+        onBackClick = onBack,
+        containerColor = MaterialTheme.colorScheme.background
+    ) { modifier ->
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(
+                start = horizontalPadding,
+                end = horizontalPadding,
+                top = 12.dp,
+                bottom = contentBottomPadding
+            ),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            item(key = "header_spacer") {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun UniversalSearchGroupHint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+    )
+}
+
+/** issue 168: header, preview rows and the optional "view all" card of one search group. */
+@Composable
+private fun UniversalSearchGroup(
+    title: String,
+    viewAllTitle: String,
+    viewAllCount: String?,
+    showViewAll: Boolean,
+    onViewAll: () -> Unit,
+    modifier: Modifier = Modifier,
+    hint: String? = null,
+    rows: @Composable () -> Unit,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+        )
+        hint?.let { UniversalSearchGroupHint(it) }
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            rows()
+        }
+        if (showViewAll) {
+            Spacer(modifier = Modifier.height(12.dp))
+            UniversalSearchViewAllCard(title = viewAllTitle, countText = viewAllCount, onClick = onViewAll)
+        }
+    }
+}
+
+@Composable
+private fun UniversalPublicPlaylistRow(
+    playlist: PublicMusicPlaylist,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    index: Int,
+    totalCount: Int,
+    onClick: () -> Unit,
+) {
+    UniversalSearchSongItem(
+        title = playlist.name,
+        subtitle = stringResource(R.string.public_music_playlist_search_subtitle, playlist.songCount),
+        artworkUri = playlist.artworkUrl,
+        mode = "STREAMING",
+        onClick = onClick,
+        onMoreClick = null,
+        haptics = haptics,
+        index = index,
+        totalCount = totalCount,
+        showModeBadge = false,
+    )
+}
+
+/** issue 168: label of the "more playlists" card at the end of the full list, or null when all are loaded. */
+private fun publicPlaylistLoadMoreRes(state: PublicPlaylistSearchState): Int? = when {
+    state.loading -> R.string.public_music_playlist_search_loading
+    state.failed -> R.string.public_music_playlist_search_failed
+    state.hasMore -> R.string.public_music_playlist_search_more
+    else -> null
+}
+
+private fun LazyListScope.universalPublicPlaylistSection(
+    state: PublicPlaylistSearchState,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onOpen: (PublicMusicPlaylist) -> Unit,
+    onViewAll: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val items = state.items
+    // A first page that failed has nothing to preview; offer the retry on its own.
+    if (items.isEmpty() && !state.failed) return
+    item(key = "public_playlists_group") {
+        val preview = items.take(UNIVERSAL_SEARCH_PREVIEW_COUNT)
+        UniversalSearchGroup(
+            title = stringResource(R.string.search_public_playlists_section),
+            viewAllTitle = if (items.isEmpty()) {
+                stringResource(R.string.public_music_playlist_search_failed)
+            } else {
+                stringResource(R.string.search_view_all_public_playlists)
+            },
+            viewAllCount = when {
+                items.isEmpty() -> null
+                state.hasMore -> stringResource(R.string.search_public_playlists_count_more, items.size)
+                else -> stringResource(R.string.search_public_playlists_count, items.size)
+            },
+            showViewAll = items.isEmpty() || shouldShowUniversalViewAll(items.size, hasMore = state.hasMore),
+            onViewAll = if (items.isEmpty()) onRetry else onViewAll,
+            modifier = Modifier.animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+        ) {
+            preview.forEachIndexed { index, playlist ->
+                key(playlist.sourceId, playlist.externalId) {
+                    UniversalPublicPlaylistRow(
+                        playlist = playlist,
+                        haptics = haptics,
+                        index = index,
+                        totalCount = preview.size,
+                        onClick = { onOpen(playlist) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun LazyListScope.universalScoreSection(
+    works: List<CatalogLibraryScoreWork>,
+    trustedServerUrl: String?,
+    onOpen: (CatalogLibraryScoreWork) -> Unit,
+    onViewAll: () -> Unit,
+) {
+    if (works.isEmpty()) return
+    item(key = "scores_group") {
+        val preview = works.take(UNIVERSAL_SEARCH_PREVIEW_COUNT)
+        UniversalSearchGroup(
+            title = stringResource(R.string.catalog_scores),
+            viewAllTitle = stringResource(R.string.search_view_all_scores),
+            viewAllCount = stringResource(R.string.search_scores_count, works.size),
+            showViewAll = shouldShowUniversalViewAll(works.size),
+            onViewAll = onViewAll,
+            modifier = Modifier.animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+        ) {
+            preview.forEachIndexed { index, work ->
+                key(work.workId) {
+                    ScoreWorkListItem(
+                        work = work,
+                        trustedServerUrl = trustedServerUrl,
+                        onClick = { onOpen(work) },
+                        shape = groupedSongItemShape(index, preview.size),
+                    )
+                }
             }
         }
     }
@@ -3322,41 +3625,30 @@ internal sealed interface UniversalExternalLyricsSearchState {
 
 private fun LazyListScope.universalExternalLyricsSection(
     items: List<CatalogExternalLyricsItem>,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onViewAll: () -> Unit,
     onOpen: (CatalogExternalLyricsItem) -> Unit,
 ) {
     if (items.isEmpty()) return
     item(key = "external_lyrics_group") {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+        val preview = items.take(UNIVERSAL_SEARCH_PREVIEW_COUNT)
+        UniversalSearchGroup(
+            title = stringResource(R.string.search_external_lyrics_section),
+            hint = stringResource(R.string.search_external_lyrics_hint),
+            viewAllTitle = stringResource(R.string.search_view_all_external_lyrics),
+            viewAllCount = stringResource(R.string.search_lyrics_count, items.size),
+            showViewAll = shouldShowUniversalViewAll(items.size),
+            onViewAll = onViewAll,
+            modifier = Modifier.animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
         ) {
-            UniversalCatalogTextSectionHeader(R.string.search_external_lyrics_section)
-            Text(
-                text = stringResource(R.string.search_external_lyrics_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
-            )
-            Column(
-                modifier = Modifier.padding(horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                val visible = if (expanded) items else items.take(CATALOG_TEXT_SEARCH_PREVIEW_COUNT)
-                visible.forEach { item ->
-                    key(item.key) { UniversalExternalLyricsRow(item = item, onClick = { onOpen(item) }) }
-                }
-            }
-            if (items.size > CATALOG_TEXT_SEARCH_PREVIEW_COUNT) {
-                TextButton(
-                    onClick = onToggleExpanded,
-                    modifier = Modifier.padding(start = 4.dp),
-                ) {
-                    Text(
-                        if (expanded) stringResource(R.string.search_lyrics_number_show_less)
-                        else stringResource(R.string.search_lyrics_number_show_all, items.size),
+            preview.forEachIndexed { index, item ->
+                key(item.key) {
+                    UniversalExternalLyricsRow(
+                        item = item,
+                        haptics = haptics,
+                        index = index,
+                        totalCount = preview.size,
+                        onClick = { onOpen(item) },
                     )
                 }
             }
@@ -3367,6 +3659,9 @@ private fun LazyListScope.universalExternalLyricsSection(
 @Composable
 private fun UniversalExternalLyricsRow(
     item: CatalogExternalLyricsItem,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    index: Int,
+    totalCount: Int,
     onClick: () -> Unit,
 ) {
     val sourceLabel = stringResource(item.source.labelRes())
@@ -3379,50 +3674,19 @@ private fun UniversalExternalLyricsRow(
             sourceLabel,
         ).joinToString(" · ")
     }
-    Surface(
+    UniversalSearchSongItem(
+        title = item.title,
+        subtitle = details,
+        artworkUri = null,
+        mode = "STREAMING",
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = MaterialSymbolIcon("lyrics"),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = details,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                item.snippet?.let { snippet ->
-                    Text(
-                        text = snippet,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
+        onMoreClick = null,
+        haptics = haptics,
+        index = index,
+        totalCount = totalCount,
+        showModeBadge = false,
+        supportingText = item.snippet,
+    )
 }
 
 private fun catalogTextSearchFailureMessage(context: Context, error: Throwable): String = when (error) {
@@ -3445,10 +3709,10 @@ private fun LazyListScope.universalCatalogTextSearchItems(
     lyricsState: UniversalCatalogTextSearchState,
     numberState: UniversalCatalogTextSearchState,
     tagState: UniversalCatalogTextSearchState,
-    lyricsExpanded: Boolean,
     numbersExpanded: Boolean,
     tagsExpanded: Boolean,
-    onToggleLyricsExpanded: () -> Unit,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    onViewAllLyrics: () -> Unit,
     onToggleNumbersExpanded: () -> Unit,
     onToggleTagsExpanded: () -> Unit,
     onOpenLyrics: (CatalogLibrarySearchItem) -> Unit,
@@ -3460,10 +3724,17 @@ private fun LazyListScope.universalCatalogTextSearchItems(
         sectionKey = "catalog_lyrics",
         titleRes = R.string.search_lyrics_section,
         state = lyricsState,
-        expanded = lyricsExpanded,
-        onToggleExpanded = onToggleLyricsExpanded,
-    ) { item ->
-        UniversalLyricsSearchRow(item = item, onClick = { onOpenLyrics(item) })
+        expanded = false,
+        onToggleExpanded = {},
+        viewAll = UniversalTextSectionViewAll(R.string.search_view_all_lyrics, onViewAllLyrics),
+    ) { item, index, totalCount ->
+        UniversalLyricsSearchRow(
+            item = item,
+            haptics = haptics,
+            index = index,
+            totalCount = totalCount,
+            onClick = { onOpenLyrics(item) },
+        )
     }
     universalCatalogTextSection(
         sectionKey = "catalog_numbers",
@@ -3471,7 +3742,7 @@ private fun LazyListScope.universalCatalogTextSearchItems(
         state = numberState,
         expanded = numbersExpanded,
         onToggleExpanded = onToggleNumbersExpanded,
-    ) { item ->
+    ) { item, _, _ ->
         CatalogWorkEntryRow(
             item = item,
             onOpenLyrics = { onOpenLyrics(item) },
@@ -3596,7 +3867,8 @@ private fun LazyListScope.universalCatalogTextSection(
     state: UniversalCatalogTextSearchState,
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
-    row: @Composable (CatalogLibrarySearchItem) -> Unit,
+    viewAll: UniversalTextSectionViewAll? = null,
+    row: @Composable (CatalogLibrarySearchItem, Int, Int) -> Unit,
 ) {
     when (state) {
         is UniversalCatalogTextSearchState.Failed -> item(key = "${sectionKey}_message") {
@@ -3636,6 +3908,25 @@ private fun LazyListScope.universalCatalogTextSection(
         is UniversalCatalogTextSearchState.Loaded -> {
             val results = state.result.items
             if (results.isEmpty()) return
+            if (viewAll != null) {
+                item(key = "${sectionKey}_group") {
+                    val preview = results.take(UNIVERSAL_SEARCH_PREVIEW_COUNT)
+                    UniversalSearchGroup(
+                        title = stringResource(titleRes),
+                        hint = state.result.fallback?.let { stringResource(R.string.search_lyrics_fallback_hint) },
+                        viewAllTitle = stringResource(viewAll.titleRes),
+                        viewAllCount = stringResource(R.string.search_lyrics_count, results.size),
+                        showViewAll = shouldShowUniversalViewAll(results.size),
+                        onViewAll = viewAll.onClick,
+                        modifier = Modifier.animateItem(spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)),
+                    ) {
+                        preview.forEachIndexed { index, result ->
+                            key(result.workId) { row(result, index, preview.size) }
+                        }
+                    }
+                }
+                return
+            }
             item(key = "${sectionKey}_group") {
                 Column(
                     modifier = Modifier
@@ -3656,8 +3947,8 @@ private fun LazyListScope.universalCatalogTextSection(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         val visible = if (expanded) results else results.take(CATALOG_TEXT_SEARCH_PREVIEW_COUNT)
-                        visible.forEach { result ->
-                            key(result.workId) { row(result) }
+                        visible.forEachIndexed { index, result ->
+                            key(result.workId) { row(result, index, visible.size) }
                         }
                     }
                     if (results.size > CATALOG_TEXT_SEARCH_PREVIEW_COUNT) {
@@ -3693,49 +3984,30 @@ private fun UniversalCatalogTextSectionHeader(@StringRes titleRes: Int) {
     )
 }
 
+/** issue 168: a group may open its full list instead of expanding in place. */
+private class UniversalTextSectionViewAll(@StringRes val titleRes: Int, val onClick: () -> Unit)
+
 @Composable
 private fun UniversalLyricsSearchRow(
     item: CatalogLibrarySearchItem,
+    haptics: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    index: Int,
+    totalCount: Int,
     onClick: () -> Unit,
 ) {
-    Surface(
+    val detail = item.snippet ?: if (!item.hasLyrics) stringResource(R.string.lyrics_no_lyrics) else null
+    UniversalSearchSongItem(
+        title = item.title,
+        subtitle = detail.orEmpty(),
+        artworkUri = null,
+        mode = "LOCAL",
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = MaterialSymbolIcon("lyrics"),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val detail = item.snippet ?: if (!item.hasLyrics) stringResource(R.string.lyrics_no_lyrics) else null
-                detail?.let { snippet ->
-                    Text(
-                        text = snippet,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
+        onMoreClick = null,
+        haptics = haptics,
+        index = index,
+        totalCount = totalCount,
+        showModeBadge = false,
+    )
 }
 
 /**

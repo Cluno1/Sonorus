@@ -93,4 +93,29 @@ class UniversalSearchPolicyTest {
             ),
         )
     }
+
+    @Test
+    fun `结果不多于预览条数时不出现查看全部`() {
+        assertFalse(shouldShowUniversalViewAll(total = 0))
+        assertFalse(shouldShowUniversalViewAll(total = UNIVERSAL_SEARCH_PREVIEW_COUNT))
+        assertTrue(shouldShowUniversalViewAll(total = UNIVERSAL_SEARCH_PREVIEW_COUNT + 1))
+    }
+
+    @Test
+    fun `歌单还能继续加载时即使只有一页预览也出现查看全部`() {
+        assertTrue(shouldShowUniversalViewAll(total = 2, hasMore = true))
+        assertFalse(shouldShowUniversalViewAll(total = 0, hasMore = true))
+    }
+
+    @Test
+    fun `添加到队列按页面顺序每首恰好加入一次并跳过无法播放的公共结果`() {
+        val enqueued = mutableListOf<String>()
+        universalSearchQueueSongs(
+            localSongs = listOf("local-1", "local-2"),
+            publicSongs = listOf("public-1", "broken", "public-2"),
+        ) { public -> public.takeUnless { it == "broken" }?.let { "song:$it" } }
+            .forEach { enqueued += it }
+
+        assertEquals(listOf("local-1", "local-2", "song:public-1", "song:public-2"), enqueued)
+    }
 }
