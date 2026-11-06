@@ -3241,4 +3241,12 @@
     <string name="public_music_error_metadata_save">音乐元数据保存失败（%1$d）</string>
     <string name="public_music_error_manual_save">手动元数据保存失败（%1$d）</string>
     <string name="public_music_error_unknown">公共音乐请求失败</string>
+    <!-- issue 163: 原 / 译 / 原译 lyrics menu -->
+    <string name="lyrics_translation_mode_original_short">原</string>
+    <string name="lyrics_translation_mode_translation_short">译</string>
+    <string name="lyrics_translation_mode_both_short">原译</string>
+    <string name="lyrics_translation_mode_original">原文</string>
+    <string name="lyrics_translation_mode_translation">译文</string>
+    <string name="lyrics_translation_mode_both">原文 + 译文</string>
+    <string name="lyrics_translation_mode_menu">歌词语言</string>
 </resources>

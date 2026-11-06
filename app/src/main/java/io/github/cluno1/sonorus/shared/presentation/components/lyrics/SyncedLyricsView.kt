@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.util.LyricLine
 import io.github.cluno1.sonorus.util.LyricsParser
+import io.github.cluno1.sonorus.util.LyricsTranslationMode
+import io.github.cluno1.sonorus.util.lyricLineTexts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
@@ -157,7 +159,9 @@ fun SyncedLyricsView(
     onTapLyricsView: (() -> Unit)? = null,
     textColor: Color? = null,
     activeColor: Color? = null,
-    subtitleColor: Color? = null
+    subtitleColor: Color? = null,
+    // issue 163: with showTranslation on, show only the translation instead of both lines.
+    translationOnly: Boolean = false
 ) {
     val context = LocalContext.current
     // TODO: Apply syncOffset to all timestamp comparisons for manual sync adjustment
@@ -336,6 +340,7 @@ fun SyncedLyricsView(
                             parsedLyrics = parsedLyrics,
                             onSeek = handleSeek,
                             showTranslation = showTranslation,
+                            translationOnly = translationOnly,
                             showRomanization = showRomanization,
                             textSizeMultiplier = textSizeMultiplier,
                             textAlignment = textAlignment,
@@ -441,6 +446,7 @@ private fun SyncedLyricItem(
     parsedLyrics: List<io.github.cluno1.sonorus.util.LyricLine>,
     onSeek: ((Long) -> Unit)?,
     showTranslation: Boolean,
+    translationOnly: Boolean = false,
     showRomanization: Boolean,
     textSizeMultiplier: Float = 1.0f,
     textAlignment: TextAlign = TextAlign.Center,
@@ -560,35 +566,35 @@ private fun SyncedLyricItem(
             .alpha(alpha),
         horizontalAlignment = columnAlignment
     ) {
-        // Main lyrics text
+        // issue 163: 原 / 译 / 原译 — in both mode the translation uses the main line's size,
+        // so neither language is shown larger than the other.
+        val (primaryText, secondaryText) = lyricLineTexts(
+            original = line.text,
+            translation = line.translation,
+            mode = LyricsTranslationMode.fromSettings(showTranslation, translationOnly),
+        )
+        val mainLineStyle = MaterialTheme.typography.headlineSmall.copy(
+            fontWeight = fontWeight,
+            fontSize = MaterialTheme.typography.headlineSmall.fontSize * textSizeMultiplier,
+            lineHeight = MaterialTheme.typography.headlineSmall.lineHeight * 1.5f * textSizeMultiplier,
+            letterSpacing = letterSpacing
+        )
         Text(
-            text = line.text,
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontWeight = fontWeight,
-                fontSize = MaterialTheme.typography.headlineSmall.fontSize * textSizeMultiplier,
-                lineHeight = MaterialTheme.typography.headlineSmall.lineHeight * 1.5f * textSizeMultiplier,
-                letterSpacing = letterSpacing
-            ),
+            text = primaryText,
+            style = mainLineStyle,
             color = lineColor,
             textAlign = textAlignment,
             modifier = Modifier.fillMaxWidth()
         )
-        
-        // Translation text (if available and enabled)
-        if (showTranslation && !line.translation.isNullOrBlank()) {
+
+        if (secondaryText != null) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = line.translation,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontStyle = FontStyle.Italic,
-                    fontWeight = if (isCurrentLine) FontWeight.Medium else FontWeight.Normal,
-                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.4f
-                ),
-                color = (subtitleColor ?: MaterialTheme.colorScheme.tertiary).copy(alpha = if (isCurrentLine) 0.84f else 0.62f),
+                text = secondaryText,
+                style = mainLineStyle,
+                color = lineColor.copy(alpha = 0.78f),
                 textAlign = textAlignment,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .alpha(if (isCurrentLine) 0.9f else 0.7f)
+                modifier = Modifier.fillMaxWidth()
             )
         }
         

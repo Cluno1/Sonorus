@@ -3505,4 +3505,12 @@
     <string name="public_music_error_metadata_save">Failed to save music metadata (%1$d)</string>
     <string name="public_music_error_manual_save">Failed to save manual metadata (%1$d)</string>
     <string name="public_music_error_unknown">Public music request failed</string>
+    <!-- issue 163: 原 / 译 / 原译 lyrics menu -->
+    <string name="lyrics_translation_mode_original_short">Orig</string>
+    <string name="lyrics_translation_mode_translation_short">Trans</string>
+    <string name="lyrics_translation_mode_both_short">Both</string>
+    <string name="lyrics_translation_mode_original">Original</string>
+    <string name="lyrics_translation_mode_translation">Translation</string>
+    <string name="lyrics_translation_mode_both">Original + translation</string>
+    <string name="lyrics_translation_mode_menu">Lyrics language</string>
 </resources>

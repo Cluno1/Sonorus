@@ -238,6 +238,8 @@ class AppSettings private constructor(context: Context) {
         private const val KEY_LYRICS_SOURCE_PREFERENCE = "lyrics_source_preference"
         private const val KEY_SHOW_LYRICS_BACKGROUND_ARTWORK = "show_lyrics_background_artwork"
         private const val KEY_SHOW_LYRICS_TRANSLATION = "show_lyrics_translation"
+        // issue 163: with translation on, show only the translation instead of original + translation.
+        private const val KEY_LYRICS_TRANSLATION_ONLY = "lyrics_translation_only"
         private const val KEY_SHOW_LYRICS_ROMANIZATION = "show_lyrics_romanization"
         private const val KEY_KEEP_SCREEN_ON_LYRICS = "keep_screen_on_lyrics"
         private const val KEY_TAP_LYRICS_TO_FULL_SCREEN = "tap_lyrics_to_full_screen"
@@ -862,6 +864,9 @@ class AppSettings private constructor(context: Context) {
 
     private val _showLyricsTranslation = MutableStateFlow(prefs.getBoolean(KEY_SHOW_LYRICS_TRANSLATION, true))
     val showLyricsTranslation: StateFlow<Boolean> = _showLyricsTranslation.asStateFlow()
+
+    private val _lyricsTranslationOnly = MutableStateFlow(prefs.getBoolean(KEY_LYRICS_TRANSLATION_ONLY, false))
+    val lyricsTranslationOnly: StateFlow<Boolean> = _lyricsTranslationOnly.asStateFlow()
     
     private val _showLyricsRomanization = MutableStateFlow(prefs.getBoolean(KEY_SHOW_LYRICS_ROMANIZATION, true))
     val showLyricsRomanization: StateFlow<Boolean> = _showLyricsRomanization.asStateFlow()
@@ -2576,6 +2581,18 @@ private val _autoCheckForUpdates = MutableStateFlow(ProductCapabilities.inAppUpd
     fun setShowLyricsTranslation(show: Boolean) {
         prefs.edit { putBoolean(KEY_SHOW_LYRICS_TRANSLATION, show) }
         _showLyricsTranslation.value = show
+    }
+
+    /** issue 163: one write for the 原 / 译 / 原译 choice shared by the player and full-screen lyrics. */
+    fun setLyricsTranslationMode(mode: io.github.cluno1.sonorus.util.LyricsTranslationMode) {
+        val show = mode != io.github.cluno1.sonorus.util.LyricsTranslationMode.ORIGINAL
+        val only = mode == io.github.cluno1.sonorus.util.LyricsTranslationMode.TRANSLATION
+        prefs.edit {
+            putBoolean(KEY_SHOW_LYRICS_TRANSLATION, show)
+            putBoolean(KEY_LYRICS_TRANSLATION_ONLY, only)
+        }
+        _showLyricsTranslation.value = show
+        _lyricsTranslationOnly.value = only
     }
     
     fun setShowLyricsRomanization(show: Boolean) {

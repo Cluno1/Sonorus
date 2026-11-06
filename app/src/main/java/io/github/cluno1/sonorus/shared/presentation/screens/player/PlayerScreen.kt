@@ -1094,6 +1094,9 @@ fun PlayerScreen(
             selectedCatalogLyricsLanguage = selectedCatalogLyricsLanguage,
             onCatalogLyricsLanguageSelect = musicViewModel::selectCatalogLyricsLanguage,
             catalogLyricSourceImages = catalogNowPlaying?.lyricsSourceImages.orEmpty(),
+            // issue 165: songbook numbers next to the title (DEVICE/LAN songs have no Work).
+            catalogWorkNumbers = io.github.cluno1.sonorus.features.catalog.presentation
+                .rememberCatalogWorkNumbersLine(catalogNowPlaying?.workId),
             // issue 116: tags of the playing catalog Work; DEVICE/LAN songs have no Work and no row.
             onAddToRoom = onAddToRoom,
             catalogWorkHeader = catalogNowPlaying?.workId?.let { workId ->

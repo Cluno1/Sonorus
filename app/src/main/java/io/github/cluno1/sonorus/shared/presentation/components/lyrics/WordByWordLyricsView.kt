@@ -32,6 +32,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.util.LyricsTranslationMode
+import io.github.cluno1.sonorus.util.lyricLineTexts
 import io.github.cluno1.sonorus.util.RhythmLyricsParser
 import io.github.cluno1.sonorus.util.WordByWordLyricLine
 import io.github.cluno1.sonorus.shared.data.model.AppSettings
@@ -138,7 +140,9 @@ fun WordByWordLyricsView(
     onTapLyricsView: (() -> Unit)? = null,
     textColor: Color? = null,
     activeColor: Color? = null,
-    subtitleColor: Color? = null
+    subtitleColor: Color? = null,
+    // issue 163: with showTranslation on, show only the translation instead of both lines.
+    translationOnly: Boolean = false
 ) {
     val context = LocalContext.current
     // TODO: Apply syncOffset to all timestamp comparisons for manual sync adjustment
@@ -395,6 +399,7 @@ fun WordByWordLyricsView(
                             textSizeMultiplier = textSizeMultiplier,
                             textAlignment = textAlignment,
                             showTranslation = showTranslation,
+                            translationOnly = translationOnly,
                             showRomanization = showRomanization,
                             onSeek = handleSeek,
                             onTapLyricsView = onTapLyricsView,
@@ -482,6 +487,7 @@ private fun WordByWordLyricLineItem(
     textSizeMultiplier: Float,
     textAlignment: TextAlign,
     showTranslation: Boolean,
+    translationOnly: Boolean = false,
     showRomanization: Boolean,
     onSeek: ((Long) -> Unit)?,
     onTapLyricsView: (() -> Unit)?,
@@ -668,32 +674,54 @@ private fun WordByWordLyricLineItem(
             else -> Alignment.CenterHorizontally
         }
     ) {
-        Text(
-            text = annotatedText,
-            onTextLayout = { textLayoutResult = it },
-            style = MaterialTheme.typography.headlineSmall.copy(
-                fontSize = MaterialTheme.typography.headlineSmall.fontSize * textSizeMultiplier,
-                lineHeight = MaterialTheme.typography.headlineSmall.lineHeight * 1.4f * textSizeMultiplier
-            ),
-            textAlign = textAlignment,
-            modifier = Modifier.fillMaxWidth()
+        // issue 163: 原 / 译 / 原译. "译" replaces the word-timed line with its translation (no
+        // per-word sweep exists for it); in both mode the translation keeps the main line's size.
+        val translationMode = LyricsTranslationMode.fromSettings(showTranslation, translationOnly)
+        val (_, secondaryText) = lyricLineTexts(
+            original = "",
+            translation = line.translation,
+            mode = translationMode,
         )
+        val showTranslationAsMain = translationMode == LyricsTranslationMode.TRANSLATION &&
+            !line.translation.isNullOrBlank()
+        val mainLineStyle = MaterialTheme.typography.headlineSmall.copy(
+            fontSize = MaterialTheme.typography.headlineSmall.fontSize * textSizeMultiplier,
+            lineHeight = MaterialTheme.typography.headlineSmall.lineHeight * 1.4f * textSizeMultiplier
+        )
+        val plainLineColor = if (isCurrentLine) {
+            activeColor ?: MaterialTheme.colorScheme.primary
+        } else {
+            textColor ?: MaterialTheme.colorScheme.onSurface
+        }
+        val plainLineWeight = if (isCurrentLine) {
+            if (lyricBold) FontWeight.Black else FontWeight.Bold
+        } else {
+            if (lyricBold) FontWeight.Bold else FontWeight.Normal
+        }
+        if (showTranslationAsMain) {
+            Text(
+                text = line.translation.orEmpty(),
+                style = mainLineStyle.copy(fontWeight = plainLineWeight),
+                color = plainLineColor,
+                textAlign = textAlignment,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            Text(
+                text = annotatedText,
+                onTextLayout = { textLayoutResult = it },
+                style = mainLineStyle,
+                textAlign = textAlignment,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
-        if (showTranslation && !line.translation.isNullOrBlank()) {
+        if (secondaryText != null) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = line.translation,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontStyle = FontStyle.Italic,
-                    fontWeight = if (isCurrentLine) {
-                        if (lyricBold) FontWeight.Bold else FontWeight.SemiBold
-                    } else FontWeight.Normal,
-                    fontSize = MaterialTheme.typography.bodyMedium.fontSize * (0.92f * textSizeMultiplier),
-                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.32f * textSizeMultiplier
-                ),
-                color = (subtitleColor ?: MaterialTheme.colorScheme.tertiary).copy(
-                    alpha = if (isCurrentLine) 0.86f else 0.62f
-                ),
+                text = secondaryText,
+                style = mainLineStyle.copy(fontWeight = plainLineWeight),
+                color = plainLineColor.copy(alpha = 0.78f),
                 textAlign = textAlignment,
                 modifier = Modifier
                     .fillMaxWidth()

@@ -110,6 +110,9 @@ import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricsEdit
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.SyncedLyricsView
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricsAttributionFooter
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.WordByWordLyricsView
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricsLanguageSideButton
+import io.github.cluno1.sonorus.util.LyricsTranslationMode
+import io.github.cluno1.sonorus.util.lyricsHaveTranslation
 import io.github.cluno1.sonorus.shared.presentation.components.player.formatDuration
 import io.github.cluno1.sonorus.features.local.presentation.navigation.Screen
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.MusicViewModel
@@ -391,6 +394,14 @@ fun ExpressivePlayerScreen(
     val playerLyricsTextSize by appSettings.playerLyricsTextSize.collectAsState()
     val showLyricsTranslation by appSettings.showLyricsTranslation.collectAsState()
     val showLyricsRomanization by appSettings.showLyricsRomanization.collectAsState()
+    // issue 163: 原 / 译 / 原译 and the Catalog lyrics language, shared with full-screen lyrics.
+    val lyricsTranslationOnly by appSettings.lyricsTranslationOnly.collectAsState()
+    val lyricsTranslationMode = LyricsTranslationMode.fromSettings(showLyricsTranslation, lyricsTranslationOnly)
+    val hasLineTranslation by produceState(initialValue = false, lyrics) {
+        value = withContext(Dispatchers.Default) { lyricsHaveTranslation(lyrics) }
+    }
+    val catalogLyricsLanguages = musicViewModel?.catalogLyricsLanguages?.collectAsState()?.value.orEmpty()
+    val selectedCatalogLyricsLanguage = musicViewModel?.catalogLyricsLanguage?.collectAsState()?.value
     val playerLyricsTransition by appSettings.playerLyricsTransition.collectAsState()
     val tapLyricsToFullScreen by appSettings.tapLyricsToFullScreen.collectAsState()
     val autoHideLyricsControls by appSettings.autoHideLyricsControls.collectAsState()
@@ -1328,6 +1339,7 @@ fun ExpressivePlayerScreen(
                         onPickLyricsFile = onPickLyricsFile,
                         onManualLyricsSearch = onManualLyricsSearch,
                         showTranslation = showLyricsTranslation,
+                        translationOnly = lyricsTranslationOnly,
                         showRomanization = showLyricsRomanization,
                         textAlignment = lyricsTextAlign,
                         textColor = onSurfaceColor,
@@ -2504,10 +2516,17 @@ fun ExpressivePlayerScreen(
                         }
                     }
                 } else if (showPlayerControls) {
-                    Box(
+                    // issue 163: the lyrics language entry sits right under the immersive button,
+                    // so it can be switched without opening the full-screen lyrics.
+                    Column(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 8.dp, end = 12.dp)
+                            .padding(top = 8.dp, end = 12.dp),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                    Box(
+                        modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
                             .background(controlsContainerColor)
@@ -2527,6 +2546,21 @@ fun ExpressivePlayerScreen(
                             },
                             modifier = Modifier.size(20.dp),
                         )
+                    }
+                    LyricsLanguageSideButton(
+                        catalogLanguages = catalogLyricsLanguages,
+                        selectedCatalogLanguage = selectedCatalogLyricsLanguage,
+                        onCatalogLanguageSelect = { language ->
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            musicViewModel?.selectCatalogLyricsLanguage(language)
+                        },
+                        hasTranslation = hasLineTranslation,
+                        translationMode = lyricsTranslationMode,
+                        onTranslationModeSelect = { mode ->
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            appSettings.setLyricsTranslationMode(mode)
+                        },
+                    )
                     }
                 }
             }
@@ -2550,6 +2584,7 @@ private fun RhythmPlayerLyricsPanel(
     showRomanization: Boolean,
     textAlignment: TextAlign,
     modifier: Modifier = Modifier,
+    translationOnly: Boolean = false,
     onTapLyricsView: (() -> Unit)? = null,
     onNavigateToLyricsSettings: (() -> Unit)? = null,
     textColor: Color = MaterialTheme.colorScheme.onSurface,
@@ -2651,7 +2686,8 @@ private fun RhythmPlayerLyricsPanel(
                     WordByWordLyricsView(wordByWordLyrics, currentTimeMs, Modifier.fillMaxSize(), onSeek = onLyricsSeek,
                         onTapLyricsView = onTapLyricsView, lyricsSource = lyrics.source, contributions = lyrics.contributions, textSizeMultiplier = textSizeMultiplier,
                         textAlignment = textAlignment, showTranslation = showTranslation, showRomanization = showRomanization,
-                        textColor = textColor, activeColor = activeColor, subtitleColor = subtitleColor)
+                        textColor = textColor, activeColor = activeColor, subtitleColor = subtitleColor,
+                        translationOnly = translationOnly)
                 } else {
                     val lyricsText = remember(lyrics) { lyrics.getBestLyrics() ?: "" }
                     val filteredText = remember(lyricsText, showTranslation, showRomanization) { filterPlainLyricsByPreference(lyricsText, showTranslation, showRomanization) }
@@ -2668,7 +2704,8 @@ private fun RhythmPlayerLyricsPanel(
                         SyncedLyricsView(lyricsText, currentTimeMs, Modifier.fillMaxSize(), parsedLyricsInput = parsedLyrics,
                             onSeek = onLyricsSeek, onTapLyricsView = onTapLyricsView, showTranslation = showTranslation,
                             showRomanization = showRomanization, lyricsSource = lyrics.source, contributions = lyrics.contributions, textSizeMultiplier = textSizeMultiplier, textAlignment = textAlignment,
-                            textColor = textColor, activeColor = activeColor, subtitleColor = subtitleColor)
+                            textColor = textColor, activeColor = activeColor, subtitleColor = subtitleColor,
+                            translationOnly = translationOnly)
                     } else {
                         Column(Modifier.fillMaxSize()
                             .clickable(enabled = onTapLyricsView != null) { onTapLyricsView?.invoke() }

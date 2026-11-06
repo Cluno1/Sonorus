@@ -1616,16 +1616,6 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "translationAutoWord"
         ))
         add(SearchableSettingItem(
-            id = "lyrics_background_artwork",
-            title = context.getString(R.string.settings_show_lyrics_background_artwork),
-            description = context.getString(R.string.settings_show_lyrics_background_artwork_desc),
-            keywords = listOf("lyrics", "background", "artwork", "blur", "ambient"),
-            icon = MaterialSymbolIcon("wallpaper"),
-            route = SettingsRoutes.LYRICS,
-            parentScreen = "Lyrics",
-            settingKey = "showLyricsBackgroundArtwork"
-        ))
-        add(SearchableSettingItem(
             id = "lyrics_art_below",
             title = context.getString(R.string.settings_show_art_below_lyrics),
             description = context.getString(R.string.settings_show_art_below_lyrics_desc),

@@ -3199,4 +3199,12 @@
     <string name="public_music_error_metadata_save">音樂中繼資料儲存失敗（%1$d）</string>
     <string name="public_music_error_manual_save">手動中繼資料儲存失敗（%1$d）</string>
     <string name="public_music_error_unknown">公共音樂請求失敗</string>
+    <!-- issue 163: 原 / 译 / 原译 lyrics menu -->
+    <string name="lyrics_translation_mode_original_short">原</string>
+    <string name="lyrics_translation_mode_translation_short">譯</string>
+    <string name="lyrics_translation_mode_both_short">原譯</string>
+    <string name="lyrics_translation_mode_original">原文</string>
+    <string name="lyrics_translation_mode_translation">譯文</string>
+    <string name="lyrics_translation_mode_both">原文 + 譯文</string>
+    <string name="lyrics_translation_mode_menu">歌詞語言</string>
 </resources>

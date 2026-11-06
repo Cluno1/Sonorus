@@ -216,7 +216,6 @@ fun LyricsSettingsScreen(onBackClick: () -> Unit) {
     val tapLyricsToSeek by appSettings.tapLyricsToSeek.collectAsState()
     val keepScreenOnLyrics by appSettings.keepScreenOnLyrics.collectAsState()
     val autoHideLyricsControls by appSettings.autoHideLyricsControls.collectAsState()
-    val showLyricsBackgroundArtwork by appSettings.showLyricsBackgroundArtwork.collectAsState()
     val playerShowArtBelowLyrics by appSettings.playerShowArtBelowLyrics.collectAsState()
     val playerLyricsTransition by appSettings.playerLyricsTransition.collectAsState()
     val playerLyricsTextSize by appSettings.playerLyricsTextSize.collectAsState()
@@ -302,19 +301,8 @@ fun LyricsSettingsScreen(onBackClick: () -> Unit) {
                                     )
                                 )
                             )
-                            add(
-                                toMaterial3SettingsItem(
-                                    context = context,
-                                    hapticFeedback = hapticFeedback,
-                                    item = SettingItem(
-                                        icon = MaterialSymbolIcon("blur_on"),
-                                        title = stringResource(R.string.settings_show_lyrics_background_artwork),
-                                        description = stringResource(R.string.settings_show_lyrics_background_artwork_desc),
-                                        toggleState = showLyricsBackgroundArtwork,
-                                        onToggleChange = { appSettings.setShowLyricsBackgroundArtwork(it) }
-                                    )
-                                )
-                            )
+                            // issue 164: full-screen lyrics always use the app-theme background now,
+                            // so the "lyrics background artwork" switch had no effect and is hidden.
                             add(
                                 toMaterial3SettingsItem(
                                     context = context,

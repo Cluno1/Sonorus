@@ -145,6 +145,25 @@ fun CatalogWorkTagsForWork(
     )
 }
 
+/**
+ * issue 165: the songbook numbers of a Work (e.g. `ihope 114 · Heaven Song 20`) for the
+ * full-screen lyrics title area, loaded the same way as [CatalogWorkTagsForWork]. Null when the
+ * Work has no numbers or is not loaded yet.
+ */
+@Composable
+fun rememberCatalogWorkNumbersLine(workId: String?): String? {
+    if (workId.isNullOrBlank()) return null
+    val context = LocalContext.current
+    val repository = remember(context) { CatalogModule.repository(context) }
+    var work by remember(workId) { mutableStateOf(repository.cachedBundle(workId)?.work) }
+    LaunchedEffect(workId) {
+        repository.getWorkBundle(workId).onSuccess { bundle ->
+            if (bundle.work.id == workId) work = bundle.work
+        }
+    }
+    return work?.let { formatWorkNumbers(it.numberMeta.orEmpty()) }?.takeIf { it.isNotBlank() }
+}
+
 @Composable
 private fun WorkTagChip(text: String) {
     Surface(
