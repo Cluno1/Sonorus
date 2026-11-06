@@ -81,6 +81,7 @@ import io.github.cluno1.sonorus.shared.presentation.components.common.Collapsibl
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingAlbum
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingArtist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingPlaylist
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylist
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingSong
 import io.github.cluno1.sonorus.features.streaming.domain.model.StreamingServiceId
 import io.github.cluno1.sonorus.features.streaming.presentation.viewmodel.StreamingMusicViewModel
@@ -164,6 +165,8 @@ fun UniversalSearchScreen(
     onStreamingAlbumClick: (StreamingAlbum) -> Unit = {},
     onStreamingArtistClick: (StreamingArtist) -> Unit = {},
     onStreamingPlaylistClick: (StreamingPlaylist) -> Unit = {},
+    // issue 167: public playlists found by name open through the discover playlist detail.
+    onPublicPlaylistClick: (PublicMusicPlaylist) -> Unit = {},
     onOpenManualMetadata: ((Song) -> Unit)? = null,
     onBack: () -> Unit = {}
 ) {
@@ -491,6 +494,27 @@ fun UniversalSearchScreen(
     val matchedStreamingAlbums = if (catalogSource == null && filterAlbums) streamingResults.albums else emptyList()
     val matchedStreamingArtists = if (catalogSource == null && filterArtists) streamingResults.artists else emptyList()
     val matchedStreamingPlaylists = if (catalogSource == null && filterPlaylists) streamingResults.playlists else emptyList()
+    val publicPlaylistSearch by streamingViewModel.publicPlaylistSearch.collectAsState()
+    val matchedPublicPlaylists = if (
+        ProductCapabilities.lanSubsonicOnly && filterPlaylists && publicPlaylistSearch.query == normalizedQuery.trim()
+    ) publicPlaylistSearch.items else emptyList()
+    val publicPlaylistEntries: List<Pair<Triple<String, String, String>, () -> Unit>> = buildList {
+        matchedPublicPlaylists.forEach { playlist ->
+            add(Triple("PUBLIC", playlist.name, context.getString(R.string.public_music_playlist_search_subtitle, playlist.songCount)) to {
+                if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
+                onPublicPlaylistClick(playlist)
+            })
+        }
+        if (ProductCapabilities.lanSubsonicOnly && filterPlaylists && publicPlaylistSearch.query == normalizedQuery.trim()) {
+            val more = when {
+                publicPlaylistSearch.loading -> R.string.public_music_playlist_search_loading
+                publicPlaylistSearch.failed -> R.string.public_music_playlist_search_failed
+                publicPlaylistSearch.hasMore -> R.string.public_music_playlist_search_more
+                else -> null
+            }
+            if (more != null) add(Triple("MORE", context.getString(more), "") to { streamingViewModel.loadMorePublicPlaylists() })
+        }
+    }
 
     val effectiveStreamingLoading = (catalogSource == null || ProductCapabilities.lanSubsonicOnly) && isStreamingLoading
     val isSearchLoading = isLocalLoading || effectiveStreamingLoading || isCatalogTextSearchLoading
@@ -498,7 +522,7 @@ fun UniversalSearchScreen(
     val hasResults = matchedLocalSongs.isNotEmpty() || matchedStreamingSongs.isNotEmpty() ||
             matchedLocalAlbums.isNotEmpty() || matchedStreamingAlbums.isNotEmpty() ||
             matchedLocalArtists.isNotEmpty() || matchedStreamingArtists.isNotEmpty() ||
-            matchedLocalPlaylists.isNotEmpty() || matchedStreamingPlaylists.isNotEmpty() ||
+            matchedLocalPlaylists.isNotEmpty() || matchedStreamingPlaylists.isNotEmpty() || matchedPublicPlaylists.isNotEmpty() ||
             matchedScoreWorks.isNotEmpty() ||
             matchedLyricsItems.isNotEmpty() || matchedNumberItems.isNotEmpty() || matchedTagItems.isNotEmpty() ||
             matchedExternalLyricsItems.isNotEmpty()
@@ -1085,17 +1109,22 @@ fun UniversalSearchScreen(
                                             handleAction("STREAMING") { onStreamingPlaylistClick(playlist) }
                                         })
                                     }
+                                    addAll(publicPlaylistEntries)
                                 }
                                 if (allPlaylists.isNotEmpty()) {
                                     item(key = "playlists_group") {
                                         val playlistItems = allPlaylists.map { (info, action) ->
                                             val (mode, title, subtitle) = info
                                             Material3SettingsItem(
-                                                icon = if (mode == "STREAMING") MaterialSymbolIcon("cloud", filled = true) else RhythmIcons.Playlist,
-                                                scope = if (mode == "STREAMING") SettingScope.STREAMING else SettingScope.LOCAL,
-                                                iconBackgroundTint = if (mode == "STREAMING") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                                icon = when (mode) {
+                                                    "LOCAL" -> RhythmIcons.Playlist
+                                                    "MORE" -> MaterialSymbolIcon("expand_more", filled = true)
+                                                    else -> MaterialSymbolIcon("cloud", filled = true)
+                                                },
+                                                scope = if (mode == "LOCAL") SettingScope.LOCAL else SettingScope.STREAMING,
+                                                iconBackgroundTint = if (mode == "LOCAL") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
                                                 title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                                description = { Text(subtitle) },
+                                                description = if (subtitle.isNotEmpty()) ({ Text(subtitle) }) else null,
                                                 onClick = {
                                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                                                     action()
@@ -1442,17 +1471,22 @@ fun UniversalSearchScreen(
                                         handleAction("STREAMING") { onStreamingPlaylistClick(playlist) }
                                     })
                                 }
+                                addAll(publicPlaylistEntries)
                             }
                             if (allPlaylists.isNotEmpty()) {
                                 item(key = "playlists_group") {
                                     val playlistItems = allPlaylists.map { (info, action) ->
                                         val (mode, title, subtitle) = info
                                         Material3SettingsItem(
-                                            icon = if (mode == "STREAMING") MaterialSymbolIcon("cloud", filled = true) else RhythmIcons.Playlist,
-                                            scope = if (mode == "STREAMING") SettingScope.STREAMING else SettingScope.LOCAL,
-                                            iconBackgroundTint = if (mode == "STREAMING") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+                                            icon = when (mode) {
+                                                    "LOCAL" -> RhythmIcons.Playlist
+                                                    "MORE" -> MaterialSymbolIcon("expand_more", filled = true)
+                                                    else -> MaterialSymbolIcon("cloud", filled = true)
+                                                },
+                                            scope = if (mode == "LOCAL") SettingScope.LOCAL else SettingScope.STREAMING,
+                                            iconBackgroundTint = if (mode == "LOCAL") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
                                             title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                            description = { Text(subtitle) },
+                                            description = if (subtitle.isNotEmpty()) ({ Text(subtitle) }) else null,
                                             onClick = {
                                                 HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                                                 action()

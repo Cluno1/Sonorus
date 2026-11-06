@@ -8371,6 +8371,36 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * issue 166: the song's own public source confirmed it has no lyrics, so try the same automatic
+     * LRCLIB / Chinese lyrics match as local songs. A match is shown at once and stored on the backend
+     * for everyone; the backend keeps lyrics that another device stored first. A failed upload only
+     * logs, the lyrics still show on this device.
+     */
+    private suspend fun applyPublicSongFallbackLyrics(
+        song: Song,
+        generation: Long,
+        streamingRepository: io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl,
+    ) {
+        val candidate = repository.publicSongFallbackLyrics(song) ?: return
+        val text = io.github.cluno1.sonorus.features.local.data.device.SharedLyricsPolicy.lrc(candidate.lyrics) ?: return
+        fun current() = lanLyricsGeneration == generation && _currentSong.value?.id == song.id
+        if (current() && showLyrics.value) _currentLyrics.value = candidate.lyrics
+        val stored = try {
+            streamingRepository.savePublicMusicLyrics(
+                song, text, manual = false,
+                provider = io.github.cluno1.sonorus.features.local.data.device.SharedLyricsPolicy.provider(candidate),
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.w(TAG, "Public fallback lyrics were not stored for ${song.id}: ${error.javaClass.simpleName}")
+            null
+        }
+        // The backend answers with what it keeps, which can be lyrics another device stored first.
+        if (stored != null && current() && showLyrics.value) _currentLyrics.value = stored.lyrics()
+    }
+
     private fun fetchLyricsForCurrentSong(retryCount: Int = 0, forceRefresh: Boolean = false) {
         val song = currentSong.value ?: return
         if (LanSubsonicPlaybackPolicy.isLanSong(
@@ -8392,7 +8422,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     guardPublicMusicLoad(
                         onFailure = { error -> Log.w(TAG, "Public music metadata unavailable for ${song.id}", error) },
                     ) {
-                        val metadata = streamingRepository.publicMusicMetadata(song, manual = forceRefresh)
+                        val load = streamingRepository.publicMusicMetadataLoad(song, manual = forceRefresh)
+                        val metadata = load?.metadata
                         if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) {
                             // Read the shared lyrics and tags, including edits made by another user.
                             if (metadata != null) {
@@ -8403,6 +8434,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                 })
                                 streamingRepository.applyLanMetadata(metadata)
                             }
+                        }
+                        if (load?.lyricsMissing == true && lanLyricsGeneration == generation) {
+                            applyPublicSongFallbackLyrics(song, generation, streamingRepository)
                         }
                     }
                 } finally {
@@ -8591,7 +8625,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         deviceManualMetadataJob?.cancel()
         deviceManualMetadataRequestId++
-        val song = findDeviceSong(songId)
+        val song = findDeviceSong(songId, allowPublicSong = kind == DeviceManualMetadataKind.LYRICS)
         _deviceManualMetadataState.value = DeviceManualMetadataUiState(
             songId = songId,
             targetArtistName = targetArtistName?.trim()?.takeIf(String::isNotEmpty) ?: song?.artist,
@@ -8649,7 +8683,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             )
             return
         }
-        val song = findDeviceSong(songId)
+        val song = findDeviceSong(songId, allowPublicSong = kind == DeviceManualMetadataKind.LYRICS)
         if (song == null) {
             _deviceManualMetadataState.value = DeviceManualMetadataUiState(
                 songId = songId,
@@ -8811,13 +8845,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun applyDeviceManualLyrics(songId: String, candidate: DeviceLyricsCandidate) {
         val state = _deviceManualMetadataState.value
-        val song = findDeviceSong(songId)
+        val song = findDeviceSong(songId, allowPublicSong = true)
         if (song == null || state.songId != songId || candidate !in state.lyricsCandidates) return
         deviceManualMetadataJob?.cancel()
         val requestId = ++deviceManualMetadataRequestId
         deviceManualMetadataJob = viewModelScope.launch {
             _deviceManualMetadataState.value = state.copy(isApplying = true, error = null)
             try {
+                if (isPublicSong(song)) {
+                    // issue 166: a public song's pick is stored on the backend and replaces it for everyone.
+                    applyPublicManualLyrics(song, candidate)
+                    if (requestId != deviceManualMetadataRequestId) return@launch
+                    _deviceManualMetadataState.value = state.copy(applied = true)
+                    return@launch
+                }
                 val selected = repository.applyDeviceLyricsCandidate(song, candidate)
                 if (requestId != deviceManualMetadataRequestId) return@launch
                 if (_currentSong.value?.id == songId) _currentLyrics.value = selected
@@ -8833,6 +8874,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    private suspend fun applyPublicManualLyrics(song: Song, candidate: DeviceLyricsCandidate) {
+        val text = io.github.cluno1.sonorus.features.local.data.device.SharedLyricsPolicy.lrc(candidate.lyrics)
+            ?: throw IllegalStateException("Selected lyrics are empty")
+        val streamingRepository = io.github.cluno1.sonorus.features.streaming.di.StreamingMusicModule
+            .provideStreamingMusicRepository(getApplication())
+            as io.github.cluno1.sonorus.features.streaming.data.repository.StreamingMusicRepositoryImpl
+        // Collect the song first so a song played before its artist was known can still be stored.
+        streamingRepository.publicMusicMetadata(song)
+        val stored = streamingRepository.savePublicMusicLyrics(
+            song, text, manual = true,
+            provider = io.github.cluno1.sonorus.features.local.data.device.SharedLyricsPolicy.provider(candidate),
+        ) ?: throw IllegalStateException("Public song is not collected")
+        applyLanSongMetadata(stored)
     }
 
     fun applyDeviceManualArtwork(
@@ -8988,9 +9044,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _deviceManualMetadataState.value = DeviceManualMetadataUiState()
     }
 
-    private fun findDeviceSong(songId: String): Song? =
-        (_songs.value.firstOrNull { it.id == songId } ?: _currentSong.value?.takeIf { it.id == songId })
-            ?.takeIf { DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme) }
+    private fun findDeviceSong(songId: String, allowPublicSong: Boolean = false): Song? =
+        (_songs.value.firstOrNull { it.id == songId } ?: _currentSong.value?.takeIf { it.id == songId }
+            ?: _currentQueue.value.songs.firstOrNull { it.id == songId })
+            ?.takeIf { DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme) || (allowPublicSong && isPublicSong(it)) }
+
+    /** issue 166: public songs reach the manual page for lyrics only. */
+    private fun isPublicSong(song: Song): Boolean = LanSubsonicPlaybackPolicy.isLanSong(
+        enabled = ProductCapabilities.lanSubsonicOnly, mediaId = song.id, uri = song.uri.toString(),
+    )
 
     private fun <T> io.github.cluno1.sonorus.features.local.data.device.DeviceProviderSearchResult<T>
         .toManualStatus(): DeviceManualProviderStatus = when {

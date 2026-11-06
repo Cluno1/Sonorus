@@ -2968,6 +2968,11 @@
     <string name="lyrics_candidate_format">%1$s · %2$s · %3$s · %4$d%%</string>
     <string name="lyrics_duration_seconds">%1$d 秒</string>
     <string name="lyrics_source_device_embedded">內嵌歌詞</string>
+    <string name="lyrics_source_shared">共享歌詞</string>
+    <string name="public_music_playlist_search_subtitle">%1$d 首 · 公共歌單</string>
+    <string name="public_music_playlist_search_more">更多歌單</string>
+    <string name="public_music_playlist_search_loading">正在載入歌單…</string>
+    <string name="public_music_playlist_search_failed">歌單搜尋失敗，點按重試</string>
     <string name="lyrics_source_device_sibling">同目錄歌詞檔</string>
     <string name="lyrics_source_device_saf_sibling">同目錄歌詞檔（資料夾授權）</string>
     <string name="lyrics_source_lrclib_match">LRCLIB · %1$s / %2$s · %3$s</string>

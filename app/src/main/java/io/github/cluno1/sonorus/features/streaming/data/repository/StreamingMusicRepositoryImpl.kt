@@ -23,6 +23,7 @@ import io.github.cluno1.sonorus.features.streaming.data.provider.ProviderSong
 import io.github.cluno1.sonorus.features.streaming.data.provider.SubsonicApiClient
 import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicApiClient
 import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylist
+import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylistSearchPage
 import io.github.cluno1.sonorus.features.streaming.data.provider.UserTrustManager
 import io.github.cluno1.sonorus.features.streaming.domain.model.BrowseCategory
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
@@ -80,20 +81,47 @@ class StreamingMusicRepositoryImpl(
     // Reuse the active session, including sessions whose password is not saved on the phone.
     fun lanMetadataClient(): SubsonicApiClient = subsonicClient
 
-    suspend fun publicMusicMetadata(song: Song, manual: Boolean = false): io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata? {
+    suspend fun publicMusicMetadata(song: Song, manual: Boolean = false): io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata? =
+        publicMusicMetadataLoad(song, manual)?.metadata
+
+    /** issue 166: also reports whether the song's own source confirmed that it has no lyrics. */
+    suspend fun publicMusicMetadataLoad(
+        song: Song,
+        manual: Boolean = false,
+    ): io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicMetadataLoad? {
         if (!ProductCapabilities.lanSubsonicOnly) return null
         val providerId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) ?: return null
-        val metadata = publicMusicClient.metadata(
+        val load = publicMusicClient.metadataLoad(
             providerId, song.title, song.artist, song.album, song.duration, song.artworkUri?.toString(), manual,
-        )
-        if (metadata != null) applyLanMetadata(metadata)
-        return metadata
+        ) ?: return null
+        load.metadata?.let(::applyLanMetadata)
+        return load
+    }
+
+    /** issue 166: stores lyrics for a public song; null when the song has no stored record yet. */
+    suspend fun savePublicMusicLyrics(
+        song: Song,
+        lyrics: String,
+        manual: Boolean,
+        provider: String?,
+    ): io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata? {
+        if (!ProductCapabilities.lanSubsonicOnly) return null
+        val providerId = LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) ?: return null
+        return publicMusicClient.savePublicLyrics(providerId, lyrics, manual, provider)?.also(::applyLanMetadata)
     }
 
     fun publicMusicClient(): PublicMusicApiClient = publicMusicClient
 
     suspend fun discoverPlaylists(limit: Int): List<PublicMusicPlaylist> =
         if (publicMusicClient.isConnected()) publicMusicClient.recommendedPlaylists(limit) else emptyList()
+
+    /** issue 167: empty when the public music service is not connected. */
+    suspend fun searchPublicPlaylists(query: String, page: Int): PublicMusicPlaylistSearchPage =
+        if (publicMusicClient.isConnected()) {
+            publicMusicClient.searchPlaylists(query, page)
+        } else {
+            PublicMusicPlaylistSearchPage(emptyList(), page, hasMore = false)
+        }
 
     suspend fun discoverPlaylistSongs(sourceId: String, externalId: String): List<StreamingSong> =
         publicMusicClient.playlistSongs(sourceId, externalId).map { mapProviderSong(StreamingServiceId.SUBSONIC, it) }

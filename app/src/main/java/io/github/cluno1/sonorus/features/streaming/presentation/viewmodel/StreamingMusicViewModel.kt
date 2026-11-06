@@ -29,6 +29,8 @@ import io.github.cluno1.sonorus.shared.data.model.AppSettings
 import io.github.cluno1.sonorus.util.ArtistSeparator
 import io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicPlaylist
 import io.github.cluno1.sonorus.features.streaming.domain.DiscoverPlaylistIds
+import io.github.cluno1.sonorus.features.streaming.domain.PublicPlaylistSearch
+import io.github.cluno1.sonorus.features.streaming.domain.PublicPlaylistSearchState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +54,7 @@ import androidx.core.net.toUri
  * Handles authentication, browsing, and playback for streaming services.
  */
 private const val DISCOVER_PLAYLIST_LIMIT = 12
+private const val MAX_FOUND_PUBLIC_PLAYLISTS = 200
 
 class StreamingMusicViewModel(application: Application) : AndroidViewModel(application) {
     private val appSettings = AppSettings.getInstance(application)
@@ -135,6 +138,14 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     
     private val _discoverPlaylists = MutableStateFlow<List<PublicMusicPlaylist>>(emptyList())
     val discoverPlaylists: StateFlow<List<PublicMusicPlaylist>> = _discoverPlaylists.asStateFlow()
+
+    // issue 167: public playlists matching the universal search keyword, and every playlist found
+    // so far, so an opened result still resolves after the keyword changes.
+    private val _publicPlaylistSearch = MutableStateFlow(PublicPlaylistSearchState())
+    val publicPlaylistSearch: StateFlow<PublicPlaylistSearchState> = _publicPlaylistSearch.asStateFlow()
+    private val _foundPublicPlaylists = MutableStateFlow<Map<String, PublicMusicPlaylist>>(emptyMap())
+    val foundPublicPlaylists: StateFlow<Map<String, PublicMusicPlaylist>> = _foundPublicPlaylists.asStateFlow()
+    private var publicPlaylistSearchJob: Job? = null
 
     private val _discoverSongs = MutableStateFlow<Map<String, List<StreamingSong>>>(emptyMap())
     val discoverSongs: StateFlow<Map<String, List<StreamingSong>>> = _discoverSongs.asStateFlow()
@@ -800,6 +811,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      */
     fun search(query: String) {
         _searchQuery.value = query
+        if (ProductCapabilities.lanSubsonicOnly) searchPublicPlaylists(query)
 
         if (!ProductCapabilities.thirdPartyMusicServices && !ProductCapabilities.lanSubsonicOnly) {
             _searchResults.value = StreamingSearchResults()
@@ -854,6 +866,42 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _error.value = "Search failed: ${getApplication<Application>().publicMusicErrorMessage(e)}"
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    /** issue 167: starts a new keyword search; an older search still running is cancelled. */
+    fun searchPublicPlaylists(query: String) {
+        publicPlaylistSearchJob?.cancel()
+        _publicPlaylistSearch.value = PublicPlaylistSearch.start(query)
+        if (!ProductCapabilities.lanSubsonicOnly || query.isBlank()) {
+            _publicPlaylistSearch.value = PublicPlaylistSearchState()
+            return
+        }
+        loadPublicPlaylistPage(_publicPlaylistSearch.value.copy(loading = false))
+    }
+
+    /** issue 167: the next page of the current keyword; ignored while a page is loading. */
+    fun loadMorePublicPlaylists() {
+        loadPublicPlaylistPage(_publicPlaylistSearch.value)
+    }
+
+    private fun loadPublicPlaylistPage(state: PublicPlaylistSearchState) {
+        val page = PublicPlaylistSearch.nextPage(state) ?: return
+        val query = state.query
+        _publicPlaylistSearch.value = PublicPlaylistSearch.loading(state)
+        publicPlaylistSearchJob = viewModelScope.launch {
+            try {
+                val result = providerRepository?.searchPublicPlaylists(query, page) ?: return@launch
+                _publicPlaylistSearch.value = PublicPlaylistSearch.applyPage(_publicPlaylistSearch.value, query, result)
+                _foundPublicPlaylists.value = (_foundPublicPlaylists.value + result.items.associateBy {
+                    DiscoverPlaylistIds.encode(it.sourceId, it.externalId)
+                }).entries.toList().takeLast(MAX_FOUND_PUBLIC_PLAYLISTS).associate { it.toPair() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("StreamingMusicViewModel", "Public playlist search failed: page=$page ${e.javaClass.simpleName}")
+                _publicPlaylistSearch.value = PublicPlaylistSearch.fail(_publicPlaylistSearch.value, query)
             }
         }
     }
@@ -1461,6 +1509,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private fun clearContent() {
         _discoverPlaylists.value = emptyList()
         _discoverSongs.value = emptyMap()
+        publicPlaylistSearchJob?.cancel()
+        _publicPlaylistSearch.value = PublicPlaylistSearchState()
         _recommendations.value = emptyList()
         _newReleases.value = emptyList()
         _featuredPlaylists.value = emptyList()

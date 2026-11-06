@@ -22,6 +22,8 @@ import java.util.Locale
 @Composable
 internal fun localizedLyricsSourceLabel(source: String): String = when {
     source == "DEVICE_EMBEDDED" -> stringResource(R.string.lyrics_source_device_embedded)
+    // issue 166: lyrics another device adopted for the same local song.
+    source == "DEVICE_SHARED" -> stringResource(R.string.lyrics_source_shared)
     source == "DEVICE_SIBLING" -> stringResource(R.string.lyrics_source_device_sibling)
     source == "DEVICE_SAF_SIBLING" -> stringResource(R.string.lyrics_source_device_saf_sibling)
     source.startsWith("DEVICE_LRCLIB|") || source.startsWith("DEVICE_LRCLIB_SELECTED|") -> {

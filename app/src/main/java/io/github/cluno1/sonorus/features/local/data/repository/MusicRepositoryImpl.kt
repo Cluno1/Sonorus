@@ -121,6 +121,7 @@ import io.github.cluno1.sonorus.features.local.data.device.DeviceArtistMatchPoli
 import io.github.cluno1.sonorus.features.local.data.device.DevicePrivateMetadataFileNames
 import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataMatcher
 import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataPolicy
+import io.github.cluno1.sonorus.features.local.data.device.SharedLyricsPolicy
 import io.github.cluno1.sonorus.features.local.data.device.ArtworkUriValidator
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -698,6 +699,11 @@ class MusicRepository(context: Context) {
     private val itunesSearchApiService = NetworkClient.itunesSearchApiService
     private val genericHttpClient = NetworkClient.genericHttpClient
     private val deviceMetadataRepository by lazy { DeviceMetadataRepository(context) }
+    // issue 166: public songs use the same LRCLIB / Chinese lyrics matcher as local songs.
+    private val publicSongMetadataRepository by lazy { DeviceMetadataRepository(context, allowLanQueries = true) }
+    private val sharedLyricsClient by lazy {
+        io.github.cluno1.sonorus.features.streaming.data.provider.PublicMusicApiClient(context)
+    }
     private val artworkUriValidator by lazy { ArtworkUriValidator(context) }
     
     // Note: API services can be null if disabled via BuildConfig
@@ -4706,33 +4712,93 @@ class MusicRepository(context: Context) {
                 lyricsCache[cacheKey] = value
                 return value
             }
-        }
-
-        if (isNetworkAvailable()) {
-            // issue 127: LRCLIB and Chinese lyrics are judged one source at a time, in order.
-            val order = DeviceChineseLyrics.automaticOrder(DeviceChineseLyrics.isEnabled(context), song.title, song.artist)
-            for (provider in order) {
-                val candidates = deviceMetadataRepository.searchLyrics(song, provider)
-                val candidate = if (provider == DevicePublicMetadataProvider.CHINESE_LYRICS) {
-                    DeviceChineseLyrics.automaticPick(candidates, song.title)
-                } else {
-                    candidates.firstOrNull()?.takeIf {
-                        DeviceMetadataMatcher.isAutomaticMatch(
-                            it.confidence,
-                            candidates.getOrNull(1)?.confidence,
-                            DeviceMetadataRepository.MIN_AUTO_CONFIDENCE,
-                            unconditionalThreshold = DeviceMetadataRepository.EXACT_AUTO_CONFIDENCE,
-                        )
-                    }
-                }
-                if (candidate != null) {
-                    val result = deviceMetadataRepository.applyLyrics(song, candidate)
-                    lyricsCache[cacheKey] = result
-                    return result
+            // issue 166: lyrics another device adopted for the same song, before searching again.
+            if (isNetworkAvailable()) {
+                sharedDeviceLyrics(song)?.let { value ->
+                    deviceMetadataRepository.saveLyrics(song, value, SharedLyricsPolicy.SHARED_SOURCE, null, 1.0)
+                    lyricsCache[cacheKey] = value
+                    return value
                 }
             }
         }
+
+        if (isNetworkAvailable()) {
+            automaticLyricsCandidate(song, deviceMetadataRepository)?.let { candidate ->
+                val result = deviceMetadataRepository.applyLyrics(song, candidate)
+                lyricsCache[cacheKey] = result
+                shareDeviceLyrics(song, candidate, manual = false)
+                return result
+            }
+        }
         return LyricsData("No lyrics found for this song", null, source = "DEVICE")
+    }
+
+    /** issue 127: LRCLIB and Chinese lyrics are judged one source at a time, in order. */
+    private suspend fun automaticLyricsCandidate(
+        song: Song,
+        metadata: DeviceMetadataRepository,
+    ): DeviceLyricsCandidate? {
+        val order = DeviceChineseLyrics.automaticOrder(DeviceChineseLyrics.isEnabled(context), song.title, song.artist)
+        for (provider in order) {
+            val candidates = metadata.searchLyrics(song, provider)
+            val candidate = if (provider == DevicePublicMetadataProvider.CHINESE_LYRICS) {
+                DeviceChineseLyrics.automaticPick(candidates, song.title)
+            } else {
+                candidates.firstOrNull()?.takeIf {
+                    DeviceMetadataMatcher.isAutomaticMatch(
+                        it.confidence,
+                        candidates.getOrNull(1)?.confidence,
+                        DeviceMetadataRepository.MIN_AUTO_CONFIDENCE,
+                        unconditionalThreshold = DeviceMetadataRepository.EXACT_AUTO_CONFIDENCE,
+                    )
+                }
+            }
+            if (candidate != null) return candidate
+        }
+        return null
+    }
+
+    /**
+     * issue 166: the automatic LRCLIB / Chinese lyrics match for a public song whose own source has no
+     * lyrics. Same matcher and thresholds as local songs; null when nothing passes them.
+     */
+    suspend fun publicSongFallbackLyrics(song: Song): DeviceLyricsCandidate? =
+        if (isNetworkAvailable()) automaticLyricsCandidate(song, publicSongMetadataRepository) else null
+
+    private fun shareableArtist(song: Song): String? =
+        SharedLyricsPolicy.shareableArtist(song.artist, emptySet())?.takeUnless(sharedLyricsClient::isUnknownArtist)
+
+    private suspend fun sharedDeviceLyrics(song: Song): LyricsData? {
+        if (!NetworkClient.isDevicePublicMetadataEnabled()) return null
+        val artist = shareableArtist(song) ?: return null
+        val shared = try {
+            sharedLyricsClient.findDeviceLyrics(song.title, artist, song.duration)
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Log.w(TAG, "Shared lyrics lookup failed: ${error.javaClass.simpleName}")
+            null
+        } ?: return null
+        return SharedLyricsPolicy.lyricsData(shared.lyrics)
+    }
+
+    /** issue 166: stores adopted lyrics on the backend in the background; playback never waits for it. */
+    private fun shareDeviceLyrics(song: Song, candidate: DeviceLyricsCandidate, manual: Boolean) {
+        if (!NetworkClient.isDevicePublicMetadataEnabled()) return
+        val artist = shareableArtist(song) ?: return
+        val text = SharedLyricsPolicy.lrc(candidate.lyrics) ?: return
+        repositoryScope.launch {
+            try {
+                val written = sharedLyricsClient.saveDeviceLyrics(
+                    song.title, artist, song.album, song.duration, text, manual, SharedLyricsPolicy.provider(candidate),
+                )
+                Log.i(TAG, "Shared device lyrics ${if (written) "stored" else "kept"}: manual=$manual")
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Shared device lyrics upload failed: ${error.javaClass.simpleName}")
+            }
+        }
     }
 
     private fun findSafSiblingLyrics(song: Song): LyricsData? {
@@ -4757,7 +4823,8 @@ class MusicRepository(context: Context) {
         song: Song,
         query: DeviceMetadataRequest,
         provider: DevicePublicMetadataProvider = DevicePublicMetadataProvider.LRCLIB,
-    ) = deviceMetadataRepository.searchLyricsResult(song, query, provider)
+    ) = (if (DeviceMetadataPolicy.isEligible(song.id, song.uri.scheme)) deviceMetadataRepository else publicSongMetadataRepository)
+        .searchLyricsResult(song, query, provider)
 
     suspend fun searchDeviceArtworkCandidates(
         song: Song,
@@ -4787,6 +4854,7 @@ class MusicRepository(context: Context) {
 
     suspend fun applyDeviceLyricsCandidate(song: Song, candidate: DeviceLyricsCandidate): LyricsData {
         val result = deviceMetadataRepository.applyLyrics(song, candidate, userSelected = true)
+        shareDeviceLyrics(song, candidate, manual = true)
         clearLyricsMemoryCacheForSong(song)
         lyricsCache["${song.id}:${song.artist}:${song.title}".lowercase()] = result
         return result

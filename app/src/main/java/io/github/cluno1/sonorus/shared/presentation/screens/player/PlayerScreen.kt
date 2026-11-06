@@ -89,7 +89,7 @@ import io.github.cluno1.sonorus.shared.presentation.components.player.formatDura
 import io.github.cluno1.sonorus.features.local.presentation.navigation.Screen
 import io.github.cluno1.sonorus.features.local.presentation.navigation.navigateToDeviceManualMetadata
 import io.github.cluno1.sonorus.features.local.data.device.DeviceManualMetadataKind
-import io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataPolicy
+import io.github.cluno1.sonorus.features.local.data.device.canSearchLyricsManually
 import io.github.cluno1.sonorus.features.local.presentation.screens.LibraryTab
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.MusicViewModel
 import io.github.cluno1.sonorus.features.catalog.domain.isCatalogLibrarySong
@@ -509,7 +509,7 @@ fun PlayerScreen(
             onShowLyricsEditor = { if (readOnlyLan) editLanTags?.invoke() else showLyricsEditorDialog = true },
             onPickLyricsFile = { if (!readOnlyLan) onPickLyricsFile() },
             onManualLyricsSearch = song?.takeIf {
-                DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
+                it.canSearchLyricsManually()
             }?.let { targetSong ->
                 {
                     navController.navigateToDeviceManualMetadata(
@@ -776,7 +776,7 @@ fun PlayerScreen(
                 },
                 onShowLyricsEditor = { if (readOnlyLan) editLanTags?.invoke() else showLyricsEditorDialog = true },
                 onOpenManualMetadata = song.takeIf {
-                    DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
+                    it.canSearchLyricsManually()
                 }?.let { targetSong ->
                     {
                         navController.navigateToDeviceManualMetadata(
@@ -1066,7 +1066,7 @@ fun PlayerScreen(
             onLyricsSeek = onLyricsSeek,
             onRetryLyrics = onRetryLyrics,
             onManualLyricsSearch = song?.takeIf {
-                DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
+                it.canSearchLyricsManually()
             }?.let { targetSong ->
                 {
                     navController.navigateToDeviceManualMetadata(

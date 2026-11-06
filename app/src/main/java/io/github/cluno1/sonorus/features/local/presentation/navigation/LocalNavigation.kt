@@ -6,6 +6,8 @@
 package io.github.cluno1.sonorus.features.local.presentation.navigation
 
 import io.github.cluno1.sonorus.features.streaming.domain.DiscoverPlaylistIds
+import io.github.cluno1.sonorus.features.local.data.device.canSearchLyricsManually
+import io.github.cluno1.sonorus.features.local.data.device.isPublicMusicSong
 import io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy
 
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -1338,6 +1340,21 @@ private fun LocalNavigationContent(
             )
         }
     }
+    // issue 167: playlists found by name in search; kept out of the home carousel.
+    val foundPublicPlaylists by streamingMusicViewModel.foundPublicPlaylists.collectAsState()
+    val foundPublicAlbums = remember(foundPublicPlaylists, discoverSongs, discoverLabel) {
+        foundPublicPlaylists.map { (id, playlist) ->
+            val loaded = discoverSongs[id].orEmpty().map { it.toLibrarySong() }
+            Album(
+                id = id,
+                title = playlist.name,
+                artist = discoverLabel,
+                artworkUri = playlist.artworkUrl?.let(Uri::parse),
+                songs = loaded,
+                numberOfSongs = if (loaded.isEmpty()) playlist.songCount else loaded.size,
+            )
+        }
+    }
     val carouselGroups = remember(libraryAlbums, discoverAlbums, streamingMappedAlbums) {
         listOf(libraryAlbums, discoverAlbums, streamingMappedAlbums)
     }
@@ -2618,6 +2635,7 @@ private fun LocalNavigationContent(
                         onBack = {
                             if (!navController.popBackStack()) navigateToTopLevel(Screen.Library.route)
                         },
+                        lyricsOnly = targetSong?.isPublicMusicSong() == true,
                     )
                 }
 
@@ -2927,6 +2945,12 @@ private fun LocalNavigationContent(
                             },
                             onStreamingPlaylistClick = { playlist ->
                                 navController.navigate(StreamingRoutes.playlist(playlist.id)) {
+                                    launchSingleTop = true
+                                }
+                            },
+                            onPublicPlaylistClick = { playlist ->
+                                val id = DiscoverPlaylistIds.encode(playlist.sourceId, playlist.externalId)
+                                navController.navigate(Screen.AlbumDetail.createRoute(id, playlist.name)) {
                                     launchSingleTop = true
                                 }
                             },
@@ -4664,8 +4688,7 @@ private fun LocalNavigationContent(
                                 )
                             },
                             onOpenManualMetadata = if (
-                                io.github.cluno1.sonorus.features.local.data.device.DeviceMetadataPolicy
-                                    .isEligible(infoSong.id, infoSong.uri.scheme)
+                                infoSong.canSearchLyricsManually()
                             ) {
                                 {
                                     navController.navigateToDeviceManualMetadata(
@@ -4713,6 +4736,7 @@ private fun LocalNavigationContent(
                             ProductCapabilities.lanSubsonicOnly && it.id == albumId
                         }
                         ?: discoverAlbums.firstOrNull { it.id == albumId }
+                        ?: foundPublicAlbums.firstOrNull { it.id == albumId }
                     LaunchedEffect(albumId) {
                         if (DiscoverPlaylistIds.isDiscover(albumId)) loadDiscoverAlbum(albumId) {}
                     }

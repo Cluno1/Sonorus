@@ -9,6 +9,8 @@ import io.github.cluno1.sonorus.features.catalog.data.CatalogCredentialsStore
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogApiClient
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogEndpoint
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogMusicApi
+import io.github.cluno1.sonorus.features.catalog.data.remote.DeviceSongLyricsWriteDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicLyricsWriteDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicMetadataWriteDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicSongDto
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
@@ -25,6 +27,19 @@ data class PublicMusicPlaylist(
     val artworkUrl: String?,
     val songCount: Int,
 )
+
+/** issue 167: one page of public playlists matching a keyword, merged across sources. */
+data class PublicMusicPlaylistSearchPage(
+    val items: List<PublicMusicPlaylist>,
+    val page: Int,
+    val hasMore: Boolean,
+)
+
+/** issue 166: [lyricsMissing] means the song's own source confirmed that it has no lyrics. */
+data class PublicMusicMetadataLoad(val metadata: LanSongMetadata?, val lyricsMissing: Boolean)
+
+/** issue 166: lyrics another device adopted for the same local song (title, artist, duration). */
+data class SharedDeviceLyrics(val lyrics: String, val manual: Boolean)
 
 /** The first-party, device-authenticated gateway replacing LX01 in private builds. */
 class PublicMusicApiClient(context: Context) {
@@ -102,6 +117,62 @@ class PublicMusicApiClient(context: Context) {
             .map { PublicMusicPlaylist(it.sourceId, it.externalId, it.name, displayArtwork(it.artworkUrl), it.songCount) }
     }
 
+    /** issue 167: playlists by name. Results open through the same detail loader as [recommendedPlaylists]. */
+    suspend fun searchPlaylists(query: String, page: Int): PublicMusicPlaylistSearchPage {
+        val response = api().searchPlaylists(query, page)
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.SEARCH_FAILED, response.code())
+        val sources = response.body()?.sources.orEmpty()
+        val items = sources.flatMap { it.items }
+            .filter { it.name.isNotBlank() && split("${it.sourceId}:${it.externalId}") != null }
+            .map { PublicMusicPlaylist(it.sourceId, it.externalId, it.name, displayArtwork(it.artworkUrl), it.songCount) }
+        return PublicMusicPlaylistSearchPage(items, page, sources.any { it.hasMore })
+    }
+
+    /**
+     * issue 166: stores lyrics for a public song without touching its other fields. `auto` only fills
+     * a song that has none; `manual` replaces whatever is stored. Returns null when the song has not
+     * been collected yet (its artist was unknown), so the lyrics stay on this device only.
+     */
+    suspend fun savePublicLyrics(providerId: String, lyrics: String, manual: Boolean, provider: String?): LanSongMetadata? {
+        val (source, song) = split(providerId) ?: throw PublicMusicException(PublicMusicException.Kind.INVALID_SONG_ID)
+        val response = api().saveLyrics(
+            source, song, PublicMusicLyricsWriteDto(lyrics, if (manual) "manual" else "auto", provider?.take(40)),
+        )
+        if (response.code() == 404) return null
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.METADATA_SAVE_FAILED, response.code())
+        val body = requireNotNull(response.body())
+        Log.i(TAG, "Public lyrics ${if (body.written == true) "stored" else "kept"}: $providerId manual=$manual")
+        return toMetadata(providerId, body)
+    }
+
+    /** issue 166: null when no device has stored lyrics for this local song yet. */
+    suspend fun findDeviceLyrics(title: String, artist: String, durationMs: Long?): SharedDeviceLyrics? {
+        val response = api().deviceLyrics(title.trim(), artist.trim(), durationMs?.takeIf { it > 0 })
+        if (response.code() == 404) return null
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.METADATA_READ_FAILED, response.code())
+        val body = response.body() ?: return null
+        return body.lyricsLrc.takeIf(String::isNotBlank)?.let { SharedDeviceLyrics(it, body.mode == "manual") }
+    }
+
+    /** issue 166: `auto` never replaces a stored record; `manual` replaces it for every device. */
+    suspend fun saveDeviceLyrics(
+        title: String,
+        artist: String,
+        album: String?,
+        durationMs: Long?,
+        lyrics: String,
+        manual: Boolean,
+        provider: String?,
+    ): Boolean {
+        val response = api().saveDeviceLyrics(DeviceSongLyricsWriteDto(
+            title = title.trim(), artist = artist.trim(), album = album?.trim()?.ifBlank { null },
+            durationMs = durationMs?.takeIf { it > 0 }, lyricsLrc = lyrics,
+            mode = if (manual) "manual" else "auto", provider = provider?.take(40),
+        ))
+        if (!response.isSuccessful) throw PublicMusicException(PublicMusicException.Kind.METADATA_SAVE_FAILED, response.code())
+        return response.body()?.written == true
+    }
+
     /** Loads at most [MAX_PLAYLIST_PAGES] pages so opening a large playlist stays fast. */
     suspend fun playlistSongs(sourceId: String, externalId: String): List<ProviderSong> {
         val first = api().playlist(sourceId, externalId, 1)
@@ -132,14 +203,27 @@ class PublicMusicApiClient(context: Context) {
         durationMs: Long,
         artworkUrl: String?,
         manual: Boolean = false,
-    ): LanSongMetadata? {
+    ): LanSongMetadata? = metadataLoad(providerId, title, artist, album, durationMs, artworkUrl, manual)?.metadata
+
+    suspend fun metadataLoad(
+        providerId: String,
+        title: String,
+        artist: String,
+        album: String,
+        durationMs: Long,
+        artworkUrl: String?,
+        manual: Boolean = false,
+    ): PublicMusicMetadataLoad? {
         val (source, song) = split(providerId) ?: return null
         val result = syncPublicMusicMetadata(
             api(), source, song, title, artist, album, durationMs, artworkUrl, manual, artistPlaceholders,
         )
         if (result.writeSkipped) Log.w(TAG, "Metadata write skipped without a known artist: $providerId")
-        return result.song?.let { toMetadata(providerId, it) }
+        return PublicMusicMetadataLoad(result.song?.let { toMetadata(providerId, it) }, result.lyricsMissing)
     }
+
+    /** Placeholder artists in every app language; such songs are never shared by artist. */
+    fun isUnknownArtist(artist: String): Boolean = artist.isBlank() || artist.trim() in artistPlaceholders
 
     suspend fun saveManual(
         providerId: String,

@@ -1,7 +1,9 @@
 package io.github.cluno1.sonorus.features.streaming.data.provider
 
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogMusicApi
+import io.github.cluno1.sonorus.features.catalog.data.remote.DeviceSongLyricsWriteDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicLyricsDto
+import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicLyricsWriteDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicMetadataWriteDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicPageDto
 import io.github.cluno1.sonorus.features.catalog.data.remote.PublicMusicSearchDto
@@ -25,8 +27,13 @@ class PublicMusicMetadataSyncTest {
     private inner class FakeApi(
         val stored: Response<PublicMusicSongDto> = failure(404),
         val saveCode: Int = 200,
+        val lyricsAnswer: () -> Response<PublicMusicLyricsDto> = { Response.success(PublicMusicLyricsDto("[00:01.00]line")) },
     ) : CatalogMusicApi {
         val writes = mutableListOf<PublicMusicMetadataWriteDto>()
+        override suspend fun saveLyrics(source: String, song: String, body: PublicMusicLyricsWriteDto) = error("unused")
+        override suspend fun searchPlaylists(query: String, page: Int) = error("unused")
+        override suspend fun deviceLyrics(title: String, artist: String, durationMs: Long?) = error("unused")
+        override suspend fun saveDeviceLyrics(body: DeviceSongLyricsWriteDto) = error("unused")
         override suspend fun recommendedAlbums(limit: Int) = error("unused")
         override suspend fun playlist(source: String, playlist: String, page: Int) = error("unused")
         override suspend fun sources(): Response<PublicMusicSourcesDto> = error("unused")
@@ -36,8 +43,7 @@ class PublicMusicMetadataSyncTest {
         // The production adapter returns no artists from the song detail endpoint.
         override suspend fun song(source: String, song: String, refresh: Boolean) =
             Response.success(PublicMusicSongDto(source, song, qualities = listOf("mp3")))
-        override suspend fun lyrics(source: String, song: String, refresh: Boolean) =
-            Response.success(PublicMusicLyricsDto("[00:01.00]line"))
+        override suspend fun lyrics(source: String, song: String, refresh: Boolean) = lyricsAnswer()
         override suspend fun saveMetadata(source: String, song: String, body: PublicMusicMetadataWriteDto): Response<PublicMusicSongDto> {
             writes += body
             if (saveCode != 200) return failure(saveCode)
@@ -108,6 +114,46 @@ class PublicMusicMetadataSyncTest {
         val failure = assertThrows(PublicMusicException::class.java) { sync(FakeApi(stored = failure(500)), "Asaph") }
         assertEquals(PublicMusicException.Kind.METADATA_READ_FAILED, failure.kind)
         assertEquals(500, failure.httpCode)
+    }
+
+    @Test
+    fun 来源返回404时确认无歌词并照常写入一次() {
+        val api = FakeApi(lyricsAnswer = { failure(404) })
+        val result = sync(api, "Asaph")
+        assertTrue(result.lyricsMissing)
+        assertEquals(1, api.writes.size)
+        assertNull(api.writes.single().lyricsLrc)
+    }
+
+    @Test
+    fun 来源返回空歌词时确认无歌词() {
+        assertTrue(sync(FakeApi(lyricsAnswer = { Response.success(PublicMusicLyricsDto(" ")) }), "Asaph").lyricsMissing)
+    }
+
+    @Test
+    fun 歌词请求网络失败时不算无歌词() {
+        val api = FakeApi(lyricsAnswer = { throw java.io.IOException("offline") })
+        assertFalse(sync(api, "Asaph").lyricsMissing)
+    }
+
+    @Test
+    fun 歌词接口服务端错误时不算无歌词() {
+        assertFalse(sync(FakeApi(lyricsAnswer = { failure(503) }), "Asaph").lyricsMissing)
+    }
+
+    @Test
+    fun 来源有歌词时不触发兜底() {
+        assertFalse(sync(FakeApi(), "Asaph").lyricsMissing)
+    }
+
+    @Test
+    fun 手动刷新且来源仍无歌词时保留已存歌词且只写一次() {
+        val stored = PublicMusicSongDto("feiniao", "1", title = "Song", artists = listOf("Asaph"), lyricsLrc = "[00:01.00]兜底")
+        val api = FakeApi(stored = Response.success(stored), lyricsAnswer = { failure(404) })
+        val result = sync(api, "Asaph", manual = true)
+        assertEquals(1, api.writes.size)
+        assertEquals("[00:01.00]兜底", api.writes.single().lyricsLrc)
+        assertFalse(result.lyricsMissing)
     }
 
     @Test

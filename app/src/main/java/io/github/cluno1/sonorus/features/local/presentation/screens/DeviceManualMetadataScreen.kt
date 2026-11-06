@@ -101,9 +101,13 @@ fun DeviceManualMetadataScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     draftOnly: Boolean = false,
+    // issue 166: public songs search lyrics only; the pick is stored on the backend.
+    lyricsOnly: Boolean = false,
 ) {
     val publicMetadataEnabled by appSettings.devicePublicMetadataEnabled.collectAsState()
-    var kind by rememberSaveable(song?.id, initialKind) { mutableStateOf(initialKind) }
+    var kind by rememberSaveable(song?.id, initialKind, lyricsOnly) {
+        mutableStateOf(if (lyricsOnly) DeviceManualMetadataKind.LYRICS else initialKind)
+    }
     var title by rememberSaveable(song?.id) { mutableStateOf(song?.title.orEmpty()) }
     var artist by rememberSaveable(song?.id, initialArtistName) {
         mutableStateOf(initialArtistName?.takeIf(String::isNotBlank) ?: song?.artist.orEmpty())
@@ -200,7 +204,7 @@ fun DeviceManualMetadataScreen(
                 }
             }
 
-            item {
+            if (!lyricsOnly) item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = kind == DeviceManualMetadataKind.LYRICS,

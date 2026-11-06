@@ -3348,6 +3348,11 @@
     <string name="lyrics_candidate_format">%1$s · %2$s · %3$s · %4$d%%</string>
     <string name="lyrics_duration_seconds">%1$d s</string>
     <string name="lyrics_source_device_embedded">Embedded lyrics</string>
+    <string name="lyrics_source_shared">Shared lyrics</string>
+    <string name="public_music_playlist_search_subtitle">%1$d songs · Public playlist</string>
+    <string name="public_music_playlist_search_more">More playlists</string>
+    <string name="public_music_playlist_search_loading">Loading playlists…</string>
+    <string name="public_music_playlist_search_failed">Playlist search failed. Tap to retry</string>
     <string name="lyrics_source_device_sibling">Sibling lyrics file</string>
     <string name="lyrics_source_device_saf_sibling">Sibling lyrics file (folder access)</string>
     <string name="lyrics_source_lrclib_match">LRCLIB · %1$s / %2$s · %3$s</string>
