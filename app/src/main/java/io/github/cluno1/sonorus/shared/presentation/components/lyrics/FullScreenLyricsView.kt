@@ -7,6 +7,12 @@
 
 package io.github.cluno1.sonorus.shared.presentation.components.lyrics
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmGlassMenuItem
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmGlassMenu
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideToggleButton
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideIconButton
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideButtonDefaults
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideButtonColors
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
@@ -1048,6 +1054,7 @@ private val LyricsSideBarWidth = 48.dp
  * corner the Work lyrics page also uses). Top to bottom: lyrics language (Catalog language or
  * 原/译/原译), source images (catalog), add to room (catalog Work), romanization (non-catalog
  * lyrics), lyrics editor (when enabled), settings. It scrolls when the pane is too short.
+ * issue 170: every button is the shared [RhythmSideIconButton] (40dp glass circle).
  */
 @Composable
 private fun BoxScope.LyricsFloatingActions(
@@ -1074,7 +1081,7 @@ private fun BoxScope.LyricsFloatingActions(
     ) {
         Column(
             modifier = Modifier.verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(RhythmSideButtonDefaults.Spacing),
             horizontalAlignment = Alignment.End,
         ) {
             languageMenu()
@@ -1082,46 +1089,34 @@ private fun BoxScope.LyricsFloatingActions(
                 visible = showSourceImagesToggle,
                 checked = sourceImagesShown,
                 onCheckedChange = onSourceImagesShownChange,
-                size = 44.dp,
             )
             onAddToRoom?.let { addToRoom ->
-                FilledTonalIconButton(onClick = addToRoom, modifier = Modifier.size(44.dp)) {
-                    Icon(
-                        imageVector = MaterialSymbolIcon("playlist_add"),
-                        contentDescription = stringResource(R.string.rooms_add_to_room),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-            if (showRomanizationToggle) {
-                FilledTonalIconToggleButton(
-                    checked = showRomanization,
-                    onCheckedChange = onRomanizationChange,
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Icon(
-                        imageVector = MaterialSymbolIcon("translate"),
-                        contentDescription = stringResource(R.string.fullscreenlyricsview_romanization),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-            if (lyricsEditorEnabled) {
-                FilledTonalIconButton(onClick = onEditLyrics, modifier = Modifier.size(44.dp)) {
-                    Icon(
-                        imageVector = MaterialSymbolIcon("edit"),
-                        contentDescription = stringResource(R.string.edit_lyrics),
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-            FilledTonalIconButton(onClick = onLyricsSettings, modifier = Modifier.size(44.dp)) {
-                Icon(
-                    imageVector = MaterialSymbolIcon("settings"),
-                    contentDescription = stringResource(R.string.lyrics_settings),
-                    modifier = Modifier.size(22.dp),
+                RhythmSideIconButton(
+                    icon = MaterialSymbolIcon("playlist_add"),
+                    contentDescription = stringResource(R.string.rooms_add_to_room),
+                    onClick = addToRoom,
                 )
             }
+            if (showRomanizationToggle) {
+                RhythmSideToggleButton(
+                    icon = MaterialSymbolIcon("translate"),
+                    contentDescription = stringResource(R.string.fullscreenlyricsview_romanization),
+                    checked = showRomanization,
+                    onCheckedChange = onRomanizationChange,
+                )
+            }
+            if (lyricsEditorEnabled) {
+                RhythmSideIconButton(
+                    icon = MaterialSymbolIcon("edit"),
+                    contentDescription = stringResource(R.string.edit_lyrics),
+                    onClick = onEditLyrics,
+                )
+            }
+            RhythmSideIconButton(
+                icon = MaterialSymbolIcon("settings"),
+                contentDescription = stringResource(R.string.lyrics_settings),
+                onClick = onLyricsSettings,
+            )
         }
     }
 }
@@ -1131,197 +1126,32 @@ internal fun CatalogLyricSourceToggleButton(
     visible: Boolean,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    size: androidx.compose.ui.unit.Dp = 40.dp,
+    colors: RhythmSideButtonColors = RhythmSideButtonDefaults.themeGlass(),
 ) {
     if (!visible) return
-    FilledTonalIconToggleButton(
+    RhythmSideToggleButton(
+        icon = MaterialSymbolIcon(if (checked) "lyrics" else "image"),
+        contentDescription = stringResource(
+            if (checked) R.string.lyrics_show_text
+            else R.string.lyrics_show_source_images,
+        ),
         checked = checked,
         onCheckedChange = onCheckedChange,
-        modifier = Modifier.size(size),
-    ) {
-        Icon(
-            imageVector = MaterialSymbolIcon(if (checked) "lyrics" else "image"),
-            contentDescription = stringResource(
-                if (checked) R.string.lyrics_show_text
-                else R.string.lyrics_show_source_images,
-            ),
-            modifier = Modifier.size(22.dp),
-        )
-    }
+        colors = colors,
+    )
 }
 
 // issue 123: CatalogLyricSourceImagesView (bounded canvas + share) lives in CatalogLyricSourceCanvas.kt.
 
-@Composable
-internal fun CatalogLyricsLanguageMenu(
-    languages: List<String>,
-    selectedLanguage: String?,
-    onLanguageSelect: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (languages.size <= 1) return
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        FilledTonalButton(
-            onClick = { expanded = true },
-            modifier = Modifier.height(40.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp),
-        ) {
-            Icon(
-                imageVector = MaterialSymbolIcon("translate"),
-                contentDescription = stringResource(R.string.cd_change_language),
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = catalogLyricsLanguageCompactLabel(selectedLanguage ?: languages.first()),
-                maxLines = 1,
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Spacer(modifier = Modifier.width(2.dp))
-            Icon(
-                imageVector = MaterialSymbolIcon("arrow_drop_down"),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            languages.forEach { language ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = catalogLyricsLanguageLabel(language),
-                            maxLines = 1,
-                        )
-                    },
-                    onClick = {
-                        expanded = false
-                        onLanguageSelect(language)
-                    },
-                    leadingIcon = {
-                        Text(
-                            text = language,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                    trailingIcon = if (language.equals(selectedLanguage, ignoreCase = true)) {
-                        {
-                            Icon(
-                                imageVector = MaterialSymbolIcon("check"),
-                                contentDescription = null,
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
-    }
-}
-
-/** One entry of [LyricsOptionMenuButton]: full [label] in the menu, optional short [tag] beside it. */
-internal data class LyricsMenuOption(
-    val label: String,
-    val tag: String?,
-    val selected: Boolean,
-    val onSelect: () -> Unit,
-)
-
 /**
- * issue 163/165: the shared "translate icon + current option" button. The button shows only a
- * short, width-capped label so it never takes the title's space; the menu lists the full names.
- * Catalog languages and the 原/译/原译 choice use this same look with their own data.
- */
-@Composable
-internal fun LyricsOptionMenuButton(
-    currentLabel: String,
-    options: List<LyricsMenuOption>,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    containerColor: Color? = null,
-    contentColor: Color? = null,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        FilledTonalButton(
-            onClick = { expanded = true },
-            modifier = Modifier.height(40.dp),
-            contentPadding = PaddingValues(horizontal = 10.dp),
-            colors = if (containerColor != null && contentColor != null) {
-                ButtonDefaults.filledTonalButtonColors(
-                    containerColor = containerColor,
-                    contentColor = contentColor,
-                )
-            } else {
-                ButtonDefaults.filledTonalButtonColors()
-            },
-        ) {
-            Icon(
-                imageVector = MaterialSymbolIcon("translate"),
-                contentDescription = contentDescription,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = currentLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.widthIn(max = 72.dp),
-            )
-            Icon(
-                imageVector = MaterialSymbolIcon("arrow_drop_down"),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(text = option.label, maxLines = 1) },
-                    onClick = {
-                        expanded = false
-                        option.onSelect()
-                    },
-                    leadingIcon = option.tag?.let { tag ->
-                        {
-                            Text(
-                                text = tag,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    },
-                    trailingIcon = if (option.selected) {
-                        {
-                            Icon(
-                                imageVector = MaterialSymbolIcon("check"),
-                                contentDescription = null,
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
-    }
-}
-
-/**
- * issue 163/165: the lyrics language entry of the player page and the full-screen side bar.
- * Catalog songs with several effective lyrics languages pick a language (short label = tag such
- * as `zh-Hans`; the backend already resolved Song → preferred Score → Work per language, so no
- * source choice is offered). Other songs whose lyrics carry line translations pick 原/译/原译.
- * Nothing is shown when there is nothing to switch, and never both menus at once.
+ * issue 163/165/170: the one lyrics language entry of the player, the full-screen lyrics, the Work
+ * lyrics page and the score's lyrics pane. Catalog songs / Works with several effective lyrics
+ * languages pick a language (the backend already resolved Song → preferred Score → Work per
+ * language, so no source choice is offered). Other songs whose lyrics carry line translations pick
+ * 原/译/原译. What is shown is decided by [lyricsLanguageButtonKind]; never both menus at once.
+ *
+ * issue 170: the button is only the translate icon (no short label, no arrow); the current choice
+ * is the check in the glass menu and is read out by the content description.
  */
 @Composable
 internal fun LyricsLanguageSideButton(
@@ -1332,55 +1162,65 @@ internal fun LyricsLanguageSideButton(
     translationMode: LyricsTranslationMode,
     onTranslationModeSelect: (LyricsTranslationMode) -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color? = null,
-    contentColor: Color? = null,
+    colors: RhythmSideButtonColors = RhythmSideButtonDefaults.themeGlass(),
 ) {
-    when {
-        catalogLanguages.size > 1 -> {
-            val selected = catalogLanguages.firstOrNull { it.equals(selectedCatalogLanguage, ignoreCase = true) }
-                ?: catalogLanguages.first()
-            LyricsOptionMenuButton(
-                currentLabel = selected,
-                options = catalogLanguages.map { language ->
-                    LyricsMenuOption(
+    val kind = lyricsLanguageButtonKind(catalogLanguages.size, hasTranslation)
+    if (kind == LyricsLanguageButtonKind.NONE) return
+    var expanded by remember { mutableStateOf(false) }
+    val menuName = stringResource(
+        if (kind == LyricsLanguageButtonKind.CATALOG) R.string.cd_change_language
+        else R.string.lyrics_translation_mode_menu
+    )
+    val fullLabels = mapOf(
+        LyricsTranslationMode.ORIGINAL to stringResource(R.string.lyrics_translation_mode_original),
+        LyricsTranslationMode.TRANSLATION to stringResource(R.string.lyrics_translation_mode_translation),
+        LyricsTranslationMode.BOTH to stringResource(R.string.lyrics_translation_mode_both),
+    )
+    val selectedLanguage = catalogLanguages.firstOrNull { it.equals(selectedCatalogLanguage, ignoreCase = true) }
+        ?: catalogLanguages.firstOrNull()
+    val currentLabel = if (kind == LyricsLanguageButtonKind.CATALOG) {
+        selectedLanguage?.let(::catalogLyricsLanguageLabel).orEmpty()
+    } else {
+        fullLabels.getValue(translationMode)
+    }
+    Box(modifier = modifier) {
+        RhythmSideIconButton(
+            icon = MaterialSymbolIcon("translate"),
+            contentDescription = stringResource(R.string.lyrics_language_button_cd, menuName, currentLabel),
+            onClick = { expanded = true },
+            colors = colors,
+        )
+        RhythmGlassMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            colors = colors,
+        ) {
+            if (kind == LyricsLanguageButtonKind.CATALOG) {
+                catalogLanguages.forEach { language ->
+                    RhythmGlassMenuItem(
                         label = catalogLyricsLanguageLabel(language),
                         tag = language,
-                        selected = language == selected,
-                        onSelect = { onCatalogLanguageSelect(language) },
+                        selected = language == selectedLanguage,
+                        onClick = {
+                            expanded = false
+                            onCatalogLanguageSelect(language)
+                        },
+                        colors = colors,
                     )
-                },
-                contentDescription = stringResource(R.string.cd_change_language),
-                modifier = modifier,
-                containerColor = containerColor,
-                contentColor = contentColor,
-            )
-        }
-        catalogLanguages.isEmpty() && hasTranslation -> {
-            val shortLabels = mapOf(
-                LyricsTranslationMode.ORIGINAL to stringResource(R.string.lyrics_translation_mode_original_short),
-                LyricsTranslationMode.TRANSLATION to stringResource(R.string.lyrics_translation_mode_translation_short),
-                LyricsTranslationMode.BOTH to stringResource(R.string.lyrics_translation_mode_both_short),
-            )
-            val fullLabels = mapOf(
-                LyricsTranslationMode.ORIGINAL to stringResource(R.string.lyrics_translation_mode_original),
-                LyricsTranslationMode.TRANSLATION to stringResource(R.string.lyrics_translation_mode_translation),
-                LyricsTranslationMode.BOTH to stringResource(R.string.lyrics_translation_mode_both),
-            )
-            LyricsOptionMenuButton(
-                currentLabel = shortLabels.getValue(translationMode),
-                options = LyricsTranslationMode.entries.map { mode ->
-                    LyricsMenuOption(
+                }
+            } else {
+                LyricsTranslationMode.entries.forEach { mode ->
+                    RhythmGlassMenuItem(
                         label = fullLabels.getValue(mode),
-                        tag = null,
                         selected = mode == translationMode,
-                        onSelect = { onTranslationModeSelect(mode) },
+                        onClick = {
+                            expanded = false
+                            onTranslationModeSelect(mode)
+                        },
+                        colors = colors,
                     )
-                },
-                contentDescription = stringResource(R.string.lyrics_translation_mode_menu),
-                modifier = modifier,
-                containerColor = containerColor,
-                contentColor = contentColor,
-            )
+                }
+            }
         }
     }
 }
@@ -1388,12 +1228,4 @@ internal fun LyricsLanguageSideButton(
 private fun catalogLyricsLanguageLabel(languageTag: String): String {
     val locale = Locale.forLanguageTag(languageTag)
     return locale.getDisplayName(Locale.getDefault()).takeIf(String::isNotBlank) ?: languageTag
-}
-
-private fun catalogLyricsLanguageCompactLabel(languageTag: String): String {
-    val locale = Locale.forLanguageTag(languageTag)
-    val displayLocale = Locale.getDefault()
-    return locale.getDisplayScript(displayLocale).takeIf(String::isNotBlank)
-        ?: locale.getDisplayLanguage(displayLocale).takeIf(String::isNotBlank)
-        ?: languageTag
 }

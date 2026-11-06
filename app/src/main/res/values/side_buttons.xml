@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- issue 170: icon-only lyrics language button, read out with the current choice. -->
+    <string name="lyrics_language_button_cd">%1$s: %2$s</string>
+</resources>

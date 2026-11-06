@@ -60,7 +60,12 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSym
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.CatalogLyricSourceImagesView
 import io.github.cluno1.sonorus.shared.presentation.components.lyrics.CatalogLyricSourceToggleButton
-import io.github.cluno1.sonorus.shared.presentation.components.lyrics.CatalogLyricsLanguageMenu
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricsLanguageSideButton
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricsLanguageButtonKind
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.lyricsLanguageButtonKind
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideButtonDefaults
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideIconButton
+import io.github.cluno1.sonorus.util.LyricsTranslationMode
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import java.util.Locale
 
@@ -109,6 +114,25 @@ fun CatalogWorkLyricsScreen(
     val tablet = isTabletLyricsLayout()
     val phoneNumbersLine = remember(work) { formatWorkNumbers(work?.numberMeta.orEmpty()) }
 
+    val languageButtonKind = lyricsLanguageButtonKind(variants.size, hasTranslation = false)
+    val viewButtons: @Composable () -> Unit = {
+        LyricsLanguageSideButton(
+            catalogLanguages = variants.map { it.language },
+            selectedCatalogLanguage = selectedVariant?.language,
+            onCatalogLanguageSelect = { selectedLanguage = it },
+            hasTranslation = false,
+            translationMode = LyricsTranslationMode.ORIGINAL,
+            onTranslationModeSelect = {},
+        )
+        CatalogLyricSourceToggleButton(
+            visible = sourceImages.isNotEmpty(),
+            checked = showSourceImages,
+            onCheckedChange = { showSourceImages = it },
+        )
+    }
+    val viewButtonCount = (if (languageButtonKind != LyricsLanguageButtonKind.NONE) 1 else 0) +
+        (if (sourceImages.isNotEmpty()) 1 else 0)
+
     // Tablet only: back first hides the left-pane images, then leaves. Phones keep their old back.
     BackHandler(enabled = tablet && displayingImages) { showSourceImages = false }
 
@@ -130,7 +154,7 @@ fun CatalogWorkLyricsScreen(
                             Text(
                                 text = work?.canonicalTitle ?: initialTitle,
                                 style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             if (phoneNumbersLine.isNotEmpty()) {
@@ -150,20 +174,8 @@ fun CatalogWorkLyricsScreen(
                         Icon(RhythmIcons.Back, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
-                actions = {
-                    CatalogLyricsLanguageMenu(
-                        languages = variants.map { it.language },
-                        selectedLanguage = selectedVariant?.language,
-                        onLanguageSelect = { selectedLanguage = it },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    CatalogLyricSourceToggleButton(
-                        visible = sourceImages.isNotEmpty(),
-                        checked = showSourceImages,
-                        onCheckedChange = { showSourceImages = it },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                },
+                // issue 170: the language menu and the source-image toggle used to sit here and
+                // squeezed the title and numbers to an ellipsis; they head the side column now.
             )
         },
     ) { innerPadding ->
@@ -237,21 +249,27 @@ fun CatalogWorkLyricsScreen(
                             CatalogWorkLyricsBody(
                                 state = state,
                                 selectedVariant = selectedVariant,
-                                bottomPadding = bottomPadding + if (work != null) 104.dp else 0.dp,
+                                bottomPadding = bottomPadding + workLyricsSideColumnClearance(
+                                    smallButtons = viewButtonCount + (if (work != null) 2 else 0),
+                                    hasPlayButton = false,
+                                ),
                                 onBack = onBack,
                             )
-                            // issue 124/125: same bottom-right corner as the phone and the player lyrics.
-                            if (work != null) {
+                            // issue 124/125/170: same bottom-right corner as the phone and the player lyrics.
+                            if (work != null || viewButtonCount > 0) {
                                 Column(
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
                                         .padding(end = 16.dp, bottom = bottomPadding - 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(RhythmSideButtonDefaults.Spacing),
                                 ) {
-                                    WorkLyricsWorkActions(
-                                        onAddToRoom = { addingToRoom = true },
-                                        onEditLyrics = { editingLyrics = true },
-                                    )
+                                    viewButtons()
+                                    if (work != null) {
+                                        WorkLyricsWorkActions(
+                                            onAddToRoom = { addingToRoom = true },
+                                            onEditLyrics = { editingLyrics = true },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -278,9 +296,11 @@ fun CatalogWorkLyricsScreen(
                         state = state,
                         selectedVariant = selectedVariant,
                         // Room so the last lines can scroll clear of the floating buttons.
-                        bottomPadding = bottomPadding +
-                            52.dp * ((if (work != null) 2 else 0) + (if (onOpenScore != null) 1 else 0)) +
-                            (if (playSong != null) 68.dp else 0.dp),
+                        bottomPadding = bottomPadding + workLyricsSideColumnClearance(
+                            smallButtons = viewButtonCount + (if (work != null) 2 else 0) +
+                                (if (onOpenScore != null) 1 else 0),
+                            hasPlayButton = playSong != null,
+                        ),
                         onBack = onBack,
                         leading = {
                             Column(
@@ -302,14 +322,16 @@ fun CatalogWorkLyricsScreen(
                 }
                 // Playback/score rule: unavailable entries are not composed at all.
                 // issue 124: "add to room" heads the same bottom-right column as the player lyrics.
-                if (work != null || playSong != null || onOpenScore != null) {
+                if (viewButtonCount > 0 || work != null || playSong != null || onOpenScore != null) {
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(end = 16.dp, bottom = bottomPadding - 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(RhythmSideButtonDefaults.Spacing),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
+                        // issue 170: language and source images first, as in the full-screen lyrics.
+                        viewButtons()
                         if (work != null) {
                             WorkLyricsWorkActions(
                                 onAddToRoom = { addingToRoom = true },
@@ -317,15 +339,11 @@ fun CatalogWorkLyricsScreen(
                             )
                         }
                         onOpenScore?.let { openScore ->
-                            SmallFloatingActionButton(
+                            RhythmSideIconButton(
+                                icon = RhythmIcons.ScoreFilled,
+                                contentDescription = stringResource(R.string.work_lyrics_open_score),
                                 onClick = openScore,
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            ) {
-                                Icon(
-                                    RhythmIcons.ScoreFilled,
-                                    contentDescription = stringResource(R.string.work_lyrics_open_score),
-                                )
-                            }
+                            )
                         }
                         playSong?.let { song ->
                             FloatingActionButton(
@@ -370,19 +388,25 @@ fun CatalogWorkLyricsScreen(
 /** issue 124/125: the Work's own actions at the top of the bottom-right column. */
 @Composable
 private fun WorkLyricsWorkActions(onAddToRoom: () -> Unit, onEditLyrics: () -> Unit) {
-    SmallFloatingActionButton(
+    RhythmSideIconButton(
+        icon = MaterialSymbolIcon("playlist_add"),
+        contentDescription = stringResource(R.string.rooms_add_to_room),
         onClick = onAddToRoom,
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-    ) {
-        Icon(MaterialSymbolIcon("playlist_add"), contentDescription = stringResource(R.string.rooms_add_to_room))
-    }
-    SmallFloatingActionButton(
+    )
+    RhythmSideIconButton(
+        icon = MaterialSymbolIcon("edit"),
+        contentDescription = stringResource(R.string.edit_lyrics),
         onClick = onEditLyrics,
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-    ) {
-        Icon(MaterialSymbolIcon("edit"), contentDescription = stringResource(R.string.edit_lyrics))
-    }
+    )
 }
+
+/**
+ * issue 170: room kept under the lyrics so the last lines scroll clear of the bottom-right column:
+ * each side button is 40dp plus a 12dp gap, the play FAB 56dp plus a 12dp gap.
+ */
+internal fun workLyricsSideColumnClearance(smallButtons: Int, hasPlayButton: Boolean): Dp =
+    (RhythmSideButtonDefaults.Size + RhythmSideButtonDefaults.Spacing) * smallButtons +
+        (if (hasPlayButton) 68.dp else 0.dp)
 
 /**
  * issue 118: Work lyrics as a side pane next to a playing score. Independent of any player: it
@@ -422,10 +446,13 @@ fun CatalogWorkLyricsPane(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                CatalogLyricsLanguageMenu(
-                    languages = variants.map { it.language },
-                    selectedLanguage = selectedVariant?.language,
-                    onLanguageSelect = { selectedLanguage = it },
+                LyricsLanguageSideButton(
+                    catalogLanguages = variants.map { it.language },
+                    selectedCatalogLanguage = selectedVariant?.language,
+                    onCatalogLanguageSelect = { selectedLanguage = it },
+                    hasTranslation = false,
+                    translationMode = LyricsTranslationMode.ORIGINAL,
+                    onTranslationModeSelect = {},
                 )
                 IconButton(onClick = onClose) {
                     Icon(RhythmIcons.Close, contentDescription = stringResource(R.string.score_lyrics_pane_close))

@@ -5,6 +5,8 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens.player
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideIconButton
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideButtonDefaults
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -2513,29 +2515,27 @@ fun ExpressivePlayerScreen(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(controlsContainerColor)
-                            .clickable {
-                                HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                hideLyricsControlsImmediately()
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = MaterialSymbolIcon("fullscreen", filled = true),
-                            contentDescription = stringResource(R.string.lyrics_enter_immersive_view),
-                            tint = when {
-                                needsDarkSurfaces -> ambientControlContent
-                                useAccentBackground -> accentFg
-                                else -> monoFg
-                            },
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
+                    // issue 170: both corner buttons are the shared side button with the player's colours.
+                    val sideButtonColors = RhythmSideButtonDefaults.player(
+                        container = controlsContainerColor,
+                        content = when {
+                            needsDarkSurfaces -> ambientControlContent
+                            useAccentBackground -> accentFg
+                            else -> monoFg
+                        },
+                        accent = primaryColor,
+                    )
+                    RhythmSideIconButton(
+                        icon = MaterialSymbolIcon("fullscreen", filled = true),
+                        contentDescription = stringResource(R.string.lyrics_enter_immersive_view),
+                        onClick = {
+                            HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                            hideLyricsControlsImmediately()
+                        },
+                        colors = sideButtonColors,
+                    )
                     LyricsLanguageSideButton(
+                        colors = sideButtonColors,
                         catalogLanguages = catalogLyricsLanguages,
                         selectedCatalogLanguage = selectedCatalogLyricsLanguage,
                         onCatalogLanguageSelect = { language ->

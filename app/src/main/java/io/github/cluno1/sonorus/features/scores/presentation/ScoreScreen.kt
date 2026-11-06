@@ -3133,27 +3133,19 @@ private fun AlphaTabScore(
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 16.dp),
             ) {
-                androidx.compose.material3.SmallFloatingActionButton(
+                // issue 170: the same 40dp glass side button as the player and the lyrics pages.
+                io.github.cluno1.sonorus.shared.presentation.components.common.RhythmSideIconButton(
+                    icon = MaterialSymbolIcon("vertical_align_top"),
+                    contentDescription = stringResource(R.string.score_back_to_top),
                     onClick = {
                         val state = scoreViewHolder[0]?.tag as? AlphaTabScoreViewState
-                            ?: return@SmallFloatingActionButton
+                            ?: return@RhythmSideIconButton
                         // The reader takes over: stop any follow animation, then glide up.
                         state.playbackScrollHandler?.yieldToUser("back to top")
                         state.innerScroll.smoothScrollTo(0, 0)
                         Log.i(SCORE_DISPLAY_TAG, "back to top from scrollY=${state.innerScroll.scrollY}")
                     },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
-                        defaultElevation = 2.dp,
-                        pressedElevation = 4.dp,
-                    ),
-                ) {
-                    Icon(
-                        MaterialSymbolIcon("vertical_align_top"),
-                        contentDescription = stringResource(R.string.score_back_to_top),
-                    )
-                }
+                )
             }
         }
       }
