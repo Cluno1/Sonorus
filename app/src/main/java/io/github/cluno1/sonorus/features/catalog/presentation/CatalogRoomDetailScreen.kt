@@ -98,6 +98,7 @@ fun CatalogRoomDetailScreen(
     var reloadKey by remember { mutableIntStateOf(0) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmRemove by remember { mutableStateOf<CatalogRoomRow.Song?>(null) }
     var manageSections by remember { mutableStateOf(false) }
     var users by remember { mutableStateOf<List<CatalogRoomUser>>(emptyList()) }
     var selectedSectionId by remember { mutableStateOf<String?>(null) }
@@ -121,13 +122,19 @@ fun CatalogRoomDetailScreen(
         reloadKey++
     }
 
-    /** Runs one room write; ignored while another is in flight. */
-    fun write(block: suspend () -> Result<CatalogRoom>) {
+    /** Runs one room write; ignored while another is in flight. [successMessage] is shown once it lands. */
+    fun write(successMessage: String? = null, block: suspend () -> Result<CatalogRoom>) {
         if (!gate.tryStart()) return
         writing = true
         scope.launch {
             try {
-                block().fold(onSuccess = ::show, onFailure = ::fail)
+                block().fold(
+                    onSuccess = { updated ->
+                        show(updated)
+                        successMessage?.let { RhythmMessages.success(context, it) }
+                    },
+                    onFailure = ::fail,
+                )
             } finally {
                 writing = false
                 gate.finish()
@@ -148,6 +155,8 @@ fun CatalogRoomDetailScreen(
             onFailure = {
                 if (it is CatalogFailure.RoomUnavailable) gone = true
                 error = roomErrorMessage(context, it)
+                // issue 169: with the room on screen the error text is not shown, so say the refresh failed.
+                if (room != null && !gone) RhythmMessages.error(context, R.string.msg_catalog_refresh_failed)
             },
         )
     }
@@ -283,7 +292,7 @@ fun CatalogRoomDetailScreen(
                                     enabled = !writing,
                                     onUp = { submitOrder(CatalogRoomOrder.step(rows, row.item.id, up = true)) },
                                     onDown = { submitOrder(CatalogRoomOrder.step(rows, row.item.id, up = false)) },
-                                    onRemove = { write { repository.removeRoomSong(current.id, row.item.id) } },
+                                    onRemove = { confirmRemove = row },
                                     onOpenLyrics = { onOpenLyrics(row.item.work) },
                                     onOpenScore = { onOpenScore(row.item.work) },
                                     onOpenSong = onOpenSong,
@@ -358,7 +367,9 @@ fun CatalogRoomDetailScreen(
                         val snapshot = current ?: return@TextButton
                         val name = sectionName.trim().ifEmpty { null }
                         manageSections = false
-                        write { repository.updateRoomSection(snapshot.id, sectionId, name, assigneeId, snapshot.revision) }
+                        write(context.getString(R.string.msg_catalog_section_saved)) {
+                            repository.updateRoomSection(snapshot.id, sectionId, name, assigneeId, snapshot.revision)
+                        }
                     },
                 ) { Text(stringResource(R.string.rooms_save)) }
             },
@@ -380,7 +391,10 @@ fun CatalogRoomDetailScreen(
                     scope.launch {
                         try {
                             repository.deleteRoom(current.id).fold(
-                                onSuccess = { onBack() },
+                                onSuccess = {
+                                    RhythmMessages.success(context, R.string.msg_catalog_room_deleted, current.name)
+                                    onBack()
+                                },
                                 onFailure = ::fail,
                             )
                         } finally {
@@ -394,6 +408,29 @@ fun CatalogRoomDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.rooms_cancel)) }
+            },
+        )
+    }
+
+    // issue 169: undo would need add + reorder (new item id, "added by" changes), so confirm instead.
+    confirmRemove?.let { target ->
+        AlertDialog(
+            onDismissRequest = { confirmRemove = null },
+            title = { Text(stringResource(R.string.msg_catalog_remove_song_title)) },
+            text = { Text(stringResource(R.string.msg_catalog_remove_song_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemove = null
+                    val snapshot = room ?: return@TextButton
+                    write(context.getString(R.string.msg_catalog_song_removed)) {
+                        repository.removeRoomSong(snapshot.id, target.item.id)
+                    }
+                }) {
+                    Text(stringResource(R.string.rooms_remove), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemove = null }) { Text(stringResource(R.string.rooms_cancel)) }
             },
         )
     }

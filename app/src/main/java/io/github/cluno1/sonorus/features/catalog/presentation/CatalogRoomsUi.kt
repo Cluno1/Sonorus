@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,9 +78,15 @@ internal fun roomUserName(user: CatalogRoomUser): String =
 internal fun roomErrorMessage(context: Context, error: Throwable): String = when (error) {
     is CatalogFailure.RoomUnavailable -> context.getString(R.string.rooms_room_gone)
     is CatalogFailure.StaleRevision -> context.getString(R.string.rooms_stale)
-    is CatalogFailure -> error.message ?: context.getString(R.string.rooms_action_failed)
-    else -> context.getString(R.string.rooms_action_failed)
+    // issue 169: fixed localized text; the exception message is never shown.
+    is CatalogFailure -> catalogFailureMessage(context, error)
+    else -> {
+        Log.w(ROOMS_UI_TAG, "room call failed (${error.javaClass.simpleName})", error)
+        context.getString(R.string.rooms_action_failed)
+    }
 }
+
+private const val ROOMS_UI_TAG = "CatalogRoomsUi"
 
 /**
  * Name + gathering date, then one create call. The idempotency key is made once per dialog, so a

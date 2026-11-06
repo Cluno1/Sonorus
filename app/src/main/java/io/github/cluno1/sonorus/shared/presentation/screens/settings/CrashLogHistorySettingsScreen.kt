@@ -176,6 +176,7 @@ fun CrashLogHistorySettingsScreen(onBackClick: () -> Unit, appSettings: AppSetti
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
 
     var showLogDetailDialog by remember { mutableStateOf(false) }
+    var showClearLogsConfirm by remember { mutableStateOf(false) }
     var selectedLog: String? by remember { mutableStateOf(null) }
 
     CollapsibleHeaderScreen(
@@ -265,7 +266,7 @@ fun CrashLogHistorySettingsScreen(onBackClick: () -> Unit, appSettings: AppSetti
                                 title = context.getString(R.string.settings_clear_all_logs),
                                 description = context.getString(R.string.settings_clear_all_logs_desc),
                                 enabled = crashLogHistory.isNotEmpty(),
-                                onClick = { appSettings.clearCrashLogHistory() }
+                                onClick = { showClearLogsConfirm = true }
                             )
                         )
                     ),
@@ -273,6 +274,34 @@ fun CrashLogHistorySettingsScreen(onBackClick: () -> Unit, appSettings: AppSetti
                 )
             }
         }
+    }
+
+    // issue 169: clearing is irreversible, so confirm first and say when it is done.
+    if (showClearLogsConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearLogsConfirm = false },
+            title = { Text(stringResource(R.string.msg_library_clear_crash_logs_title)) },
+            text = { Text(stringResource(R.string.msg_library_clear_crash_logs_body)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearLogsConfirm = false
+                        appSettings.clearCrashLogHistory()
+                        Log.i("CrashLogHistory", "Crash log history cleared")
+                        RhythmMessages.success(context, R.string.msg_library_cleared)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(stringResource(R.string.ui_clear))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showClearLogsConfirm = false }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 
     // Log detail dialog

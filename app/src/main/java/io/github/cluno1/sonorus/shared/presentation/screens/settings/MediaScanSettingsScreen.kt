@@ -255,6 +255,35 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
     var showScanSourcesBottomSheet by remember { mutableStateOf(false) }
     val scanFolderAccess = remember(context) { DeviceScanFolderAccess(context) }
     var authorizedScanRoots by remember { mutableStateOf(scanFolderAccess.roots()) }
+    // issue 169: clearing the blacklist / whitelist asks first, then says it is done.
+    var confirmClearSongs by remember { mutableStateOf(false) }
+    var confirmClearFolders by remember { mutableStateOf(false) }
+
+    fun clearFilteredSongs() {
+        if (currentMode == MediaScanMode.BLACKLIST) {
+            appSettings.clearBlacklist()
+        } else {
+            appSettings.clearWhitelist()
+        }
+        Log.i("MediaScanSettings", "Cleared $currentMode songs")
+        RhythmMessages.success(context, R.string.msg_library_cleared)
+    }
+
+    fun clearFilteredFolders() {
+        if (currentMode == MediaScanMode.BLACKLIST) {
+            blacklistedFolders.forEach { folder ->
+                appSettings.removeFolderFromBlacklist(folder)
+            }
+        } else {
+            whitelistedFolders.forEach { folder ->
+                scanFolderAccess.removeByDisplayPath(folder)
+                appSettings.removeFolderFromWhitelist(folder)
+            }
+            authorizedScanRoots = scanFolderAccess.roots()
+        }
+        Log.i("MediaScanSettings", "Cleared $currentMode folders")
+        RhythmMessages.success(context, R.string.msg_library_cleared)
+    }
     val missingFolderAuthorizations = remember(whitelistedFolders, authorizedScanRoots, currentMode) {
         if (currentMode == MediaScanMode.WHITELIST) {
             LocalAudioScanPolicy.missingAuthorizationCount(
@@ -401,11 +430,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     context.getString(R.string.settings_clear_all_songs_desc, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                        if (currentMode == MediaScanMode.BLACKLIST) {
-                            appSettings.clearBlacklist()
-                        } else {
-                            appSettings.clearWhitelist()
-                        }
+                        confirmClearSongs = true
                     }
                 )
             )
@@ -446,17 +471,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     context.getString(R.string.settings_clear_all_folders_desc, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                        if (currentMode == MediaScanMode.BLACKLIST) {
-                            blacklistedFolders.forEach { folder ->
-                                appSettings.removeFolderFromBlacklist(folder)
-                            }
-                        } else {
-                            whitelistedFolders.forEach { folder ->
-                                scanFolderAccess.removeByDisplayPath(folder)
-                                appSettings.removeFolderFromWhitelist(folder)
-                            }
-                            authorizedScanRoots = scanFolderAccess.roots()
-                        }
+                        confirmClearFolders = true
                     }
                 )
             )
@@ -955,12 +970,8 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                         OutlinedButton(
                             onClick = {
                                 HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
-                                if (currentMode == MediaScanMode.BLACKLIST) {
-                                    appSettings.clearBlacklist()
-                                } else {
-                                    appSettings.clearWhitelist()
-                                }
                                 showSongsBottomSheet = false
+                                confirmClearSongs = true
                             },
                             border = BorderStroke(2.dp, if (currentMode == MediaScanMode.BLACKLIST)
                                 MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
@@ -978,6 +989,55 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 }
             }
         }
+    }
+
+    if (confirmClearSongs || confirmClearFolders) {
+        val clearingSongs = confirmClearSongs
+        val blacklist = currentMode == MediaScanMode.BLACKLIST
+        val dismiss = {
+            confirmClearSongs = false
+            confirmClearFolders = false
+        }
+        AlertDialog(
+            onDismissRequest = dismiss,
+            title = {
+                Text(
+                    stringResource(
+                        when {
+                            clearingSongs && blacklist -> R.string.msg_library_clear_blacklist_songs_title
+                            clearingSongs -> R.string.msg_library_clear_whitelist_songs_title
+                            blacklist -> R.string.msg_library_clear_blacklist_folders_title
+                            else -> R.string.msg_library_clear_whitelist_folders_title
+                        }
+                    )
+                )
+            },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.msg_library_clear_list_body,
+                        if (clearingSongs) filteredSongDetails.size else filteredFoldersList.size
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        dismiss()
+                        if (clearingSongs) clearFilteredSongs() else clearFilteredFolders()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(stringResource(R.string.ui_clear))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = dismiss) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 
     // Folders bottom sheet
@@ -1264,18 +1324,8 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             OutlinedButton(
                                 onClick = {
                                     HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
-                                    if (currentMode == MediaScanMode.BLACKLIST) {
-                                        blacklistedFolders.forEach { folder ->
-                                            appSettings.removeFolderFromBlacklist(folder)
-                                        }
-                                    } else {
-                                        whitelistedFolders.forEach { folder ->
-                                            scanFolderAccess.removeByDisplayPath(folder)
-                                            appSettings.removeFolderFromWhitelist(folder)
-                                        }
-                                        authorizedScanRoots = scanFolderAccess.roots()
-                                    }
                                     showFoldersBottomSheet = false
+                                    confirmClearFolders = true
                                 },
                                 border = BorderStroke(2.dp, if (currentMode == MediaScanMode.BLACKLIST)
                                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),

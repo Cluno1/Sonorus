@@ -83,7 +83,11 @@ fun CatalogAddToRoomSheet(
                 targets = rankRoomTargets(it, currentUserId)
                 error = null
             },
-            onFailure = { error = roomErrorMessage(context, it) },
+            onFailure = {
+                error = roomErrorMessage(context, it)
+                // issue 169: with a list on screen the error text is not shown, so say the reload failed.
+                if (targets != null) RhythmMessages.error(context, R.string.msg_catalog_load_failed)
+            },
         )
     }
 

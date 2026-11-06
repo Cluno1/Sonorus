@@ -1,5 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.MutableTransitionState
@@ -38,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +60,8 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+private const val REMOTE_SCORE_TAG = "CatalogRemoteScore"
 
 private val scorePublishedAtFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
@@ -95,6 +99,7 @@ fun CatalogRemoteScoreScreen(
     onOpenWorkSong: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     var selectedScoreId by remember(scoreWork?.workId, scoreWork?.scoreOptions, initialScoreId) {
         mutableStateOf(
             if (scoreWork == null) {
@@ -121,7 +126,11 @@ fun CatalogRemoteScoreScreen(
         error = null
         viewModel.scoreHistory(activeRevisionId).fold(
             onSuccess = { history = it },
-            onFailure = { error = it.message ?: "谱面修订链加载失败" },
+            onFailure = {
+                // issue 169: fixed localized text; the exception message is never shown.
+                Log.w(REMOTE_SCORE_TAG, "score history failed (${it.javaClass.simpleName})")
+                error = context.getString(R.string.msg_catalog_score_history_failed)
+            },
         )
     }
 
@@ -148,10 +157,16 @@ fun CatalogRemoteScoreScreen(
             onSuccess = {
                 runCatching { MusicXmlRuntimeSanitizer.forAlphaTab(it) }.fold(
                     onSuccess = { runtimeBytes -> bytes = runtimeBytes },
-                    onFailure = { failure -> error = failure.message ?: "谱面安全检查失败" },
+                    onFailure = { failure ->
+                        Log.w(REMOTE_SCORE_TAG, "score safety check failed (${failure.javaClass.simpleName})")
+                        error = context.getString(R.string.msg_catalog_score_check_failed)
+                    },
                 )
             },
-            onFailure = { error = it.message ?: "谱面文件下载失败" },
+            onFailure = {
+                Log.w(REMOTE_SCORE_TAG, "score download failed (${it.javaClass.simpleName})")
+                error = context.getString(R.string.msg_catalog_score_download_failed)
+            },
         )
     }
 

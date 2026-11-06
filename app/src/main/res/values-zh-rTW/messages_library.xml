@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: library, playlist, manual metadata and settings feedback. -->
+<resources>
+    <string name="msg_library_lyrics_applied">已套用歌詞</string>
+    <string name="msg_library_public_lyrics_applied">已更新，所有使用者可見</string>
+    <string name="msg_library_artwork_applied">已套用封面</string>
+    <string name="msg_library_artist_artwork_applied">已套用藝人圖片</string>
+    <string name="msg_library_details_applied">已套用歌曲資訊</string>
+    <string name="msg_library_song_unavailable">歌曲無法使用，請返回重試</string>
+    <string name="msg_library_playlist_created">已建立播放清單「%1$s」</string>
+    <string name="msg_library_playlist_created_with_songs">已建立播放清單「%1$s」，共 %2$d 首</string>
+    <string name="msg_library_song_filtered_out">無法新增「%1$s」：已被掃描規則排除</string>
+    <string name="msg_library_song_already_in_playlist">「%1$s」已在「%2$s」中</string>
+    <string name="msg_library_song_added_to_playlist">已將「%1$s」加入「%2$s」</string>
+    <string name="msg_library_song_removed_from_playlist">已從「%2$s」移除「%1$s」</string>
+    <string name="msg_library_play_next_failed">無法設為下一首播放</string>
+    <string name="msg_library_folder_playlist_created">已建立「%1$s」並加入 %2$d 首</string>
+    <string name="msg_library_playlist_create_failed">無法建立播放清單</string>
+    <string name="msg_library_cleared">已清空</string>
+    <string name="msg_library_clear_failed">清除失敗</string>
+    <string name="msg_library_clear_crash_logs_title">清空當機記錄？</string>
+    <string name="msg_library_clear_crash_logs_body">所有當機記錄都會被刪除，無法復原。</string>
+    <string name="msg_library_clear_blacklist_songs_title">清空黑名單歌曲？</string>
+    <string name="msg_library_clear_whitelist_songs_title">清空白名單歌曲？</string>
+    <string name="msg_library_clear_blacklist_folders_title">清空黑名單資料夾？</string>
+    <string name="msg_library_clear_whitelist_folders_title">清空白名單資料夾？</string>
+    <string name="msg_library_clear_list_body">將從清單中移除 %1$d 項。</string>
+    <string name="msg_library_cancel_upload_title">取消這次上傳？</string>
+    <string name="msg_library_cancel_upload_body">尚未上傳的圖片不再上傳，已上傳的會保留。</string>
+    <string name="msg_library_cancel_upload_confirm">取消上傳</string>
+    <string name="msg_library_cancel_upload_keep">繼續上傳</string>
+    <string name="msg_library_upload_batch_cancelled">已取消</string>
+</resources>

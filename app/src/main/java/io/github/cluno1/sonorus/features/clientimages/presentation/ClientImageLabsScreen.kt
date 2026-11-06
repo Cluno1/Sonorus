@@ -45,6 +45,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import io.github.cluno1.sonorus.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -104,6 +106,7 @@ fun ClientImageLabsScreen(
     var editMaxSize by remember { mutableStateOf(false) }
     var maxSizeText by remember { mutableStateOf("50") }
     var deleteCandidate by remember { mutableStateOf<ClientImageRecord?>(null) }
+    var cancelBatchCandidate by remember { mutableStateOf<String?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(),
@@ -198,7 +201,7 @@ fun ClientImageLabsScreen(
                         onUpload = { viewModel.startUpload(wifiOnly) },
                         onPause = viewModel::pauseBatch,
                         onResume = viewModel::resumeBatch,
-                        onCancel = viewModel::cancelBatch,
+                        onCancel = { batchId -> cancelBatchCandidate = batchId },
                         onVisibilityChange = { enabled ->
                             if (enabled) confirmShare = true else viewModel.updateVisibility(false)
                         },
@@ -225,6 +228,26 @@ fun ClientImageLabsScreen(
                 }
             }
         }
+    }
+
+    // issue 169: cancelling stops the rest of the batch for good, so confirm first.
+    cancelBatchCandidate?.let { batchId ->
+        AlertDialog(
+            onDismissRequest = { cancelBatchCandidate = null },
+            title = { Text(stringResource(R.string.msg_library_cancel_upload_title)) },
+            text = { Text(stringResource(R.string.msg_library_cancel_upload_body)) },
+            confirmButton = {
+                Button(onClick = {
+                    cancelBatchCandidate = null
+                    viewModel.cancelBatch(batchId)
+                }) { Text(stringResource(R.string.msg_library_cancel_upload_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { cancelBatchCandidate = null }) {
+                    Text(stringResource(R.string.msg_library_cancel_upload_keep))
+                }
+            },
+        )
     }
 
     if (confirmShare) {

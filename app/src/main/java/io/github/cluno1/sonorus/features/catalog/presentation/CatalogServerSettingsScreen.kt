@@ -108,6 +108,7 @@ private fun CatalogDeviceEnrollmentScreen(
     var serverUrl by rememberSaveable(state.serverUrl) { mutableStateOf(state.serverUrl) }
     var inviteCode by rememberSaveable { mutableStateOf("") }
     var smartText by rememberSaveable { mutableStateOf("") }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
     val miniPlayerBottomPadding = LocalMiniPlayerPadding.current.calculateBottomPadding()
     val adminPageDescription = stringResource(R.string.catalog_admin_issue_invite)
 
@@ -216,7 +217,7 @@ private fun CatalogDeviceEnrollmentScreen(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     OutlinedButton(
-                        onClick = onClear,
+                        onClick = { confirmClear = true },
                         enabled = !state.loading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -229,7 +230,7 @@ private fun CatalogDeviceEnrollmentScreen(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     OutlinedButton(
-                        onClick = onClear,
+                        onClick = { confirmClear = true },
                         enabled = !state.loading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -245,6 +246,39 @@ private fun CatalogDeviceEnrollmentScreen(
                 }
             }
         }
+    }
+
+    // issue 169: removing the registration cannot be undone without a new invite, so confirm first.
+    if (confirmClear) {
+        val legacy = !state.deviceRegistered
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = {
+                Text(
+                    stringResource(
+                        if (legacy) R.string.msg_catalog_remove_legacy_title else R.string.msg_catalog_remove_registration_title,
+                    ),
+                )
+            },
+            text = {
+                Text(
+                    stringResource(
+                        if (legacy) R.string.msg_catalog_remove_legacy_text else R.string.msg_catalog_remove_registration_text,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    onClear()
+                }) {
+                    Text(stringResource(R.string.msg_catalog_remove_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.dialog_cancel)) }
+            },
+        )
     }
 }
 

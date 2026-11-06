@@ -1,5 +1,7 @@
 package io.github.cluno1.sonorus.features.streaming.presentation.screens
 
+import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,7 +36,18 @@ import io.github.cluno1.sonorus.features.streaming.domain.model.LanSongMetadata
 import io.github.cluno1.sonorus.features.streaming.domain.model.LanSubsonicPlaybackPolicy
 import io.github.cluno1.sonorus.shared.data.model.Song
 import io.github.cluno1.sonorus.shared.presentation.components.common.CollapsibleHeaderScreen
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+
+private const val TAG = "PublicMusicMetadata"
+
+/** issue 169: fixed text on screen; anything that is not a classified public-music failure goes to the log only. */
+private fun Context.metadataFailureText(failure: Throwable): String {
+    Log.w(TAG, "Public music metadata request failed: ${failure.javaClass.simpleName}", failure)
+    return if (failure is PublicMusicException) publicMusicErrorMessage(failure)
+    else getString(R.string.public_music_error_unknown)
+}
 
 @Composable
 fun PublicMusicMetadataScreen(
@@ -67,8 +80,10 @@ fun PublicMusicMetadataScreen(
                 lyrics = metadata.syncedLyrics.ifBlank { metadata.plainLyrics }
                 artwork = metadata.artworkUrl.orEmpty()
             }
+        } catch (failure: CancellationException) {
+            throw failure
         } catch (failure: Exception) {
-            error = context.publicMusicErrorMessage(failure)
+            error = context.metadataFailureText(failure)
         } finally {
             busy = false
         }
@@ -98,15 +113,24 @@ fun PublicMusicMetadataScreen(
                     busy = true; error = null
                     scope.launch {
                         try {
-                            repository.publicMusicMetadata(song, manual = true)?.let { metadata ->
+                            val metadata = repository.publicMusicMetadata(song, manual = true)
+                            if (metadata == null) {
+                                // issue 169: previously nothing happened at all when nothing was found.
+                                RhythmMessages.info(context, R.string.msg_streaming_metadata_not_found)
+                            } else {
                                 title = metadata.fields["title"].orEmpty()
                                 artist = metadata.fields["artist"].orEmpty()
                                 album = metadata.fields["album"].orEmpty()
                                 lyrics = metadata.syncedLyrics.ifBlank { metadata.plainLyrics }
                                 artwork = metadata.artworkUrl.orEmpty()
+                                Log.i(TAG, "Public music metadata refetched and saved")
+                                // Posted before onSaved: the screen navigates back right after.
+                                RhythmMessages.success(context, R.string.msg_streaming_metadata_saved)
                                 onSaved(metadata)
                             }
-                        } catch (failure: Exception) { error = context.publicMusicErrorMessage(failure) }
+                        } catch (failure: CancellationException) {
+                            throw failure
+                        } catch (failure: Exception) { error = context.metadataFailureText(failure) }
                         finally { busy = false }
                     }
                 },
@@ -125,8 +149,13 @@ fun PublicMusicMetadataScreen(
                                 artwork.takeIf(String::isNotBlank), avatar.takeIf(String::isNotBlank),
                             )
                             repository.applyLanMetadata(saved)
+                            Log.i(TAG, "Public music manual metadata saved")
+                            // Posted before onSaved: the screen navigates back right after.
+                            RhythmMessages.success(context, R.string.msg_streaming_metadata_saved)
                             onSaved(saved)
-                        } catch (failure: Exception) { error = context.publicMusicErrorMessage(failure) }
+                        } catch (failure: CancellationException) {
+                            throw failure
+                        } catch (failure: Exception) { error = context.metadataFailureText(failure) }
                         finally { busy = false }
                     }
                 },

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: fixed user-facing catalog messages; server and exception details go to the log only. -->
+<resources>
+    <string name="msg_catalog_registration_expired">音乐库登记已失效，请重新登记</string>
+    <string name="msg_catalog_not_configured">音乐库尚未配置</string>
+    <string name="msg_catalog_forbidden">当前凭据无权访问此内容</string>
+    <string name="msg_catalog_stale">内容已被其他设备修改，请刷新后重试</string>
+    <string name="msg_catalog_unreachable">无法连接音乐库</string>
+    <string name="msg_catalog_server_unavailable">服务器暂时不可用（%1$d）</string>
+    <string name="msg_catalog_invalid_data">服务器返回的数据无效</string>
+    <string name="msg_catalog_device_conflict">该用户已有登记设备，请生成“替换已有设备”邀请码</string>
+    <string name="msg_catalog_protocol_incompatible">客户端与服务器协议不兼容（422）</string>
+    <string name="msg_catalog_rate_limited">请求过于频繁，请稍后再试</string>
+    <string name="msg_catalog_announcement_unavailable">公告已下架</string>
+    <string name="msg_catalog_room_song_already_added">这首歌已在房间里</string>
+    <string name="msg_catalog_unknown_error">发生未知错误，请重试</string>
+    <string name="msg_catalog_remove_registration_title">移除登记？</string>
+    <string name="msg_catalog_remove_registration_text">移除后，本机需要新的邀请码才能再次使用音乐库。</string>
+    <string name="msg_catalog_remove_legacy_title">移除旧连接？</string>
+    <string name="msg_catalog_remove_legacy_text">移除后，需要邀请码才能再次连接音乐库。</string>
+    <string name="msg_catalog_remove_confirm">移除</string>
+    <string name="msg_catalog_registration_removed">已移除登记</string>
+    <string name="msg_catalog_revoke_admin_title">撤销管理员？</string>
+    <string name="msg_catalog_revoke_admin_text">撤销后，“%1$s”将不能再管理设备。</string>
+    <string name="msg_catalog_revoke_admin_confirm">撤销</string>
+    <string name="msg_catalog_admin_granted">已认证为管理员</string>
+    <string name="msg_catalog_admin_revoked">已撤销管理员</string>
+    <string name="msg_catalog_refresh_failed">刷新失败</string>
+    <string name="msg_catalog_load_failed">加载失败</string>
+    <string name="msg_catalog_remove_song_title">从房间移除？</string>
+    <string name="msg_catalog_remove_song_text">这首歌会从房间里移除，所有人都看得到。</string>
+    <string name="msg_catalog_song_removed">已移除</string>
+    <string name="msg_catalog_section_saved">已保存分段</string>
+    <string name="msg_catalog_room_deleted">已删除房间「%1$s」</string>
+    <string name="msg_catalog_score_history_failed">谱面修订记录加载失败</string>
+    <string name="msg_catalog_score_check_failed">谱面安全检查失败</string>
+    <string name="msg_catalog_score_download_failed">谱面文件下载失败</string>
+</resources>

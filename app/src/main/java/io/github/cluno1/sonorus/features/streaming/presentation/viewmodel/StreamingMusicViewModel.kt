@@ -66,7 +66,16 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     companion object {
         private const val AUTH_PING_RETRIES = 3
         private const val AUTH_PING_RETRY_DELAY_MS = 800L
+        private const val TAG = "StreamingMusicViewModel"
     }
+
+    private fun text(res: Int, vararg args: Any): String = getApplication<Application>().getString(res, *args)
+
+    /** issue 169: LAN builds talk about the public music service, other builds about a generic service. */
+    private fun notConnectedText(): String = text(
+        if (ProductCapabilities.lanSubsonicOnly) R.string.public_music_not_connected_message
+        else R.string.msg_streaming_connect_first
+    )
     private val serviceSessionRepository = StreamingServiceSessionRepository(application)
     val repository = StreamingMusicModule.provideStreamingMusicRepository(application)
     private val providerRepository = repository as? StreamingMusicRepositoryImpl
@@ -118,6 +127,14 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * issue 169: connection errors for the setup screen only. Set only by connect / authenticate /
+     * disconnect and cleared when a new attempt starts, so leftovers in the shared [error] (e.g. a failed
+     * enqueue) never show up on the setup screen.
+     */
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
     
     // Home content
     private val _recommendations = MutableStateFlow<List<StreamingSong>>(emptyList())
@@ -268,14 +285,22 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+            _connectionError.value = null
             
             try {
                 checkAndSyncAuthentication()
                 if (!_isAuthenticated.value) {
-                    _error.value = "Open service setup and connect an account first"
+                    val message = text(R.string.msg_streaming_connect_account_first)
+                    _error.value = message
+                    _connectionError.value = message
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Authentication failed: ${e.message}"
+                Log.w(TAG, "authenticate failed", e)
+                val message = text(R.string.msg_streaming_auth_failed)
+                _error.value = message
+                _connectionError.value = message
             } finally {
                 _isLoading.value = false
             }
@@ -294,6 +319,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+            _connectionError.value = null
 
             try {
                 if (ProductCapabilities.lanSubsonicOnly &&
@@ -321,7 +347,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     appSettings.setStreamingService(normalizedServiceId)
                 }
                 if (!ProductCapabilities.lanSubsonicOnly) appSettings.setAppMode("STREAMING")
-                checkAndSyncAuthentication(normalizedServiceId)
+                val authenticated = checkAndSyncAuthentication(normalizedServiceId)
                 if (ProductCapabilities.lanSubsonicOnly) {
                     loadLanLibrary()
                 } else {
@@ -330,7 +356,27 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 
                 // Show success notification
                 notificationManager.notifyAuthenticationSuccess(getSourceTypeName(sourceTypeFromServiceId(normalizedServiceId)))
+                // issue 169: in-app result. Saved but not reachable afterwards is reported as a failure.
+                val context = getApplication<Application>()
+                if (authenticated) {
+                    Log.i(TAG, "connectService: connected service=$normalizedServiceId")
+                    if (ProductCapabilities.lanSubsonicOnly) {
+                        RhythmMessages.success(context, R.string.msg_streaming_connected_public)
+                    } else {
+                        RhythmMessages.success(
+                            context, R.string.msg_streaming_connected_service,
+                            getSourceTypeName(sourceTypeFromServiceId(normalizedServiceId))
+                        )
+                    }
+                } else {
+                    Log.w(TAG, "connectService: saved but authentication ping failed, service=$normalizedServiceId")
+                    _connectionError.value = _error.value ?: text(R.string.msg_streaming_connect_failed)
+                    RhythmMessages.error(context, connectFailedText())
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.w(TAG, "connectService failed: ${e.javaClass.simpleName}", e)
                 val userMessage = when {
                     e is PublicMusicException -> getApplication<Application>().publicMusicErrorMessage(e)
                     e is java.net.ConnectException ||
@@ -339,21 +385,23 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                                                   e.message?.contains("timeout", ignoreCase = true) == true)) ||
                     e.cause is java.net.ConnectException ||
                     e.cause is java.net.SocketTimeoutException ->
-                        "Cannot reach server. Please check that the server address and port are correct and that the server is online and reachable from this device."
+                        text(R.string.msg_streaming_error_unreachable)
                     e is java.net.UnknownHostException ||
                     e.cause is java.net.UnknownHostException ->
-                        "Server not found. Please check the server URL."
+                        text(R.string.msg_streaming_error_host_not_found)
                     e is javax.net.ssl.SSLException ||
                     e.cause is javax.net.ssl.SSLException ->
-                        "Secure connection failed. The server's certificate may not be trusted."
+                        text(R.string.msg_streaming_error_ssl)
                     e.message?.contains("HTTP 401", ignoreCase = true) == true ||
                     e.message?.contains("401", ignoreCase = true) == true ->
-                        "Incorrect username or password."
+                        text(R.string.msg_streaming_error_credentials)
                     e.message?.contains("HTTP 4", ignoreCase = true) == true ->
-                        "Server rejected the connection (${e.message}). Check credentials and server version."
-                    else -> "Connection failed: ${e.message}"
+                        text(R.string.msg_streaming_error_rejected)
+                    else -> text(R.string.msg_streaming_connect_failed)
                 }
                 _error.value = userMessage
+                _connectionError.value = userMessage
+                RhythmMessages.error(getApplication<Application>(), connectFailedText())
                 notificationManager.notifyAuthenticationFailed(getSourceTypeName(_currentService.value))
             } finally {
                 _isLoading.value = false
@@ -361,10 +409,18 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    /** issue 169: short in-app connect failure; the reason stays on the setup screen ([connectionError]). */
+    private fun connectFailedText(): String = if (ProductCapabilities.lanSubsonicOnly) {
+        text(R.string.msg_streaming_connect_failed_public)
+    } else {
+        text(R.string.msg_streaming_connect_failed)
+    }
+
     fun disconnectService(serviceId: String) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
+            _connectionError.value = null
 
             try {
                 val normalizedServiceId = normalizeServiceId(serviceId)
@@ -375,8 +431,16 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     checkAndSyncAuthentication(normalizedServiceId)
                     clearContent()
                 }
+                Log.i(TAG, "disconnectService: disconnected service=$normalizedServiceId")
+                RhythmMessages.success(getApplication<Application>(), R.string.msg_streaming_disconnected)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Disconnect failed: ${e.message}"
+                Log.w(TAG, "disconnectService failed", e)
+                val message = text(R.string.msg_streaming_disconnect_failed)
+                _error.value = message
+                _connectionError.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             } finally {
                 _isLoading.value = false
             }
@@ -444,13 +508,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 // Check network constraints
                 if (!NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value)) {
                     clearContent()
-                    _error.value = "Streaming not allowed on current network"
+                    _error.value = text(R.string.msg_streaming_network_not_allowed)
                     return@launch
                 }
                 
                 if (appSettings.offlineMode.value) {
                     clearContent()
-                    _error.value = "Content loading unavailable in offline mode"
+                    _error.value = text(R.string.msg_streaming_offline_no_content)
                     return@launch
                 }
 
@@ -485,7 +549,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 
                 if (isConnectionError) {
                     // Attempt automatic reconnection by refreshing authentication
-                    _error.value = "Connection lost. Attempting to reconnect..."
+                    Log.w(TAG, "loadHomeContent: connection error, reconnecting", e)
+                    _error.value = text(R.string.msg_streaming_reconnecting)
                     delay(1000) // Wait before attempting reconnection
                     val serviceId = appSettings.streamingService.value
                     if (checkAndSyncAuthentication(serviceId)) {
@@ -493,11 +558,12 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                         _error.value = null
                         loadHomeContent()
                     } else {
-                        _error.value = "Failed to reconnect to streaming service. Please try reconnecting manually."
+                        _error.value = text(R.string.msg_streaming_reconnect_failed)
                         clearContent()
                     }
                 } else {
-                    _error.value = "Failed to load content: ${e.message}"
+                    Log.w(TAG, "loadHomeContent failed", e)
+                    _error.value = text(R.string.msg_streaming_load_content_failed)
                 }
             } finally {
                 _hasLoadedHomeContent.value = true
@@ -633,7 +699,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
                 _browseCategories.value = repository.getBrowseCategories()
             } catch (e: Exception) {
-                _error.value = "Failed to load categories: ${e.message}"
+                Log.w(TAG, "loadBrowseCategories failed", e)
+                _error.value = text(R.string.msg_streaming_load_categories_failed)
             } finally {
                 _isLoading.value = false
             }
@@ -659,7 +726,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
                 _topCharts.value = repository.getTopCharts()
             } catch (e: Exception) {
-                _error.value = "Failed to load charts: ${e.message}"
+                Log.w(TAG, "loadTopCharts failed", e)
+                _error.value = text(R.string.msg_streaming_load_charts_failed)
             } finally {
                 _isLoading.value = false
             }
@@ -802,7 +870,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     _featuredPlaylists.value = resolvedPlaylists
                 }
             } catch (e: Exception) {
-                _error.value = "Failed to load library: ${e.message}"
+                Log.w(TAG, "loadLibrary failed", e)
+                _error.value = text(R.string.msg_streaming_load_library_failed)
             } finally {
                 _hasLoadedLibrary.value = true
                 _isLoading.value = false
@@ -835,20 +904,20 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             try {
                 if (!checkAndSyncAuthentication()) {
                     _searchResults.value = StreamingSearchResults()
-                    _error.value = "Connect to a streaming service first"
+                    _error.value = notConnectedText()
                     return@launch
                 }
                 
                 // Check network and offline constraints
                 if (!NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value)) {
                     _searchResults.value = StreamingSearchResults()
-                    _error.value = "Streaming not allowed on current network"
+                    _error.value = text(R.string.msg_streaming_network_not_allowed)
                     return@launch
                 }
                 
                 if (appSettings.offlineMode.value) {
                     _searchResults.value = StreamingSearchResults()
-                    _error.value = "Search not available in offline mode"
+                    _error.value = text(R.string.msg_streaming_search_offline)
                     return@launch
                 }
 
@@ -867,7 +936,12 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     playlists = playlists
                 )
             } catch (e: Exception) {
-                _error.value = "Search failed: ${getApplication<Application>().publicMusicErrorMessage(e)}"
+                Log.w(TAG, "search failed: ${e.javaClass.simpleName}", e)
+                _error.value = if (e is PublicMusicException) {
+                    text(R.string.msg_streaming_search_failed_reason, getApplication<Application>().publicMusicErrorMessage(e))
+                } else {
+                    text(R.string.msg_streaming_search_failed)
+                }
             } finally {
                 _isLoading.value = false
             }
@@ -945,13 +1019,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) != null)
         }
         if (playableQueue.isEmpty()) {
-            _error.value = "No playable tracks available"
+            _error.value = text(R.string.msg_streaming_no_playable)
             return
         }
 
         viewModelScope.launch {
                 if (!checkAndSyncAuthentication()) {
-                    _error.value = "Connect to a streaming service first"
+                    _error.value = notConnectedText()
                     return@launch
                 }
 
@@ -1002,9 +1076,9 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             val selectedResolvedSong = queueWithResolvedSongs[selectedIndex]
             if (!ProductCapabilities.lanSubsonicOnly && selectedResolvedSong.streamingUrl.isNullOrBlank()) {
                 _error.value = when {
-                    appSettings.offlineMode.value -> "Offline mode: Song not in cache"
-                    !NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value) -> "Streaming not allowed on current network"
-                    else -> "Unable to resolve stream URL for this song"
+                    appSettings.offlineMode.value -> text(R.string.msg_streaming_offline_not_cached)
+                    !NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value) -> text(R.string.msg_streaming_network_not_allowed)
+                    else -> text(R.string.msg_streaming_stream_url_failed)
                 }
                 return@launch
             }
@@ -1226,7 +1300,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _likedSongs.value = repository.getLikedSongs().first()
                 notificationManager.notifyLikeSong(getSourceTypeName(_currentService.value))
             } catch (e: Exception) {
-                _error.value = "Failed to save song: ${e.message}"
+                Log.w(TAG, "likeSong failed", e)
+                _error.value = text(R.string.msg_streaming_save_song_failed)
             }
         }
     }
@@ -1242,7 +1317,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _likedSongs.value = repository.getLikedSongs().first()
                 notificationManager.notifyUnlikeSong(getSourceTypeName(_currentService.value))
             } catch (e: Exception) {
-                _error.value = "Failed to remove song: ${e.message}"
+                Log.w(TAG, "unlikeSong failed", e)
+                _error.value = text(R.string.msg_streaming_remove_song_failed)
             }
         }
     }
@@ -1258,7 +1334,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 _likedSongs.value = repository.getLikedSongs().first()
                 notificationManager.notifyLikeSong(getSourceTypeName(_currentService.value))
             } catch (e: Exception) {
-                _error.value = "Failed to save song: ${e.message}"
+                Log.w(TAG, "likeSong failed", e)
+                _error.value = text(R.string.msg_streaming_save_song_failed)
             }
         }
     }
@@ -1278,14 +1355,24 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     val playlistsList = repository.getPlaylists().first().filterIsInstance<StreamingPlaylist>()
                     _savedPlaylists.value = playlistsList
                     notificationManager.notifyPlaylistCreated(name, getSourceTypeName(_currentService.value))
+                    Log.i(TAG, "createPlaylist: created playlist, songs=${songsToAdd.size}")
+                    RhythmMessages.success(getApplication<Application>(), R.string.msg_streaming_playlist_created, name)
                     
                     val updatedPlaylist = playlistsList.firstOrNull { it.id == newPlaylist.id } ?: newPlaylist
                     onCreated?.invoke(updatedPlaylist)
                 } else {
-                    _error.value = "Failed to create playlist: received null playlist from repository"
+                    Log.w(TAG, "createPlaylist: repository returned no playlist")
+                    val message = text(R.string.msg_streaming_create_playlist_failed)
+                    _error.value = message
+                    RhythmMessages.error(getApplication<Application>(), message)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to create playlist: ${e.message}"
+                Log.w(TAG, "createPlaylist failed", e)
+                val message = text(R.string.msg_streaming_create_playlist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
         }
     }
@@ -1304,10 +1391,18 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     _savedPlaylists.value = repository.getPlaylists().first().filterIsInstance<StreamingPlaylist>()
                     notificationManager.notifyPlaylistUpdated(newName, getSourceTypeName(_currentService.value))
                 } else {
-                    _error.value = "Failed to rename playlist"
+                    Log.w(TAG, "renamePlaylist: repository reported failure")
+                    val message = text(R.string.msg_streaming_rename_playlist_failed)
+                    _error.value = message
+                    RhythmMessages.error(getApplication<Application>(), message)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to rename playlist: ${e.message}"
+                Log.w(TAG, "renamePlaylist failed", e)
+                val message = text(R.string.msg_streaming_rename_playlist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
         }
     }
@@ -1321,9 +1416,27 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             try {
                 repository.addSongsToPlaylist(playlistId, listOf(song.id))
                 _savedPlaylists.value = repository.getPlaylists().first().filterIsInstance<StreamingPlaylist>()
+                Log.i(TAG, "addSongToPlaylist: added 1 song")
+                showAddedToPlaylist(playlistId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to add song to playlist: ${e.message}"
+                Log.w(TAG, "addSongToPlaylist failed", e)
+                val message = text(R.string.msg_streaming_add_to_playlist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
+        }
+    }
+
+    /** issue 169: "Added to “X”", or a generic text when the playlist name is not known locally. */
+    private fun showAddedToPlaylist(playlistId: String) {
+        val name = _savedPlaylists.value.firstOrNull { it.id == playlistId }?.name
+        val context = getApplication<Application>()
+        if (name.isNullOrBlank()) {
+            RhythmMessages.success(context, R.string.msg_streaming_added_to_playlist_generic)
+        } else {
+            RhythmMessages.success(context, R.string.msg_streaming_added_to_playlist, name)
         }
     }
 
@@ -1338,8 +1451,15 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             try {
                 repository.addSongsToPlaylist(playlistId, songs.map { it.id })
                 _savedPlaylists.value = repository.getPlaylists().first().filterIsInstance<StreamingPlaylist>()
+                Log.i(TAG, "addSongsToPlaylist: added ${songs.size} songs")
+                showAddedToPlaylist(playlistId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to add songs to playlist: ${e.message}"
+                Log.w(TAG, "addSongsToPlaylist failed for ${songs.size} songs", e)
+                val message = text(R.string.msg_streaming_add_to_playlist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
         }
     }
@@ -1353,8 +1473,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             try {
                 repository.removeSongsFromPlaylist(playlistId, listOf(songId))
                 _savedPlaylists.value = repository.getPlaylists().first().filterIsInstance<StreamingPlaylist>()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to remove song from playlist: ${e.message}"
+                Log.w(TAG, "removeSongFromPlaylist failed", e)
+                val message = text(R.string.msg_streaming_remove_from_playlist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
         }
     }
@@ -1382,11 +1507,19 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     _savedPlaylists.value = repository.getPlaylists().first().filterIsInstance<StreamingPlaylist>()
                     notificationManager.notifyPlaylistDeleted(playlist.name, getSourceTypeName(_currentService.value))
                 } else {
-                    _error.value = "Failed to remove playlist"
+                    Log.w(TAG, "deletePlaylist: repository reported failure")
+                    val message = text(R.string.msg_streaming_delete_playlist_failed)
+                    _error.value = message
+                    RhythmMessages.error(getApplication<Application>(), message)
                 }
                 onComplete(success)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to remove playlist: ${e.message}"
+                Log.w(TAG, "deletePlaylist failed", e)
+                val message = text(R.string.msg_streaming_delete_playlist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
                 onComplete(false)
             }
         }
@@ -1401,8 +1534,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             try {
                 repository.followArtist(artist.id)
                 _followedArtists.value = repository.getFollowedArtists().first()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Failed to follow artist: ${e.message}"
+                Log.w(TAG, "followArtist failed", e)
+                val message = text(R.string.msg_streaming_follow_artist_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
         }
     }
@@ -1423,8 +1561,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             try {
                 repository.downloadSong(song.id)
                 _downloadedSongs.value = repository.getDownloadedSongs().first()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Download failed: ${e.message}"
+                Log.w(TAG, "downloadSong failed", e)
+                val message = text(R.string.msg_streaming_download_failed)
+                _error.value = message
+                RhythmMessages.error(getApplication<Application>(), message)
             }
         }
     }
@@ -1796,12 +1939,14 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 if (!checkAndSyncAuthentication()) {
-                    _error.value = "Connect to a streaming service first"
+                    _error.value = notConnectedText()
+                    RhythmMessages.error(getApplication<Application>(), notConnectedText())
                     return@launch
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
                         _error.value = getApplication<Application>().getString(R.string.public_music_error_invalid_song)
+                        RhythmMessages.error(getApplication<Application>(), R.string.public_music_error_invalid_song)
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)
@@ -1813,7 +1958,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
 
                 if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
-                    _error.value = "Unable to resolve stream URL for this song"
+                    _error.value = text(R.string.msg_streaming_stream_url_failed)
                     RhythmMessages.error(getApplication(), R.string.streamingmusicviewmodel_failed_to_play_next)
                     return@launch
                 }
@@ -1833,9 +1978,12 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 // Delegate to localViewModel
                 val localSong = updatedSong.toLocalSong()
                 localViewModel.playNext(localSong)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("StreamingMusicViewModel", "Error in playNext for streaming song", e)
-                _error.value = "Failed to play next: ${e.message}"
+                _error.value = text(R.string.queue_add_failed)
+                RhythmMessages.error(getApplication<Application>(), R.string.queue_add_failed)
             }
         }
     }
@@ -1848,16 +1996,19 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 if (!checkAndSyncAuthentication()) {
-                    _error.value = "Connect to a streaming service first"
+                    _error.value = notConnectedText()
+                    RhythmMessages.error(getApplication<Application>(), notConnectedText())
                     return@launch
                 }
                 if (!song.isPlayable) {
-                    _error.value = "No playable tracks available"
+                    _error.value = text(R.string.msg_streaming_no_playable)
+                    RhythmMessages.error(getApplication<Application>(), R.string.msg_streaming_no_playable)
                     return@launch
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
                         _error.value = getApplication<Application>().getString(R.string.public_music_error_invalid_song)
+                        RhythmMessages.error(getApplication<Application>(), R.string.public_music_error_invalid_song)
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)
@@ -1868,7 +2019,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     if (resolvedUrl.isNullOrBlank()) song else song.copy(streamingUrl = resolvedUrl)
                 }
                 if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
-                    _error.value = "Unable to resolve stream URL for this song"
+                    _error.value = text(R.string.msg_streaming_stream_url_failed)
+                    RhythmMessages.error(getApplication<Application>(), R.string.msg_streaming_play_failed)
                     return@launch
                 }
 
@@ -1897,7 +2049,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("StreamingMusicViewModel", "Error in playSongNow for streaming song", e)
-                _error.value = "Failed to play: ${e.message}"
+                _error.value = text(R.string.msg_streaming_play_failed)
+                RhythmMessages.error(getApplication<Application>(), R.string.msg_streaming_play_failed)
             }
         }
     }
@@ -1945,12 +2098,14 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             try {
                 if (!checkAndSyncAuthentication()) {
-                    _error.value = "Connect to a streaming service first"
+                    _error.value = notConnectedText()
+                    RhythmMessages.error(getApplication<Application>(), notConnectedText())
                     return@launch
                 }
                 val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
                     if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
                         _error.value = getApplication<Application>().getString(R.string.public_music_error_invalid_song)
+                        RhythmMessages.error(getApplication<Application>(), R.string.public_music_error_invalid_song)
                         return@launch
                     }
                     song.copy(streamingUrl = null, previewUrl = null)
@@ -1962,7 +2117,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 }
 
                 if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
-                    _error.value = "Unable to resolve stream URL for this song"
+                    _error.value = text(R.string.msg_streaming_stream_url_failed)
                     RhythmMessages.error(getApplication(), R.string.streamingmusicviewmodel_failed_to_add_to)
                     return@launch
                 }
@@ -1975,9 +2130,12 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 // Delegate to localViewModel
                 val localSong = updatedSong.toLocalSong()
                 localViewModel.addSongToQueue(localSong)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("StreamingMusicViewModel", "Error in addSongToQueue for streaming song", e)
-                _error.value = "Failed to add to queue: ${e.message}"
+                _error.value = text(R.string.queue_add_failed)
+                RhythmMessages.error(getApplication<Application>(), R.string.queue_add_failed)
             }
         }
     }

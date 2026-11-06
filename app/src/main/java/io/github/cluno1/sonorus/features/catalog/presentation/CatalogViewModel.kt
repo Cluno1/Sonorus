@@ -1,6 +1,8 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
 import android.app.Application
+import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.cluno1.sonorus.R
@@ -31,6 +33,7 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogSmartEnrollmentEx
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogSmartEnrollmentText
 import io.github.cluno1.sonorus.features.catalog.data.remote.CatalogEndpoint
 import io.github.cluno1.sonorus.shared.data.model.Song
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.net.Uri
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -91,7 +94,11 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                 songs = repository.cachedLibrary()?.songs.orEmpty(),
                 albums = repository.cachedLibrary()?.albums.orEmpty(),
                 scoreWorks = repository.cachedLibrary()?.scoreWorks.orEmpty(),
-                error = if (it.reenrollmentRequired) "音乐库登记已失效，请重新登记" else null,
+                error = if (it.reenrollmentRequired) {
+                    application.getString(R.string.msg_catalog_registration_expired)
+                } else {
+                    null
+                },
             )
         },
     )
@@ -180,6 +187,8 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         repository.clearConnection()
         queueStore.clear()
         _state.value = CatalogUiState()
+        Log.i(TAG, "catalog connection cleared")
+        RhythmMessages.success(getApplication<Application>(), R.string.msg_catalog_registration_removed)
     }
 
     fun clearInviteUiState() {
@@ -251,6 +260,11 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                     _state.value = _state.value.copy(
                         administratorDevices = devices,
                         administratorLoading = false,
+                    )
+                    Log.i(TAG, "device administrator changed (enabled=$enabled)")
+                    RhythmMessages.success(
+                        getApplication<Application>(),
+                        if (enabled) R.string.msg_catalog_admin_granted else R.string.msg_catalog_admin_revoked,
                     )
                     if (deviceId == _state.value.currentDeviceId) refreshAdministrator()
                 },
@@ -539,13 +553,7 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun message(error: Throwable): String = when (error) {
-        is CatalogFailure.InvalidCredentials -> "音乐库登记已失效，请重新登记"
-        is CatalogFailure.AdminInvalidCredentials -> getApplication<Application>()
-            .getString(R.string.catalog_admin_invalid_credentials)
-        else -> (error.message ?: "发生未知错误")
-            .replace(Regex("\\bCatalog\\b", RegexOption.IGNORE_CASE), "音乐库")
-    }
+    private fun message(error: Throwable): String = catalogFailureMessage(getApplication<Application>(), error)
 
     private fun smartEnrollmentMessage(reason: CatalogSmartEnrollmentError): String =
         getApplication<Application>().getString(
@@ -559,4 +567,44 @@ class CatalogViewModel(application: Application) : AndroidViewModel(application)
                 -> R.string.catalog_smart_enrollment_invalid
             },
         )
+}
+
+private const val TAG = "CatalogViewModel"
+
+/**
+ * issue 169: fixed, localized text for a failed catalog call. The exception message (which may carry
+ * parser output built from a server response) never reaches the screen; only its type and HTTP status
+ * go to the log.
+ */
+internal fun catalogFailureMessage(context: Context, error: Throwable): String {
+    val status = when (error) {
+        is CatalogFailure.Server -> error.statusCode
+        is CatalogFailure.InvalidData -> error.statusCode
+        else -> null
+    }
+    if (error is CatalogFailure) {
+        Log.w(TAG, "catalog call failed (${error.javaClass.simpleName}, status=$status)")
+    } else {
+        Log.w(TAG, "catalog call failed (${error.javaClass.simpleName})", error)
+    }
+    val res = when (error) {
+        is CatalogFailure.NotConfigured -> R.string.msg_catalog_not_configured
+        is CatalogFailure.InvalidCredentials -> R.string.msg_catalog_registration_expired
+        is CatalogFailure.AdminInvalidCredentials -> R.string.catalog_admin_invalid_credentials
+        is CatalogFailure.Forbidden -> R.string.msg_catalog_forbidden
+        is CatalogFailure.StaleRevision -> R.string.msg_catalog_stale
+        is CatalogFailure.Unreachable -> R.string.msg_catalog_unreachable
+        is CatalogFailure.Server -> return context.getString(R.string.msg_catalog_server_unavailable, error.statusCode)
+        is CatalogFailure.InvalidData -> when (error.statusCode) {
+            409 -> R.string.msg_catalog_device_conflict
+            422 -> R.string.msg_catalog_protocol_incompatible
+            429 -> R.string.msg_catalog_rate_limited
+            else -> R.string.msg_catalog_invalid_data
+        }
+        is CatalogFailure.AnnouncementUnavailable -> R.string.msg_catalog_announcement_unavailable
+        is CatalogFailure.RoomUnavailable -> R.string.rooms_room_gone
+        is CatalogFailure.RoomSongAlreadyAdded -> R.string.msg_catalog_room_song_already_added
+        else -> R.string.msg_catalog_unknown_error
+    }
+    return context.getString(res)
 }

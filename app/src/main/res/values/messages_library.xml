@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: library, playlist, manual metadata and settings feedback. -->
+<resources>
+    <string name="msg_library_lyrics_applied">Lyrics applied</string>
+    <string name="msg_library_public_lyrics_applied">Updated, visible to all users</string>
+    <string name="msg_library_artwork_applied">Artwork applied</string>
+    <string name="msg_library_artist_artwork_applied">Artist image applied</string>
+    <string name="msg_library_details_applied">Song details applied</string>
+    <string name="msg_library_song_unavailable">Song unavailable. Go back and try again.</string>
+    <string name="msg_library_playlist_created">Created playlist “%1$s”</string>
+    <string name="msg_library_playlist_created_with_songs">Created playlist “%1$s” with %2$d song(s)</string>
+    <string name="msg_library_song_filtered_out">Can\'t add “%1$s”: it is excluded by your scan filter</string>
+    <string name="msg_library_song_already_in_playlist">“%1$s” is already in “%2$s”</string>
+    <string name="msg_library_song_added_to_playlist">Added “%1$s” to “%2$s”</string>
+    <string name="msg_library_song_removed_from_playlist">Removed “%1$s” from “%2$s”</string>
+    <string name="msg_library_play_next_failed">Couldn\'t play next</string>
+    <string name="msg_library_folder_playlist_created">Created “%1$s” and added %2$d song(s)</string>
+    <string name="msg_library_playlist_create_failed">Couldn\'t create playlist</string>
+    <string name="msg_library_cleared">Cleared</string>
+    <string name="msg_library_clear_failed">Couldn\'t clear</string>
+    <string name="msg_library_clear_crash_logs_title">Clear crash logs?</string>
+    <string name="msg_library_clear_crash_logs_body">All crash logs will be deleted. This can\'t be undone.</string>
+    <string name="msg_library_clear_blacklist_songs_title">Clear blocked songs?</string>
+    <string name="msg_library_clear_whitelist_songs_title">Clear whitelisted songs?</string>
+    <string name="msg_library_clear_blacklist_folders_title">Clear blocked folders?</string>
+    <string name="msg_library_clear_whitelist_folders_title">Clear whitelisted folders?</string>
+    <string name="msg_library_clear_list_body">%1$d item(s) will be removed from the list.</string>
+    <string name="msg_library_cancel_upload_title">Cancel this upload?</string>
+    <string name="msg_library_cancel_upload_body">Images not yet uploaded will be skipped; uploaded images are kept.</string>
+    <string name="msg_library_cancel_upload_confirm">Cancel upload</string>
+    <string name="msg_library_cancel_upload_keep">Keep uploading</string>
+    <string name="msg_library_upload_batch_cancelled">Upload cancelled</string>
+</resources>

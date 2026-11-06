@@ -6,6 +6,9 @@ import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
+import io.github.cluno1.sonorus.R
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.paging.cachedIn
 import io.github.cluno1.sonorus.features.clientimages.background.ClientImageTransferScheduler
 import io.github.cluno1.sonorus.features.clientimages.data.ClientImageRepository
@@ -163,6 +166,8 @@ class ClientImageLabsViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch {
             ClientImageTransferScheduler.pause(getApplication(), batchId)
             repository.cancel(batchId)
+            Log.i("ClientImageLabs", "Upload batch cancelled")
+            RhythmMessages.success(getApplication<Application>(), R.string.msg_library_upload_batch_cancelled)
         }
     }
 

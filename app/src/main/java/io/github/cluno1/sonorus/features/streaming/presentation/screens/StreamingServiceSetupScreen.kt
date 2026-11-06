@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -80,7 +81,8 @@ fun StreamingServiceSetupScreen(
     val appSettings = remember(context) { AppSettings.getInstance(context) }
     val sessions by viewModel.serviceSessions.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    // issue 169: only connection errors; the shared `error` can hold leftovers from unrelated actions.
+    val error by viewModel.connectionError.collectAsState()
     val rememberStreamingPasswords by appSettings.rememberStreamingPasswords.collectAsState()
     val isBusy = isLoading
     val effectiveServiceId = if (ProductCapabilities.lanSubsonicOnly) {
@@ -106,6 +108,7 @@ fun StreamingServiceSetupScreen(
     var username by rememberSaveable(effectiveServiceId) { mutableStateOf(session.username) }
     var password by rememberSaveable(effectiveServiceId) { mutableStateOf("") }
     var showDiscoverySheet by remember { mutableStateOf(false) }
+    var showDisconnectConfirm by remember { mutableStateOf(false) }
 
     val canSubmit = username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank())
     val primaryActionText = when {
@@ -346,7 +349,7 @@ fun StreamingServiceSetupScreen(
 
                         if (session.isConnected) {
                             OutlinedButton(
-                                onClick = { viewModel.disconnectService(effectiveServiceId) },
+                                onClick = { showDisconnectConfirm = true },
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = !isBusy
                             ) {
@@ -372,6 +375,18 @@ fun StreamingServiceSetupScreen(
         }
     }
 
+    if (showDisconnectConfirm) {
+        DisconnectConfirmDialog(
+            serviceName = optionName,
+            confirmText = stringResource(id = R.string.streaming_service_setup_disconnect),
+            onConfirm = {
+                showDisconnectConfirm = false
+                viewModel.disconnectService(effectiveServiceId)
+            },
+            onDismiss = { showDisconnectConfirm = false }
+        )
+    }
+
     if (showDiscoverySheet && !ProductCapabilities.lanSubsonicOnly) {
         NearbyServerDiscoverySheet(
             serviceId = effectiveServiceId,
@@ -395,7 +410,9 @@ private fun PublicMusicSetupScreen(
     val sessions by viewModel.serviceSessions.collectAsState()
     val session = sessions[StreamingServiceId.SUBSONIC] ?: viewModel.getServiceSession(StreamingServiceId.SUBSONIC)
     val loading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
+    // issue 169: only connection errors; the shared `error` can hold leftovers from unrelated actions.
+    val error by viewModel.connectionError.collectAsState()
+    var showDisconnectConfirm by remember { mutableStateOf(false) }
     var serverUrl by rememberSaveable(registered?.serverUrl) {
         mutableStateOf(registered?.serverUrl ?: session.serverUrl)
     }
@@ -430,7 +447,7 @@ private fun PublicMusicSetupScreen(
             ) { Text(stringResource(if (session.isConnected) R.string.public_music_reconnect else R.string.public_music_connect)) }
             if (session.isConnected) {
                 OutlinedButton(
-                    onClick = { viewModel.disconnectService(StreamingServiceId.SUBSONIC) },
+                    onClick = { showDisconnectConfirm = true },
                     enabled = !loading,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.public_music_disconnect)) }
@@ -438,4 +455,53 @@ private fun PublicMusicSetupScreen(
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
+
+    if (showDisconnectConfirm) {
+        DisconnectConfirmDialog(
+            serviceName = stringResource(R.string.settings_lan_music),
+            confirmText = stringResource(R.string.public_music_disconnect),
+            onConfirm = {
+                showDisconnectConfirm = false
+                viewModel.disconnectService(StreamingServiceId.SUBSONIC)
+            },
+            onDismiss = { showDisconnectConfirm = false }
+        )
+    }
+}
+
+/** issue 169: disconnecting is destructive (playback and search stop), so confirm first. */
+@Composable
+private fun DisconnectConfirmDialog(
+    serviceName: String,
+    confirmText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.msg_streaming_disconnect_confirm_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(R.string.msg_streaming_disconnect_confirm_body, serviceName),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(text = confirmText)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_cancel))
+            }
+        }
+    )
 }

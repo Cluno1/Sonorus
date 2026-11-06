@@ -45,6 +45,7 @@ import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.features.catalog.di.CatalogModule
 import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomSummary
 import io.github.cluno1.sonorus.shared.presentation.components.common.M3CircularLoader
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
@@ -77,7 +78,11 @@ fun CatalogRoomsScreen(
                 rooms = it
                 error = null
             },
-            onFailure = { error = roomErrorMessage(context, it) },
+            onFailure = {
+                error = roomErrorMessage(context, it)
+                // issue 169: with a list on screen the error text is not shown, so say the refresh failed.
+                if (rooms != null) RhythmMessages.error(context, R.string.msg_catalog_refresh_failed)
+            },
         )
         loading = false
     }

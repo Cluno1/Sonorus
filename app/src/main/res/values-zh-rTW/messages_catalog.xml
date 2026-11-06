@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: fixed user-facing catalog messages; server and exception details go to the log only. -->
+<resources>
+    <string name="msg_catalog_registration_expired">音樂庫登記已失效，請重新登記</string>
+    <string name="msg_catalog_not_configured">音樂庫尚未設定</string>
+    <string name="msg_catalog_forbidden">目前憑證無權存取此內容</string>
+    <string name="msg_catalog_stale">內容已被其他裝置修改，請重新整理後再試</string>
+    <string name="msg_catalog_unreachable">無法連線至音樂庫</string>
+    <string name="msg_catalog_server_unavailable">伺服器暫時無法使用（%1$d）</string>
+    <string name="msg_catalog_invalid_data">伺服器傳回的資料無效</string>
+    <string name="msg_catalog_device_conflict">該使用者已有登記裝置，請產生「取代現有裝置」邀請碼</string>
+    <string name="msg_catalog_protocol_incompatible">用戶端與伺服器協定不相容（422）</string>
+    <string name="msg_catalog_rate_limited">請求過於頻繁，請稍後再試</string>
+    <string name="msg_catalog_announcement_unavailable">公告已下架</string>
+    <string name="msg_catalog_room_song_already_added">這首歌已在房間裡</string>
+    <string name="msg_catalog_unknown_error">發生未知錯誤，請重試</string>
+    <string name="msg_catalog_remove_registration_title">移除登記？</string>
+    <string name="msg_catalog_remove_registration_text">移除後，本機需要新的邀請碼才能再次使用音樂庫。</string>
+    <string name="msg_catalog_remove_legacy_title">移除舊連線？</string>
+    <string name="msg_catalog_remove_legacy_text">移除後，需要邀請碼才能再次連線至音樂庫。</string>
+    <string name="msg_catalog_remove_confirm">移除</string>
+    <string name="msg_catalog_registration_removed">已移除登記</string>
+    <string name="msg_catalog_revoke_admin_title">撤銷管理員？</string>
+    <string name="msg_catalog_revoke_admin_text">撤銷後，「%1$s」將不能再管理裝置。</string>
+    <string name="msg_catalog_revoke_admin_confirm">撤銷</string>
+    <string name="msg_catalog_admin_granted">已認證為管理員</string>
+    <string name="msg_catalog_admin_revoked">已撤銷管理員</string>
+    <string name="msg_catalog_refresh_failed">重新整理失敗</string>
+    <string name="msg_catalog_load_failed">載入失敗</string>
+    <string name="msg_catalog_remove_song_title">從房間移除？</string>
+    <string name="msg_catalog_remove_song_text">這首歌會從房間裡移除，所有人都看得到。</string>
+    <string name="msg_catalog_song_removed">已移除</string>
+    <string name="msg_catalog_section_saved">已儲存分段</string>
+    <string name="msg_catalog_room_deleted">已刪除房間「%1$s」</string>
+    <string name="msg_catalog_score_history_failed">樂譜修訂記錄載入失敗</string>
+    <string name="msg_catalog_score_check_failed">樂譜安全檢查失敗</string>
+    <string name="msg_catalog_score_download_failed">樂譜檔案下載失敗</string>
+</resources>

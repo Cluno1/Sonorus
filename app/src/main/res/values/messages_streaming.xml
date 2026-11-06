@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: public music (streaming) messages; exception details go to the log only. -->
+<resources>
+    <string name="msg_streaming_connected_public">Connected to the public music service</string>
+    <string name="msg_streaming_connected_service">Connected to %1$s</string>
+    <string name="msg_streaming_connect_failed_public">Couldn\'t connect to the public music service</string>
+    <string name="msg_streaming_connect_failed">Connection failed. Please try again.</string>
+    <string name="msg_streaming_error_unreachable">Cannot reach the server. Check that the server address and port are correct and that the server is online and reachable from this device.</string>
+    <string name="msg_streaming_error_host_not_found">Server not found. Please check the server address.</string>
+    <string name="msg_streaming_error_ssl">Secure connection failed. The server\'s certificate may not be trusted.</string>
+    <string name="msg_streaming_error_credentials">Incorrect username or password.</string>
+    <string name="msg_streaming_error_rejected">The server rejected the connection. Check your account details and the server version.</string>
+    <string name="msg_streaming_connect_account_first">Open service setup and connect an account first</string>
+    <string name="msg_streaming_auth_failed">Couldn\'t verify the connection. Please try again.</string>
+    <string name="msg_streaming_connect_first">Connect to a music service first</string>
+    <string name="msg_streaming_disconnected">Disconnected</string>
+    <string name="msg_streaming_disconnect_failed">Couldn\'t disconnect. Please try again.</string>
+    <string name="msg_streaming_disconnect_confirm_title">Disconnect?</string>
+    <string name="msg_streaming_disconnect_confirm_body">You\'ll need to reconnect to %1$s before you can play or search again.</string>
+    <string name="msg_streaming_network_not_allowed">Streaming isn\'t allowed on the current network</string>
+    <string name="msg_streaming_offline_no_content">Content can\'t be loaded in offline mode</string>
+    <string name="msg_streaming_reconnecting">Connection lost. Reconnecting…</string>
+    <string name="msg_streaming_reconnect_failed">Couldn\'t reconnect. Please reconnect manually in service setup.</string>
+    <string name="msg_streaming_load_content_failed">Couldn\'t load content</string>
+    <string name="msg_streaming_load_categories_failed">Couldn\'t load categories</string>
+    <string name="msg_streaming_load_charts_failed">Couldn\'t load charts</string>
+    <string name="msg_streaming_load_library_failed">Couldn\'t load your library</string>
+    <string name="msg_streaming_search_offline">Search isn\'t available in offline mode</string>
+    <string name="msg_streaming_search_failed">Search failed</string>
+    <string name="msg_streaming_search_failed_reason">Search failed: %1$s</string>
+    <string name="msg_streaming_no_playable">No playable songs</string>
+    <string name="msg_streaming_offline_not_cached">Offline mode: this song isn\'t cached</string>
+    <string name="msg_streaming_stream_url_failed">Couldn\'t get a playable address for this song</string>
+    <string name="msg_streaming_play_failed">Couldn\'t play this song</string>
+    <string name="msg_streaming_save_song_failed">Couldn\'t add to favorites</string>
+    <string name="msg_streaming_remove_song_failed">Couldn\'t remove from favorites</string>
+    <string name="msg_streaming_create_playlist_failed">Couldn\'t create the playlist</string>
+    <string name="msg_streaming_rename_playlist_failed">Couldn\'t rename the playlist</string>
+    <string name="msg_streaming_add_to_playlist_failed">Couldn\'t add to the playlist</string>
+    <string name="msg_streaming_remove_from_playlist_failed">Couldn\'t remove the song from the playlist</string>
+    <string name="msg_streaming_delete_playlist_failed">Couldn\'t remove the playlist</string>
+    <string name="msg_streaming_follow_artist_failed">Couldn\'t follow the artist</string>
+    <string name="msg_streaming_download_failed">Download failed</string>
+    <string name="msg_streaming_added_to_playlist">Added to “%1$s”</string>
+    <string name="msg_streaming_added_to_playlist_generic">Added to playlist</string>
+    <string name="msg_streaming_playlist_created">Created playlist “%1$s”</string>
+    <string name="msg_streaming_metadata_saved">Saved</string>
+    <string name="msg_streaming_metadata_not_found">No metadata found</string>
+    <string name="msg_streaming_notification_connection_failed">Connection failed</string>
+    <string name="msg_streaming_notification_session_expired">Session expired</string>
+</resources>

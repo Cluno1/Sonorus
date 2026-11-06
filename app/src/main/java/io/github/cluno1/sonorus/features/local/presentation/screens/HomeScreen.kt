@@ -531,7 +531,7 @@ fun HomeScreen(
                 selectedSongForPlaylist = null
             },
             onConfirm = { name ->
-                musicViewModel.createPlaylist(name)
+                musicViewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                 showCreatePlaylistDialog = false
                 selectedSongForPlaylist = null
             },
@@ -542,7 +542,7 @@ fun HomeScreen(
                         RhythmMessages.info(context, message)
                     }
                 } ?: run {
-                    musicViewModel.createPlaylist(name)
+                    musicViewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                 }
                 showCreatePlaylistDialog = false
                 selectedSongForPlaylist = null

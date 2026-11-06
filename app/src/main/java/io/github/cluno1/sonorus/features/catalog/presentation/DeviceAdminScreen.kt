@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -241,6 +243,8 @@ private fun DeviceList(
     onSetAdministrator: (String, Boolean) -> Unit,
 ) {
     val currentDeviceLabel = stringResource(R.string.device_admin_current_device)
+    // issue 169: revoking takes admin rights away from someone, so it is confirmed first; granting is not.
+    var revokeTarget by remember { mutableStateOf<CatalogAdminDevice?>(null) }
     Material3SettingsGroup(
         items = devices.map { device ->
             val current = device.deviceId == currentDeviceId
@@ -265,7 +269,13 @@ private fun DeviceList(
                 },
                 trailingContent = {
                     TextButton(
-                        onClick = { onSetAdministrator(device.deviceId, !device.isAdministrator) },
+                        onClick = {
+                            if (device.isAdministrator) {
+                                revokeTarget = device
+                            } else {
+                                onSetAdministrator(device.deviceId, true)
+                            }
+                        },
                         enabled = device.status == "active" && !busy,
                     ) {
                         Text(
@@ -283,6 +293,24 @@ private fun DeviceList(
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
     )
+    revokeTarget?.let { device ->
+        AlertDialog(
+            onDismissRequest = { revokeTarget = null },
+            title = { Text(stringResource(R.string.msg_catalog_revoke_admin_title)) },
+            text = { Text(stringResource(R.string.msg_catalog_revoke_admin_text, device.displayName ?: device.userId)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    revokeTarget = null
+                    onSetAdministrator(device.deviceId, false)
+                }) {
+                    Text(stringResource(R.string.msg_catalog_revoke_admin_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { revokeTarget = null }) { Text(stringResource(R.string.dialog_cancel)) }
+            },
+        )
+    }
 }
 
 @Composable

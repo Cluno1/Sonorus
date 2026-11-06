@@ -6,6 +6,7 @@
 package io.github.cluno1.sonorus.features.local.presentation.viewmodel
 
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.features.local.data.model.FavoriteChange
 import android.app.Activity
 import android.app.Application
@@ -7277,10 +7278,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             savePlaylists()
             Log.d(TAG, "Created new playlist: ${updatedPlaylist.name} with ${updatedPlaylist.songs.size} songs")
             if (showSnackbar != null) {
+                val context = getApplication<Application>()
+                val displayName = updatedPlaylist.displayName(context)
                 if (songs.isNotEmpty()) {
-                    showSnackbar("Created playlist '${updatedPlaylist.name}' with ${updatedPlaylist.songs.size} songs")
+                    showSnackbar(context.getString(R.string.msg_library_playlist_created_with_songs, displayName, updatedPlaylist.songs.size))
                 } else {
-                    showSnackbar("Created playlist '${updatedPlaylist.name}'")
+                    showSnackbar(context.getString(R.string.msg_library_playlist_created, displayName))
                 }
             }
         }
@@ -7295,7 +7298,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                           song.uri.toString().startsWith("streaming://") ||
                           _songs.value.none { it.id == song.id }
         if (!isStreaming && !filteredSongsSet.contains(song.id)) {
-            showSnackbar("Cannot add ${song.title} - song is filtered out")
+            showSnackbar(getApplication<Application>().getString(R.string.msg_library_song_filtered_out, song.title))
             return
         }
         
@@ -7304,12 +7307,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             if (playlist.id == playlistId) {
                 // Check if song is already in the playlist
                 if (playlist.songs.any { it.id.toStableCatalogSongId() == playlistSong.id }) {
-                    showSnackbar("${song.title} is already in playlist '${playlist.name}'")
+                    val context = getApplication<Application>()
+                    showSnackbar(context.getString(R.string.msg_library_song_already_in_playlist, song.title, playlist.displayName(context)))
                     playlist
                 } else {
                     val updatedSongs = playlist.songs + playlistSong
                     success = true
-                    showSnackbar("Added ${song.title} to ${playlist.name}")
+                    val context = getApplication<Application>()
+                    showSnackbar(context.getString(R.string.msg_library_song_added_to_playlist, song.title, playlist.displayName(context)))
                     playlist.copy(
                         songs = updatedSongs,
                         dateModified = System.currentTimeMillis()
@@ -7405,7 +7410,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val updatedSongs = playlist.songs.filter { it.id != song.id }
                 if (updatedSongs.size < playlist.songs.size) {
                     success = true
-                    showSnackbar("Removed ${song.title} from ${playlist.name}")
+                    val context = getApplication<Application>()
+                    showSnackbar(context.getString(R.string.msg_library_song_removed_from_playlist, song.title, playlist.displayName(context)))
                     playlist.copy(
                         songs = updatedSongs,
                         dateModified = System.currentTimeMillis()
@@ -8847,7 +8853,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun applyDeviceManualLyrics(songId: String, candidate: DeviceLyricsCandidate) {
         val state = _deviceManualMetadataState.value
         val song = findDeviceSong(songId, allowPublicSong = true)
-        if (song == null || state.songId != songId || candidate !in state.lyricsCandidates) return
+        if (song == null) {
+            reportManualMetadataSongUnavailable("lyrics", songId)
+            return
+        }
+        if (state.songId != songId || candidate !in state.lyricsCandidates) return
         deviceManualMetadataJob?.cancel()
         val requestId = ++deviceManualMetadataRequestId
         deviceManualMetadataJob = viewModelScope.launch {
@@ -8857,13 +8867,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     // issue 166: a public song's pick is stored on the backend and replaces it for everyone.
                     applyPublicManualLyrics(song, candidate)
                     if (requestId != deviceManualMetadataRequestId) return@launch
+                    Log.i(TAG, "Applied manual lyrics to public song")
                     _deviceManualMetadataState.value = state.copy(applied = true)
+                    RhythmMessages.success(getApplication<Application>(), R.string.msg_library_public_lyrics_applied)
                     return@launch
                 }
                 val selected = repository.applyDeviceLyricsCandidate(song, candidate)
                 if (requestId != deviceManualMetadataRequestId) return@launch
                 if (_currentSong.value?.id == songId) _currentLyrics.value = selected
+                Log.i(TAG, "Applied manual DEVICE lyrics")
                 _deviceManualMetadataState.value = state.copy(applied = true)
+                RhythmMessages.success(getApplication<Application>(), R.string.msg_library_lyrics_applied)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -8900,7 +8914,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val state = _deviceManualMetadataState.value
         val song = findDeviceSong(songId)
-        if (song == null || state.songId != songId || candidate !in state.artworkCandidates) return
+        if (song == null) {
+            reportManualMetadataSongUnavailable("artwork", songId)
+            return
+        }
+        if (state.songId != songId || candidate !in state.artworkCandidates) return
         deviceManualMetadataJob?.cancel()
         val requestId = ++deviceManualMetadataRequestId
         deviceManualMetadataJob = viewModelScope.launch {
@@ -8943,7 +8961,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     _currentSong.value = projected.firstOrNull { it.id == currentSong.id }
                         ?: currentSong.copy(artworkUri = artwork)
                 }
+                Log.i(TAG, "Applied manual DEVICE artwork")
                 _deviceManualMetadataState.value = state.copy(applied = true)
+                RhythmMessages.success(getApplication<Application>(), R.string.msg_library_artwork_applied)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -8963,6 +8983,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val state = _deviceManualMetadataState.value
         val song = findDeviceSong(songId)
+        if (song == null) {
+            reportManualMetadataSongUnavailable("artist artwork", songId)
+            return
+        }
         val targetArtistName = state.targetArtistName?.trim()?.takeIf(String::isNotEmpty)
             ?: song?.artist
             ?: return
@@ -8990,7 +9014,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         artist
                     }
                 }
+                Log.i(TAG, "Applied manual DEVICE artist artwork")
                 _deviceManualMetadataState.value = state.copy(applied = true)
+                RhythmMessages.success(getApplication<Application>(), R.string.msg_library_artist_artwork_applied)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -9011,8 +9037,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val state = _deviceManualMetadataState.value
         val song = findDeviceSong(songId)
+        if (song == null) {
+            reportManualMetadataSongUnavailable("details", songId)
+            return
+        }
         if (
-            song == null || state.songId != songId ||
+            state.songId != songId ||
             state.kind != DeviceManualMetadataKind.DETAILS ||
             candidate !in state.detailsCandidates || fields.isEmpty()
         ) return
@@ -9025,7 +9055,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val updated = repository.applyDeviceDetailsCandidate(song, candidate, fields)
                 if (requestId != deviceManualMetadataRequestId) return@launch
                 updateCurrentSongMetadata(updated)
+                Log.i(TAG, "Applied manual DEVICE details: ${fields.size} fields")
                 _deviceManualMetadataState.value = state.copy(applied = true)
+                RhythmMessages.success(getApplication<Application>(), R.string.msg_library_details_applied)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -9037,6 +9069,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    /** issue 169: the song left the library (or the page outlived it); tell the user instead of doing nothing. */
+    private fun reportManualMetadataSongUnavailable(what: String, songId: String) {
+        Log.w(TAG, "Cannot apply manual $what: song $songId is no longer available")
+        RhythmMessages.error(getApplication<Application>(), R.string.msg_library_song_unavailable)
     }
 
     fun clearDeviceManualMetadata() {
@@ -9855,7 +9893,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "Error adding song to queue", e)
                 val errorMsg = "Failed to add '${song.title}' to queue: ${e.message}"
                 _queueOperationError.value = errorMsg
-                RhythmMessages.error(getApplication<android.app.Application>().applicationContext, errorMsg)
+                RhythmMessages.failure(getApplication<android.app.Application>().applicationContext, R.string.queue_add_failed, e)
             }
         } ?: run {
             val errorMsg = "Cannot add song to queue - media controller is null"
@@ -9933,7 +9971,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "Error adding song to play next", e)
                 val errorMsg = "Failed to add '${song.title}' to play next: ${e.message}"
                 _queueOperationError.value = errorMsg
-                RhythmMessages.error(getApplication<android.app.Application>().applicationContext, errorMsg)
+                RhythmMessages.failure(getApplication<android.app.Application>().applicationContext, R.string.msg_library_play_next_failed, e)
             }
         } ?: run {
             val errorMsg = "Cannot add song to play next - media controller is null"
@@ -10245,7 +10283,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
                 val message = when (queueAppendOutcome(accepted.size, totalSkipped)) {
                     QueueAppendOutcome.PARTIAL -> context.getString(R.string.queue_batch_added_partial, accepted.size, totalSkipped)
-                    else -> if (playNext) {
+                    else -> if (accepted.size == 1 && items.size == 1) {
+                        // A single song (e.g. one Catalog song from a menu) reads like the local single-song message.
+                        val title = accepted.single().song.title
+                        if (playNext) context.getString(R.string.playing_next_simple, title)
+                        else context.getString(R.string.added_to_queue_simple, title)
+                    } else if (playNext) {
                         context.getString(R.string.queue_batch_play_next, accepted.size)
                     } else {
                         context.getString(R.string.queue_batch_added, accepted.size)

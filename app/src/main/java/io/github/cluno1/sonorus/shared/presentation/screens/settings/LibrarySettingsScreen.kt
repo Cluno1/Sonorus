@@ -286,9 +286,18 @@ fun LibrarySettingsScreen(onBackClick: () -> Unit) {
                         context.getString(R.string.settings_device_metadata_clear_cache_desc),
                         onClick = {
                             scope.launch {
-                                deviceMetadataRepository.clearAllCachedMetadata()
-                                appSettings.requestFullMediaRescanOnNextLaunch("device_metadata_cache_cleared")
-                                RhythmMessages.success(context, R.string.settings_device_metadata_cache_cleared)
+                                try {
+                                    deviceMetadataRepository.clearAllCachedMetadata()
+                                    appSettings.requestFullMediaRescanOnNextLaunch("device_metadata_cache_cleared")
+                                    Log.i("LibrarySettings", "Device metadata cache cleared")
+                                    RhythmMessages.success(context, R.string.settings_device_metadata_cache_cleared)
+                                } catch (e: kotlinx.coroutines.CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    // issue 169: this used to fail silently (or crash the scope).
+                                    Log.w("LibrarySettings", "Could not clear device metadata cache", e)
+                                    RhythmMessages.failure(context, R.string.msg_library_clear_failed, e)
+                                }
                             }
                         }
                     ))

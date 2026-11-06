@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: navigation-level messages. -->
+<resources>
+    <string name="msg_playlist_none_added">沒有加入新歌曲，它們可能已在歌單中</string>
+    <string name="msg_playlist_added_partial">已將 %2$d 首中的 %1$d 首加入「%3$s」</string>
+    <string name="msg_nav_catalog_identity_expired">音樂庫歌曲身分已過期，請重新整理曲庫</string>
+    <string name="msg_nav_reenroll">重新登記</string>
+    <string name="msg_nav_score_load_failed">無法讀取樂譜</string>
+    <string name="msg_nav_score_none">這首歌曲暫無可用樂譜</string>
+    <string name="msg_nav_remote_score_title">遠端譜面</string>
+    <string name="msg_nav_playback_convert_failed">無法播放這些歌曲，請嘗試重新連線公共音樂聚合服務</string>
+    <string name="msg_nav_some_unplayable">部分歌曲無法載入，已略過</string>
+    <string name="msg_nav_favorite_unsupported">目前版本的公共音樂不支援收藏</string>
+</resources>

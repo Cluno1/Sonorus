@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.playlistBatchAddMessage
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -610,11 +611,7 @@ fun PlaylistDetailScreen(
                 showOperationProgress = true
                 val (successCount, playlistName) = musicViewModel.addSongsToPlaylist(songs, playlist.id)
                 showOperationProgress = false
-                val message = when {
-                    successCount == 0 -> "No songs added - they may already be in the playlist"
-                    successCount == songs.size -> "Added $successCount songs to $playlistName"
-                    else -> "Added $successCount of ${songs.size} songs to $playlistName"
-                }
+                val message = playlistBatchAddMessage(context, successCount, songs.size, playlist.id, playlistName)
                 operationResult = Pair(message, false)
                 showSongPicker = false
             },

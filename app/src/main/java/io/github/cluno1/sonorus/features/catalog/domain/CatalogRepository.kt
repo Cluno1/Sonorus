@@ -11,7 +11,9 @@ sealed class CatalogFailure(message: String, cause: Throwable? = null) : IOExcep
     class StaleRevision(val currentRevision: Int?) : CatalogFailure("服务器歌词已被其他设备修改")
     class Unreachable(cause: Throwable? = null) : CatalogFailure("无法连接私有作品库", cause)
     class Server(val statusCode: Int) : CatalogFailure("服务器暂时不可用（$statusCode）")
-    class InvalidData(detail: String, cause: Throwable? = null) : CatalogFailure("服务器数据无效：$detail", cause)
+    /** issue 169: [statusCode] marks the HTTP answers the UI explains with its own fixed text. */
+    class InvalidData(detail: String, cause: Throwable? = null, val statusCode: Int? = null) :
+        CatalogFailure("服务器数据无效：$detail", cause)
     /** issue 154: an administrator took the announcement down after this device listed it. */
     class AnnouncementUnavailable : CatalogFailure("公告已下架")
     /** issue 124: the room expired (lazily removed the day after its date) or was deleted. */

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: fixed user-facing catalog messages; server and exception details go to the log only. -->
+<resources>
+    <string name="msg_catalog_registration_expired">Music library registration has expired. Please register again.</string>
+    <string name="msg_catalog_not_configured">The music library is not set up yet</string>
+    <string name="msg_catalog_forbidden">You don\'t have access to this content</string>
+    <string name="msg_catalog_stale">This was changed on another device. Refresh and try again.</string>
+    <string name="msg_catalog_unreachable">Couldn\'t connect to the music library</string>
+    <string name="msg_catalog_server_unavailable">The server is temporarily unavailable (%1$d)</string>
+    <string name="msg_catalog_invalid_data">The server returned invalid data</string>
+    <string name="msg_catalog_device_conflict">This user already has a registered device. Generate a “replace existing device” invite.</string>
+    <string name="msg_catalog_protocol_incompatible">This app version isn\'t compatible with the server (422)</string>
+    <string name="msg_catalog_rate_limited">Too many requests. Please try again later.</string>
+    <string name="msg_catalog_announcement_unavailable">This announcement has been taken down</string>
+    <string name="msg_catalog_room_song_already_added">This song is already in the room</string>
+    <string name="msg_catalog_unknown_error">Something went wrong. Please try again.</string>
+    <string name="msg_catalog_remove_registration_title">Remove registration?</string>
+    <string name="msg_catalog_remove_registration_text">This device will need a new invite to use the music library again.</string>
+    <string name="msg_catalog_remove_legacy_title">Remove legacy connection?</string>
+    <string name="msg_catalog_remove_legacy_text">You will need an invite to connect to the music library again.</string>
+    <string name="msg_catalog_remove_confirm">Remove</string>
+    <string name="msg_catalog_registration_removed">Registration removed</string>
+    <string name="msg_catalog_revoke_admin_title">Revoke admin?</string>
+    <string name="msg_catalog_revoke_admin_text">“%1$s” will no longer be able to manage devices.</string>
+    <string name="msg_catalog_revoke_admin_confirm">Revoke</string>
+    <string name="msg_catalog_admin_granted">Admin granted</string>
+    <string name="msg_catalog_admin_revoked">Admin revoked</string>
+    <string name="msg_catalog_refresh_failed">Refresh failed</string>
+    <string name="msg_catalog_load_failed">Couldn\'t load</string>
+    <string name="msg_catalog_remove_song_title">Remove from room?</string>
+    <string name="msg_catalog_remove_song_text">The song is removed for everyone in this room.</string>
+    <string name="msg_catalog_song_removed">Removed</string>
+    <string name="msg_catalog_section_saved">Section saved</string>
+    <string name="msg_catalog_room_deleted">Deleted room “%1$s”</string>
+    <string name="msg_catalog_score_history_failed">Couldn\'t load score revisions</string>
+    <string name="msg_catalog_score_check_failed">Score safety check failed</string>
+    <string name="msg_catalog_score_download_failed">Couldn\'t download the score file</string>
+</resources>

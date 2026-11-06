@@ -1137,8 +1137,13 @@ fun SingleCardExplorerContent(
                                                 kotlinx.coroutines.delay(10)
                                             }
                                             Log.d("LibraryScreen", "Successfully added ${folderSongsForPlaylist.size} songs to playlist: $playlistName")
+                                            // issue 169: count what actually landed (filtered-out songs are skipped).
+                                            val addedCount = musicViewModel.playlists.value
+                                                .firstOrNull { it.id == newPlaylist.id }?.songs?.size ?: 0
+                                            RhythmMessages.success(context, R.string.msg_library_folder_playlist_created, playlistName, addedCount)
                                         } else {
                                             Log.e("LibraryScreen", "Failed to find newly created playlist: $playlistName")
+                                            RhythmMessages.error(context, R.string.msg_library_playlist_create_failed)
                                         }
                                         
                                         showCreatePlaylistDialog = false
@@ -1146,8 +1151,10 @@ fun SingleCardExplorerContent(
                                         playlistNamePrefix = ""
                                         isCreating = false
                                     } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
                                         Log.e("LibraryScreen", "Error creating playlist", e)
                                         isCreating = false
+                                        RhythmMessages.failure(context, R.string.msg_library_playlist_create_failed, e)
                                     }
                                 }
                             }

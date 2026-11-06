@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: navigation-level messages. -->
+<resources>
+    <string name="msg_playlist_none_added">No songs added. They may already be in the playlist.</string>
+    <string name="msg_playlist_added_partial">Added %1$d of %2$d songs to “%3$s”</string>
+    <string name="msg_nav_catalog_identity_expired">Library song info is out of date. Refresh the library.</string>
+    <string name="msg_nav_reenroll">Re-enroll</string>
+    <string name="msg_nav_score_load_failed">Couldn\'t load the score</string>
+    <string name="msg_nav_score_none">No score is available for this song</string>
+    <string name="msg_nav_remote_score_title">Remote score</string>
+    <string name="msg_nav_playback_convert_failed">Couldn\'t play these songs. Try reconnecting to the public music service.</string>
+    <string name="msg_nav_some_unplayable">Some songs couldn\'t be loaded and were skipped</string>
+    <string name="msg_nav_favorite_unsupported">Favorites aren\'t available for public music in this version</string>
+</resources>

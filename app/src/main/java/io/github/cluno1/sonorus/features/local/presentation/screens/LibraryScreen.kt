@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.playlistBatchAddMessage
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.features.catalog.domain.toStableCatalogSongId
@@ -716,7 +717,7 @@ fun LibraryScreen(
                 if (songsToAddToPlaylist.isEmpty()) {
                     onCreatePlaylist(name)
                 } else {
-                    musicViewModel.createPlaylist(name, songsToAddToPlaylist)
+                    musicViewModel.createPlaylist(name, songsToAddToPlaylist) { message -> RhythmMessages.success(context, message) }
                     songsToAddToPlaylist = emptyList()
                 }
                 showCreatePlaylistDialog = false
@@ -794,7 +795,7 @@ fun LibraryScreen(
                     onAddSongToPlaylist(songsToAddToPlaylist.first(), playlist.id)
                 } else {
                     val (successCount, playlistName) = musicViewModel.addSongsToPlaylist(songsToAddToPlaylist, playlist.id)
-                    RhythmMessages.success(context, R.string.msg_songs_added_to_playlist, successCount, playlistName)
+                    RhythmMessages.success(context, playlistBatchAddMessage(context, successCount, songsToAddToPlaylist.size, playlist.id, playlistName))
                 }
                 scope.launch {
                     addToPlaylistSheetState.hide()

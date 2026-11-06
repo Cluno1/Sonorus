@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: library, playlist, manual metadata and settings feedback. -->
+<resources>
+    <string name="msg_library_lyrics_applied">已应用歌词</string>
+    <string name="msg_library_public_lyrics_applied">已更新，所有用户可见</string>
+    <string name="msg_library_artwork_applied">已应用封面</string>
+    <string name="msg_library_artist_artwork_applied">已应用艺人图片</string>
+    <string name="msg_library_details_applied">已应用歌曲信息</string>
+    <string name="msg_library_song_unavailable">歌曲不可用，请返回重试</string>
+    <string name="msg_library_playlist_created">已创建歌单「%1$s」</string>
+    <string name="msg_library_playlist_created_with_songs">已创建歌单「%1$s」，共 %2$d 首</string>
+    <string name="msg_library_song_filtered_out">无法添加「%1$s」：已被扫描规则排除</string>
+    <string name="msg_library_song_already_in_playlist">「%1$s」已在「%2$s」中</string>
+    <string name="msg_library_song_added_to_playlist">已将「%1$s」加入「%2$s」</string>
+    <string name="msg_library_song_removed_from_playlist">已从「%2$s」移除「%1$s」</string>
+    <string name="msg_library_play_next_failed">无法设为下一首播放</string>
+    <string name="msg_library_folder_playlist_created">已创建「%1$s」并加入 %2$d 首</string>
+    <string name="msg_library_playlist_create_failed">无法创建歌单</string>
+    <string name="msg_library_cleared">已清空</string>
+    <string name="msg_library_clear_failed">清除失败</string>
+    <string name="msg_library_clear_crash_logs_title">清空崩溃日志？</string>
+    <string name="msg_library_clear_crash_logs_body">所有崩溃日志都会被删除，无法恢复。</string>
+    <string name="msg_library_clear_blacklist_songs_title">清空黑名单歌曲？</string>
+    <string name="msg_library_clear_whitelist_songs_title">清空白名单歌曲？</string>
+    <string name="msg_library_clear_blacklist_folders_title">清空黑名单文件夹？</string>
+    <string name="msg_library_clear_whitelist_folders_title">清空白名单文件夹？</string>
+    <string name="msg_library_clear_list_body">将从列表中移除 %1$d 项。</string>
+    <string name="msg_library_cancel_upload_title">取消这次上传？</string>
+    <string name="msg_library_cancel_upload_body">尚未上传的图片不再上传，已上传的会保留。</string>
+    <string name="msg_library_cancel_upload_confirm">取消上传</string>
+    <string name="msg_library_cancel_upload_keep">继续上传</string>
+    <string name="msg_library_upload_batch_cancelled">已取消</string>
+</resources>

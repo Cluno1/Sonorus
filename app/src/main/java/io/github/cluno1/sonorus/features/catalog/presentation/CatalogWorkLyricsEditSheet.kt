@@ -1,6 +1,7 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +37,8 @@ import io.github.cluno1.sonorus.features.catalog.domain.CatalogRoomWriteGate
 import io.github.cluno1.sonorus.features.catalog.domain.WorkSummary
 import io.github.cluno1.sonorus.features.catalog.domain.normalizeCatalogLyricsLanguageTag
 import kotlinx.coroutines.launch
+
+private const val LYRICS_EDIT_TAG = "CatalogLyricsEdit"
 
 /** What the editor opens on: the language being saved and its current text. */
 internal data class WorkLyricsEditTarget(val language: String, val text: String)
@@ -102,7 +105,13 @@ internal fun CatalogWorkLyricsEditSheet(
                                 RhythmMessages.info(context, context.getString(R.string.work_lyrics_edit_stale), long = true)
                                 onStale()
                             } else {
-                                error = failure.message ?: context.getString(R.string.work_lyrics_edit_failed)
+                                // issue 169: fixed localized text; the exception message is never shown.
+                                error = if (failure is CatalogFailure) {
+                                    catalogFailureMessage(context, failure)
+                                } else {
+                                    Log.w(LYRICS_EDIT_TAG, "lyrics save failed (${failure.javaClass.simpleName})", failure)
+                                    context.getString(R.string.work_lyrics_edit_failed)
+                                }
                             }
                         },
                     )

@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.navigation
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.playlistBatchAddMessage
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.queueWholeCollection
 import io.github.cluno1.sonorus.features.local.presentation.viewmodel.QueueAppendItem
 import androidx.compose.runtime.DisposableEffect
@@ -1049,7 +1050,7 @@ private fun LocalNavigationContent(
                 renditionRevision = refreshed.renditionRevision,
                 assetId = active.assetId,
                 title = refreshed.title,
-                subtitle = refreshed.artist ?: "未知艺术家",
+                subtitle = refreshed.artist ?: context.getString(R.string.unknown_artist),
                 lyrics = refreshed.lyrics,
                 lyricsLanguage = refreshed.lyricsLanguage,
                 lyricsTranslations = refreshed.lyricsTranslations,
@@ -1085,7 +1086,7 @@ private fun LocalNavigationContent(
         catalogState.error?.let { message ->
             val result = snackbarHostState.showSnackbar(
                 message = message,
-                actionLabel = if (catalogState.reenrollmentRequired) "重新登记" else null,
+                actionLabel = if (catalogState.reenrollmentRequired) context.getString(R.string.msg_nav_reenroll) else null,
             )
             if (catalogState.reenrollmentRequired && result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
                 navController.navigate(Screen.CatalogSettings.route) { launchSingleTop = true }
@@ -1103,7 +1104,7 @@ private fun LocalNavigationContent(
                     renditionRevision = song.renditionRevision,
                     assetId = null,
                     title = song.title,
-                    subtitle = song.artist ?: "未知艺术家",
+                    subtitle = song.artist ?: context.getString(R.string.unknown_artist),
                     lyrics = song.lyrics,
                     lyricsLanguage = song.lyricsLanguage,
                     lyricsTranslations = song.lyricsTranslations,
@@ -1114,7 +1115,7 @@ private fun LocalNavigationContent(
                     renditionId = song.renditionId,
                     assetId = null,
                     title = song.title,
-                    artist = song.artist ?: "未知艺术家",
+                    artist = song.artist ?: context.getString(R.string.unknown_artist),
                     arrangementName = song.albumTitle,
                     playbackUrl = CatalogPlaybackPolicy.deferredUri(song.renditionId),
                     cacheKey = null,
@@ -1167,7 +1168,7 @@ private fun LocalNavigationContent(
                 it.isCatalogLibrarySong() && catalogQueueEntryForSong(it) == null
             }
             if (missingCatalogIdentity) {
-                coroutineScope.launch { snackbarHostState.showSnackbar("音乐库歌曲身份已过期，请刷新曲库") }
+                RhythmMessages.error(context, R.string.msg_nav_catalog_identity_expired)
             } else {
                 val entries = orderedSongs.mapNotNull(catalogQueueEntryForSong)
                 viewModel.playUnifiedQueue(
@@ -1186,7 +1187,7 @@ private fun LocalNavigationContent(
         if (song.isCatalogLibrarySong()) {
             val entry = catalogQueueEntryForSong(song)
             if (entry == null) {
-                coroutineScope.launch { snackbarHostState.showSnackbar("音乐库歌曲身份已过期，请刷新曲库") }
+                RhythmMessages.error(context, R.string.msg_nav_catalog_identity_expired)
                 return@playNow false
             }
             viewModel.playSongNow(song, entry)
@@ -1437,9 +1438,8 @@ private fun LocalNavigationContent(
     }
     val queueNativeSong: (Song, Boolean) -> Unit = { song, playNext ->
         if (song.isCatalogLibrarySong()) {
-            catalogQueueEntryForSong(song)?.let { entry ->
-                viewModel.addUnifiedSongToQueue(song, entry, playNext)
-            }
+            // issue 169 #21: Catalog songs used to be queued silently, and dropped silently when their identity expired.
+            queueNativeSongs(listOf(song), playNext)
         } else if (playNext) viewModel.playNext(song)
         else viewModel.addSongToQueue(song)
     }
@@ -1456,16 +1456,14 @@ private fun LocalNavigationContent(
         streamingMusicViewModel.setPlaybackHandler { streamingQueue, startIndex ->
             val mappedQueue = streamingQueue.mapNotNull { it.toLocalSong() }
             if (mappedQueue.isEmpty()) {
-                streamingMusicViewModel.reportError(
-                    "Playback failed: Unable to convert streaming songs for playback. " +
-                        "Try reconnecting to your service."
-                )
+                Log.w("LocalNavigation", "Streaming playback: none of ${streamingQueue.size} songs could be converted")
+                streamingMusicViewModel.reportError(context.getString(R.string.msg_nav_playback_convert_failed))
+                RhythmMessages.error(context, R.string.msg_nav_playback_convert_failed)
                 return@setPlaybackHandler
             }
             if (streamingQueue.size != mappedQueue.size) {
-                streamingMusicViewModel.reportWarning(
-                    "Some songs in queue couldn't be loaded for playback."
-                )
+                streamingMusicViewModel.reportWarning(context.getString(R.string.msg_nav_some_unplayable))
+                RhythmMessages.info(context, R.string.msg_nav_some_unplayable)
             }
             val safeIndex = startIndex.coerceIn(0, mappedQueue.lastIndex)
             viewModel.playSongFromSearch(mappedQueue[safeIndex], mappedQueue)
@@ -1737,7 +1735,7 @@ private fun LocalNavigationContent(
                                     val bundle = catalogState.selectedBundle
                                         ?.takeIf { it.work.id == item.workId }
                                         ?: catalogViewModel.loadWork(item.workId).getOrElse { error ->
-                                            snackbarHostState.showSnackbar(error.message ?: "无法读取乐谱")
+                                            RhythmMessages.failure(context, R.string.msg_nav_score_load_failed, error)
                                             return@launch
                                         }
                                     val arrangement = bundle.arrangements
@@ -1754,7 +1752,7 @@ private fun LocalNavigationContent(
                                         null
                                     }
                                     if (scorePair == null) {
-                                        snackbarHostState.showSnackbar("这首歌曲暂无可用乐谱")
+                                        RhythmMessages.info(context, R.string.msg_nav_score_none)
                                         return@launch
                                     }
                                     val (arr, score) = scorePair
@@ -1775,7 +1773,10 @@ private fun LocalNavigationContent(
                         onToggleFavorite = if (playerUsesRemoteCuration) {
                             {
                                 val s = streamingCurrentSong
-                                if (s != null) {
+                                if (s != null && !ProductCapabilities.richStreamingFeatures) {
+                                    // issue 169 #8: likeSong is a no-op in this build; never claim "已收藏".
+                                    RhythmMessages.info(context, R.string.msg_nav_favorite_unsupported)
+                                } else if (s != null) {
                                     val isLiked = streamingLikedSongIds.contains(s.id)
                                     if (isLiked) streamingMusicViewModel.unlikeSong(s)
                                     else streamingMusicViewModel.likeSong(s)
@@ -1882,7 +1883,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         onCreatePlaylist = { name ->
-                            viewModel.createPlaylist(name)
+                            viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                         },
                         onShowCreatePlaylistDialog = { song ->
                             songForCreatePlaylistDialog.value = song
@@ -2703,7 +2704,7 @@ private fun LocalNavigationContent(
                         navArgument("workId") { type = NavType.StringType },
                         navArgument("scoreId") { type = NavType.StringType },
                         navArgument("revisionId") { type = NavType.StringType },
-                        navArgument("title") { type = NavType.StringType; defaultValue = "远程谱面" },
+                        navArgument("title") { type = NavType.StringType; defaultValue = context.getString(R.string.msg_nav_remote_score_title) },
                         navArgument("scoreLabel") { type = NavType.StringType; defaultValue = "" },
                         navArgument("parts") { type = NavType.IntType; defaultValue = 0 },
                     ),
@@ -2711,7 +2712,7 @@ private fun LocalNavigationContent(
                     CatalogRemoteScoreScreen(
                         workId = backStackEntry.arguments?.getString("workId")?.let(Uri::decode).orEmpty(),
                         revisionId = backStackEntry.arguments?.getString("revisionId")?.let(Uri::decode).orEmpty(),
-                        title = backStackEntry.arguments?.getString("title")?.let(Uri::decode) ?: "远程谱面",
+                        title = backStackEntry.arguments?.getString("title")?.let(Uri::decode) ?: context.getString(R.string.msg_nav_remote_score_title),
                         scoreLabel = backStackEntry.arguments?.getString("scoreLabel")?.let(Uri::decode).orEmpty(),
                         expectedPartCount = backStackEntry.arguments?.getInt("parts") ?: 0,
                         scoreWork = catalogState.scoreWorks.firstOrNull {
@@ -3433,6 +3434,11 @@ private fun LocalNavigationContent(
                         },
                         onToggleFavorite = { localSong ->
                             albumSongsById[localSong.id]?.let { streamingSong ->
+                                if (!ProductCapabilities.richStreamingFeatures) {
+                                    // issue 169 #8: public favorites are not supported in this build; say so instead of nothing.
+                                    RhythmMessages.info(context, R.string.msg_nav_favorite_unsupported)
+                                    return@let
+                                }
                                 val isLiked = streamingLikedSongIds.contains(streamingSong.id)
                                 if (isLiked) streamingMusicViewModel.unlikeSong(streamingSong)
                                 else streamingMusicViewModel.likeSong(streamingSong)
@@ -3656,6 +3662,11 @@ private fun LocalNavigationContent(
                         },
                         onToggleFavorite = { localSong ->
                             artistSongsById[localSong.id]?.let { streamingSong ->
+                                if (!ProductCapabilities.richStreamingFeatures) {
+                                    // issue 169 #8: public favorites are not supported in this build; say so instead of nothing.
+                                    RhythmMessages.info(context, R.string.msg_nav_favorite_unsupported)
+                                    return@let
+                                }
                                 val isLiked = streamingLikedSongIds.contains(streamingSong.id)
                                 if (isLiked) streamingMusicViewModel.unlikeSong(streamingSong)
                                 else streamingMusicViewModel.likeSong(streamingSong)
@@ -3834,6 +3845,10 @@ private fun LocalNavigationContent(
                         },
                         onToggleFavorite = { localSong ->
                             playlistTracksById[localSong.id]?.let { streamingSong ->
+                                if (!ProductCapabilities.richStreamingFeatures) {
+                                    RhythmMessages.info(context, R.string.msg_nav_favorite_unsupported)
+                                    return@let
+                                }
                                 val isLiked = streamingLikedSongs.any { it.id == streamingSong.id }
                                 if (isLiked) streamingMusicViewModel.unlikeSong(streamingSong)
                                 else streamingMusicViewModel.likeSong(streamingSong)
@@ -4151,7 +4166,7 @@ private fun LocalNavigationContent(
                             if (isStreamingMode) {
                                 streamingMusicViewModel.createPlaylist(name)
                             } else {
-                                viewModel.createPlaylist(name)
+                                viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                             }
                         },
                         onRefreshClick = {
@@ -4430,24 +4445,8 @@ private fun LocalNavigationContent(
                             onUpdatePlaylistSongs = { newSongList ->
                                 viewModel.updatePlaylistSongs(playlistId, newSongList)
                             },
-                            onPlayNext = { song ->
-                                if (song.isCatalogLibrarySong()) {
-                                    catalogQueueEntryForSong(song)?.let { entry ->
-                                        viewModel.addUnifiedSongToQueue(song, entry, playNext = true)
-                                    }
-                                } else {
-                                    viewModel.playNext(song)
-                                }
-                            },
-                            onAddToQueue = { song ->
-                                if (song.isCatalogLibrarySong()) {
-                                    catalogQueueEntryForSong(song)?.let { entry ->
-                                        viewModel.addUnifiedSongToQueue(song, entry, playNext = false)
-                                    }
-                                } else {
-                                    viewModel.addSongToQueue(song)
-                                }
-                            },
+                            onPlayNext = { song -> queueNativeSong(song, true) },
+                            onAddToQueue = { song -> queueNativeSong(song, false) },
                             onGoToAlbum = { song ->
                                 val album = allAlbums.findAlbumForSong(song)
                                 if (album != null) {
@@ -4661,7 +4660,7 @@ private fun LocalNavigationContent(
                                 songForCreatePlaylistDialog = null
                             },
                             onConfirm = { name ->
-                                viewModel.createPlaylist(name)
+                                viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                                 showCreatePlaylistDialog = false
                                 songForCreatePlaylistDialog = null
                             },
@@ -4672,7 +4671,7 @@ private fun LocalNavigationContent(
                                         RhythmMessages.info(context, message)
                                     }
                                 } else {
-                                    viewModel.createPlaylist(name)
+                                    viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                                 }
                                 showCreatePlaylistDialog = false
                                 songForCreatePlaylistDialog = null
@@ -4964,7 +4963,7 @@ private fun LocalNavigationContent(
                                 songForCreatePlaylistDialog = null
                             },
                             onConfirm = { name ->
-                                viewModel.createPlaylist(name)
+                                viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                                 showCreatePlaylistDialog = false
                                 songForCreatePlaylistDialog = null
                             },
@@ -4975,7 +4974,7 @@ private fun LocalNavigationContent(
                                         RhythmMessages.info(context, message)
                                     }
                                 } else {
-                                    viewModel.createPlaylist(name)
+                                    viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                                 }
                                 showCreatePlaylistDialog = false
                                 songForCreatePlaylistDialog = null
@@ -5145,12 +5144,10 @@ private fun LocalNavigationContent(
                                                 songs,
                                                 targetPlaylistId
                                             )
-                                            val message = when {
-                                                successCount == 0 -> "No songs added - they may already be in the playlist"
-                                                successCount == songs.size -> "Added $successCount songs to $playlistName"
-                                                else -> "Added $successCount of ${songs.size} songs to $playlistName"
-                                            }
-                                            RhythmMessages.info(context, message)
+                                            RhythmMessages.success(
+                                                context,
+                                                playlistBatchAddMessage(context, successCount, songs.size, targetPlaylistId, playlistName),
+                                            )
                                         }
                                     }
                                 )
@@ -5174,12 +5171,12 @@ private fun LocalNavigationContent(
                                     showCreatePlaylistDialog = false
                                 },
                                 onConfirm = { name ->
-                                    viewModel.createPlaylist(name)
+                                    viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                                     showCreatePlaylistDialog = false
                                 },
                                 song = songToAdd,
                                 onConfirmWithSong = { name ->
-                                    viewModel.createPlaylist(name)
+                                    viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                                     // The new playlist will be at the end of the list
                                     val newPlaylist = viewModel.playlists.value.last()
                                     viewModel.addSongToPlaylist(
@@ -5280,7 +5277,7 @@ private fun LocalNavigationContent(
                 songForCreatePlaylistDialog.value = null
             },
             onConfirm = { name ->
-                viewModel.createPlaylist(name)
+                viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                 showCreatePlaylistDialog.value = false
                 songForCreatePlaylistDialog.value = null
             },
@@ -5291,7 +5288,7 @@ private fun LocalNavigationContent(
                         RhythmMessages.info(context, message)
                     }
                 } else {
-                    viewModel.createPlaylist(name)
+                    viewModel.createPlaylist(name) { message -> RhythmMessages.success(context, message) }
                 }
                 showCreatePlaylistDialog.value = false
                 songForCreatePlaylistDialog.value = null

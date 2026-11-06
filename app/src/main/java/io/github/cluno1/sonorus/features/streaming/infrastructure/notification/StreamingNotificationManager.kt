@@ -152,7 +152,7 @@ class StreamingNotificationManager(private val context: Context) {
         
         val notification = NotificationCompat.Builder(context, STREAMING_AUTH_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Connection Failed")
+            .setContentTitle(context.getString(R.string.msg_streaming_notification_connection_failed))
             .setContentText(context.getString(R.string.notification_streaming_auth_failed, serviceName))
             .setCategory(NotificationCompat.CATEGORY_ERROR)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -170,7 +170,7 @@ class StreamingNotificationManager(private val context: Context) {
         if (!isNotificationsEnabled()) return
         val notification = NotificationCompat.Builder(context, STREAMING_AUTH_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Session Expired")
+            .setContentTitle(context.getString(R.string.msg_streaming_notification_session_expired))
             .setContentText(context.getString(R.string.notification_streaming_auth_expired, serviceName))
             .setCategory(NotificationCompat.CATEGORY_ERROR)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

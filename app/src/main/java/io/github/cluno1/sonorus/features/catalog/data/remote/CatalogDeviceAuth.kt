@@ -462,8 +462,8 @@ internal fun isCatalogRoomWrite(method: String, encodedPath: String): Boolean =
 
 internal fun catalogHttpFailure(statusCode: Int): IOException = when (statusCode) {
     401 -> CatalogFailure.InvalidCredentials()
-    409 -> CatalogFailure.InvalidData("该用户已有登记设备，请生成‘替换已有设备’邀请码")
-    422 -> CatalogFailure.InvalidData("客户端与服务器协议不兼容（422）")
-    429 -> CatalogFailure.InvalidData("请求过于频繁，请稍后再试")
+    409 -> CatalogFailure.InvalidData("该用户已有登记设备，请生成‘替换已有设备’邀请码", statusCode = 409)
+    422 -> CatalogFailure.InvalidData("客户端与服务器协议不兼容（422）", statusCode = 422)
+    429 -> CatalogFailure.InvalidData("请求过于频繁，请稍后再试", statusCode = 429)
     else -> IOException("服务器拒绝请求（$statusCode）")
 }
