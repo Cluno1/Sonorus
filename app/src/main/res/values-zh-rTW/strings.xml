@@ -171,9 +171,9 @@
     </plurals>
     <string name="notification_streaming_sync_failed">同步失敗。請檢查您的網路連線。</string>
     <!-- Streaming Liked Songs -->
-    <string name="notification_streaming_liked_title">喜歡的歌曲已更新</string>
-    <string name="notification_streaming_liked_added">♥ 加入 %1$s 上喜歡的歌曲</string>
-    <string name="notification_streaming_liked_removed">從 %1$s 上喜歡的歌曲中刪除</string>
+    <string name="notification_streaming_liked_title">收藏已更新</string>
+    <string name="notification_streaming_liked_added">♥ 已在 %1$s 收藏</string>
+    <string name="notification_streaming_liked_removed">已在 %1$s 取消收藏</string>
     <!-- Streaming Playlist Operations -->
     <string name="notification_streaming_playlist_title">播放清單已更新</string>
     <string name="notification_streaming_playlist_created">於 %2$s 所建立的新播放清單“%1$s”</string>
@@ -522,7 +522,7 @@
     <string name="onboarding_library_show_lyrics">顯示歌詞</string>
     <string name="onboarding_library_show_lyrics_desc">在播放器畫面中顯示同步歌詞</string>
     <string name="onboarding_library_how_works">音樂庫管理和運作的方式</string>
-    <string name="onboarding_library_1">自訂音樂庫中的分頁順序，以便快速存取您的收藏夾</string>
+    <string name="onboarding_library_1">自訂音樂庫中的分頁順序，以便快速存取您的收藏</string>
     <string name="onboarding_library_2">直接從庫畫面建立和管理播放清單</string>
     <string name="onboarding_library_3">設定 &gt; 庫設定中提供進階顯示和排序選項</string>
     <string name="onboarding_library_4">預設播放清單（最近新增、最常播放）可以在「設定」&gt;「播放清單」中切換</string>
@@ -663,7 +663,7 @@
     <string name="onboarding_gesture_tracks">滑動查找曲目</string>
     <string name="onboarding_gesture_tracks_desc">在插圖上滑動可跳至下一首/上一首歌曲</string>
     <string name="onboarding_gesture_doubletap">雙擊圖稿</string>
-    <string name="onboarding_gesture_doubletap_desc">點兩下專輯封面即可按目前歌曲的一個讚（喜歡）</string>
+    <string name="onboarding_gesture_doubletap_desc">點兩下專輯封面即可收藏目前歌曲</string>
     <string name="onboarding_gestures_tips_title">手勢提示</string>
     <string name="onboarding_gesture_tip_1">滑動手勢兩個方向皆可使用</string>
     <string name="onboarding_gesture_tip_2">快速滑動反應比慢速滑動快</string>
@@ -869,7 +869,7 @@
     <string name="restart_app">重新啟動應用程式？</string>
     <string name="export_playlist">匯出播放清單</string>
     <string name="export_all_playlists">匯出所有播放清單</string>
-    <string name="include_default_playlists">包含預設播放清單（收藏夾、最近新增、最常播放）</string>
+    <string name="include_default_playlists">包含預設播放清單（收藏、最近新增、最常播放）</string>
     <string name="import_playlist">匯入播放清單</string>
     <string name="select_playlist_file">選擇要匯入的播放清單檔案：</string>
     <string name="supported_formats">支援的格式：</string>
@@ -1007,7 +1007,7 @@
     <string name="cd_song_info">歌曲訊息</string>
     <string name="cd_no_song_playing">沒有播放歌曲</string>
     <string name="cd_show_actions">顯示動作</string>
-    <string name="cd_toggle_favorite">切換收藏夾</string>
+    <string name="cd_toggle_favorite">收藏或取消收藏</string>
     <string name="cd_show_album">展示專輯</string>
     <string name="cd_show_artist">顯示藝人</string>
     <string name="cd_reorder_chips">重新訂購晶片</string>
@@ -1343,7 +1343,7 @@
     <string name="library_tab_order_reset">Tab 鍵順序和可見性重設為預設值</string>
     <string name="library_tab_order_saved">已儲存分頁標籤順序和可見性</string>
     <!-- Player Chips -->
-    <string name="player_chip_favorite">最喜歡的</string>
+    <string name="player_chip_favorite">收藏</string>
     <string name="player_chip_speed">播放速度</string>
     <string name="player_chip_equalizer">均衡器</string>
     <string name="player_chip_album">專輯</string>
@@ -2133,8 +2133,8 @@
     <string name="universalsearchscreen_search_across_local_streaming">跨本機和串流媒體搜索</string>
     <string name="universalsearchscreen_loading_streaming_results">正在載入串流結果…</string>
     <string name="universalsearchscreen_search_everywhere">四處搜尋…</string>
-    <string name="universalsearchscreen_removed_from_streaming_favorites">已從串流媒體收藏中刪除</string>
-    <string name="universalsearchscreen_added_to_streaming_favorites">已新增至串流媒體收藏</string>
+    <string name="universalsearchscreen_removed_from_streaming_favorites">已取消收藏</string>
+    <string name="universalsearchscreen_added_to_streaming_favorites">已收藏</string>
     <string name="universalsearchscreen_album_not_found">找不到專輯</string>
     <string name="universalsearchscreen_artist_not_found">找不到藝人</string>
     <string name="expressiveplayerscreen_more">更多</string>
@@ -2202,7 +2202,7 @@
     <string name="updatessettingsscreen_unable_to_open_release">無法開啟發布頁面</string>
     <string name="updatessettingsscreen_refer_to_release_notes">請參閱 GitHub 發布頁面上的發行說明。</string>
     <string name="widgetsettingsscreen_widget_settings">小工具設定</string>
-    <string name="widgetsettingsscreen_show_favorite_button">顯示收藏匣按鈕</string>
+    <string name="widgetsettingsscreen_show_favorite_button">顯示收藏按鈕</string>
     <string name="widgetsettingsscreen_widget_theme">小工具主題</string>
     <string name="widgetsettingsscreen_applies_to_glance_widgets">僅 Glance 小工具</string>
     <string name="widgetsettingsscreen_personalize_home_screen_widgets">個人化主螢幕小工具</string>
@@ -2259,7 +2259,7 @@
         <item quantity="other">您確定要從此播放清單中刪除 %1$d 首歌曲嗎？</item>
     </plurals>
     <!-- Settings Toggles / Options Descriptions -->
-    <string name="widget_show_favorite_button_desc">在大尺寸的主畫面小工具上顯示收藏切換鍵</string>
+    <string name="widget_show_favorite_button_desc">在大尺寸的主畫面小工具上顯示收藏按鈕</string>
     <string name="settings_clear_all_logs_desc">清除所有已儲存的崩潰報告</string>
     <string name="widget_theme_dynamic">動態色彩</string>
     <string name="widget_theme_dynamic_system">動態色彩（系統）</string>
@@ -2516,7 +2516,7 @@
     <string name="library_scan_songs">掃描歌曲…</string>
     <string name="library_scan_media">掃描媒體…</string>
     <string name="library_category_all">全部</string>
-    <string name="library_category_favorites">❤️最愛</string>
+    <string name="library_category_favorites">❤️ 收藏</string>
     <string name="library_category_short">短（&lt; 3 分鐘）</string>
     <string name="library_category_medium">中（3–5 分鐘）</string>
     <string name="library_category_long">長（&gt; 5 分鐘）</string>
@@ -2699,7 +2699,7 @@
     <string name="backup_restore_section_core">核心</string>
     <string name="backup_restore_section_core_desc">主題、播放器、UI、API 和應用程式偏好。</string>
     <string name="backup_restore_section_collection">收藏</string>
-    <string name="backup_restore_section_collection_desc">播放清單、收藏夾、黑名單/白名單、釘選資料夾。</string>
+    <string name="backup_restore_section_collection_desc">播放清單、收藏、黑名單/白名單、釘選資料夾。</string>
     <string name="backup_restore_section_insight">洞察</string>
     <string name="backup_restore_section_insight_desc">播放次數、每日統計資料、曲風類型和 Sonorus Guard 配置。</string>
     <string name="backup_restore_status_included">包括</string>
@@ -2773,7 +2773,7 @@
     <string name="backup_select_section_create">請先選取要備份的項目</string>
     <string name="backup_select_section_restore">請先選取要從備份復原的項目</string>
     <string name="editalbumsheet_title_empty">專輯名稱為必填</string>
-    <string name="widget_tip_cookie_corners">選擇 cookie 小工具的下方功能：下一首、隨機、最愛、或隱藏</string>
+    <string name="widget_tip_cookie_corners">選擇 cookie 小工具的下方功能：下一首、隨機、收藏、或隱藏</string>
     <string name="widget_tip_resize_settings">按住小工具可以調整大小或打開其設定</string>
     <string name="settings_notifications_library_group">音樂庫與同步</string>
     <string name="settings_notifications_system_group">系統控制</string>
@@ -2814,10 +2814,10 @@
     <string name="exp_track_error_checker">曲目故障檢查器</string>
     <string name="exp_track_error_checker_desc">攔截損壞或無法讀取的曲目，以避免無限載入和自動跳過循環</string>
     <string name="unknown_album_name">未知專輯</string>
-    <string name="player_favorite_add_description">加入已按讚</string>
-    <string name="player_favorite_remove_description">已按讚，點按移除</string>
-    <string name="player_favorite_added_message">已加入「Liked」</string>
-    <string name="player_favorite_removed_message">已從「Liked」移除</string>
+    <string name="player_favorite_add_description">收藏</string>
+    <string name="player_favorite_remove_description">已收藏，點按取消收藏</string>
+    <string name="player_favorite_added_message">已收藏</string>
+    <string name="player_favorite_removed_message">已取消收藏</string>
     <string name="action_undo">復原</string>
     <string name="settings_catalog_server">音樂庫伺服器</string>
     <string name="settings_catalog_server_desc">連線音樂與樂譜服務</string>

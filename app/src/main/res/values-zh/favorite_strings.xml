@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus: the heart button means 收藏 in Chinese; these keys had no Chinese text and fell back to "Liked". -->
+<resources>
+    <string name="settings_tab_liked">收藏</string>
+    <string name="action_like">收藏</string>
+    <string name="library_no_liked_songs">还没有收藏的歌曲</string>
+    <string name="library_no_liked_songs_desc">收藏歌曲后会显示在这里</string>
+    <string name="widget_cookie_action_favorite">收藏</string>
+    <string name="widget_cookie_action_favorite_desc">收藏或取消收藏当前歌曲</string>
+</resources>
