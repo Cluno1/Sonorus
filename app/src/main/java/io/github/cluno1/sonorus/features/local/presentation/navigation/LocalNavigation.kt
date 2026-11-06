@@ -1167,8 +1167,25 @@ private fun LocalNavigationContent(
             }
         }
     }
+    // issue 162: every single-song tap inserts the song after the playing one and plays it now;
+    // only "play all" / "shuffle" on a collection go through playCatalogQueue and replace the queue.
+    val playSongNowInPlace: (Song) -> Boolean = playNow@{ song ->
+        if (song.isCatalogLibrarySong()) {
+            val entry = catalogQueueEntryForSong(song)
+            if (entry == null) {
+                coroutineScope.launch { snackbarHostState.showSnackbar("音乐库歌曲身份已过期，请刷新曲库") }
+                return@playNow false
+            }
+            viewModel.playSongNow(song, entry)
+        } else {
+            viewModel.playSongNow(song)
+        }
+        true
+    }
     val playNativeSong: (Song) -> Unit = { song ->
-        playCatalogQueue(listOf(song), 0, false)
+        if (playSongNowInPlace(song)) {
+            navController.navigate(Screen.Player.route) { launchSingleTop = true }
+        }
     }
     LaunchedEffect(catalogState.configured, localLibraryInitialized, songs) {
         if (catalogState.configured && localLibraryInitialized && viewModel.currentSong.value == null) {
@@ -1247,6 +1264,11 @@ private fun LocalNavigationContent(
                 streamingMusicViewModel.playQueue(originals, startIndex, shuffle)
             }
         }
+    // issue 162: public-music single-song tap, same rule as playNativeSong.
+    val playStreamingSongNow: (StreamingSong) -> Unit = { streamingSong ->
+        streamingMusicViewModel.playSongNow(streamingSong, viewModel)
+        navController.navigate(Screen.Player.route) { launchSingleTop = true }
+    }
     val streamingMappedSongs = remember(streamingAllSongs, streamingRecommendations, streamingLikedSongs) {
         val source = if (ProductCapabilities.lanSubsonicOnly) {
             streamingAllSongs
@@ -2864,10 +2886,7 @@ private fun LocalNavigationContent(
                                     launchSingleTop = true
                                 }
                             },
-                            onLocalSongClick = { song, contextSongs ->
-                                val index = contextSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-                                playCatalogQueue(contextSongs, index, false)
-                            },
+                            onLocalSongClick = { song, _ -> playNativeSong(song) },
                             onLocalAlbumClick = openNativeAlbum,
                             onCatalogScoreWorkClick = { work ->
                                 val option = work.currentScoreOption()
@@ -2884,10 +2903,16 @@ private fun LocalNavigationContent(
                             },
                             onLocalArtistClick = { artist -> navController.navigate(Screen.ArtistDetail.createRoute(artist.name)) },
                             onLocalPlaylistClick = { playlist -> navController.navigate(Screen.PlaylistDetail.createRoute(playlist.id)) },
-                            onStreamingSongClick = { song ->
-                                streamingViewModel.playSong(song)
-                                navController.navigate(Screen.Player.route) {
-                                    launchSingleTop = true
+                            onStreamingSongClick = playStreamingSongNow,
+                            onPlayAllSongs = { localResults, streamingResults, shuffle ->
+                                if (localResults.isEmpty()) {
+                                    streamingMusicViewModel.playQueue(streamingResults, 0, shuffle)
+                                } else {
+                                    playCatalogQueue(
+                                        localResults + streamingResults.mapNotNull { it.toLocalSong() },
+                                        0,
+                                        shuffle,
+                                    )
                                 }
                             },
                             onStreamingAlbumClick = { streamingAlbum ->
@@ -3302,17 +3327,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         onSongClick = { localSong ->
-                            val queue = if (respectAlbumOnPlay && albumSongs.isNotEmpty()) albumSongs else {
-                                albumSongsById[localSong.id]?.let { listOf(it) }.orEmpty()
-                            }
-                            if (queue.isNotEmpty()) {
-                                val index = queue.indexOfFirst { it.id == localSong.id }.coerceAtLeast(0)
-                                streamingMusicViewModel.playQueue(
-                                    queue = queue,
-                                    startIndex = index,
-                                    shuffle = false
-                                )
-                            }
+                            albumSongsById[localSong.id]?.let(playStreamingSongNow)
                         },
                         onPlayAll = { songs ->
                             if (albumSongs.isNotEmpty()) {
@@ -3528,17 +3543,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         onSongClick = { localSong ->
-                            val queue = if (respectAlbumOnPlay && artistSongs.isNotEmpty()) artistSongs else {
-                                artistSongsById[localSong.id]?.let { listOf(it) }.orEmpty()
-                            }
-                            if (queue.isNotEmpty()) {
-                                val index = queue.indexOfFirst { it.id == localSong.id }.coerceAtLeast(0)
-                                streamingMusicViewModel.playQueue(
-                                    queue = queue,
-                                    startIndex = index,
-                                    shuffle = false
-                                )
-                            }
+                            artistSongsById[localSong.id]?.let(playStreamingSongNow)
                         },
                         onAlbumClick = { album ->
                             navController.navigate(StreamingRoutes.album(album.id, album.title)) {
@@ -3723,37 +3728,10 @@ private fun LocalNavigationContent(
                             }
                         },
                         onSongClick = { localSong ->
-                            if (respectAlbumOnPlay) {
-                                val index = playlistTracks.indexOfFirst { it.id == localSong.id }
-                                if (index >= 0) {
-                                    streamingMusicViewModel.playQueue(
-                                        queue = playlistTracks,
-                                        startIndex = index,
-                                        shuffle = false
-                                    )
-                                }
-                            } else {
-                                playlistTracks.firstOrNull { it.id == localSong.id }?.let { single ->
-                                    streamingMusicViewModel.playQueue(
-                                        queue = listOf(single),
-                                        startIndex = 0,
-                                        shuffle = false
-                                    )
-                                }
-                            }
+                            playlistTracksById[localSong.id]?.let(playStreamingSongNow)
                         },
-                        onPlaySongFromPlaylist = { localSong, localQueue ->
-                            val queue = localQueue
-                                .mapNotNull { playlistTracksById[it.id] }
-                                .ifEmpty { playlistTracks }
-                            if (queue.isNotEmpty()) {
-                                val index = queue.indexOfFirst { it.id == localSong.id }.coerceAtLeast(0)
-                                streamingMusicViewModel.playQueue(
-                                    queue = queue,
-                                    startIndex = index,
-                                    shuffle = false
-                                )
-                            }
+                        onPlaySongFromPlaylist = { localSong, _ ->
+                            playlistTracksById[localSong.id]?.let(playStreamingSongNow)
                         },
                         onBack = {
                             val popped = navController.popBackStack()
@@ -4354,14 +4332,8 @@ private fun LocalNavigationContent(
                             onShufflePlay = {
                                 playCatalogQueue(playlist.songs, 0, true)
                             },
-                            onSongClick = { song ->
-                                val index = playlist.songs.indexOfFirst { it.id == song.id }
-                                playCatalogQueue(playlist.songs, index.coerceAtLeast(0), false)
-                            },
-                            onPlaySongFromPlaylist = { song, playlistSongs ->
-                                val index = playlistSongs.indexOfFirst { it.id == song.id }
-                                playCatalogQueue(playlistSongs, index.coerceAtLeast(0), false)
-                            },
+                            onSongClick = playNativeSong,
+                            onPlaySongFromPlaylist = { song, _ -> playNativeSong(song) },
                             onBack = {
                                 navigateBackOrToLanding()
                             },
@@ -4537,14 +4509,8 @@ private fun LocalNavigationContent(
                         onBack = {
                             navigateBackOrToLanding()
                         },
-                        onSongClick = onPlaySong,
-                        onSongClickInContext = { song, contextSongs ->
-                            if (respectAlbumOnPlay) {
-                                viewModel.playSongFromContext(song, contextSongs, artistName)
-                            } else {
-                                viewModel.playSong(song)
-                            }
-                        },
+                        onSongClick = { song -> playSongNowInPlace(song) },
+                        onSongClickInContext = { song, _ -> playSongNowInPlace(song) },
                         onAlbumClick = { album ->
                             navController.navigate(Screen.AlbumDetail.createRoute(album.id, album.title))
                         },
@@ -4786,15 +4752,8 @@ private fun LocalNavigationContent(
                             navigateBackOrToLanding()
                         },
                         onSongClick = playNativeSong,
-                        onSongClickInContext = { song, contextSongs ->
-                            if (remoteAlbum != null) {
-                                val startIndex = contextSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-                                playCatalogQueue(contextSongs, startIndex, false)
-                            } else if (respectAlbumOnPlay) {
-                                viewModel.playSongFromContext(song, contextSongs, albumName)
-                            } else {
-                                viewModel.playSong(song)
-                            }
+                        onSongClickInContext = { song, _ ->
+                            if (remoteAlbum != null) playNativeSong(song) else playSongNowInPlace(song)
                         },
                         onPlayAll = { songs ->
                             if (songs.isNotEmpty()) {

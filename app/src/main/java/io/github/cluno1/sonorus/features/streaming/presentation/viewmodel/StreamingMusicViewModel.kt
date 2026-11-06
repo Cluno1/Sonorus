@@ -1787,6 +1787,68 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     }
 
     /**
+     * issue 162: a tapped public-music song is inserted right after the playing item and played
+     * at once, keeping the rest of the queue. Collections still use [playQueue] for play all.
+     */
+    fun playSongNow(song: StreamingSong, localViewModel: MusicViewModel) {
+        viewModelScope.launch {
+            try {
+                if (!checkAndSyncAuthentication()) {
+                    _error.value = "Connect to a streaming service first"
+                    return@launch
+                }
+                if (!song.isPlayable) {
+                    _error.value = "No playable tracks available"
+                    return@launch
+                }
+                val updatedSong = if (ProductCapabilities.lanSubsonicOnly) {
+                    if (LanSubsonicPlaybackPolicy.trackIdFromMediaId(song.id) == null) {
+                        _error.value = getApplication<Application>().getString(R.string.public_music_error_invalid_song)
+                        return@launch
+                    }
+                    song.copy(streamingUrl = null, previewUrl = null)
+                } else {
+                    val resolvedUrl = repository.getStreamingUrl(song.id)
+                        ?: song.streamingUrl
+                        ?: song.previewUrl
+                    if (resolvedUrl.isNullOrBlank()) song else song.copy(streamingUrl = resolvedUrl)
+                }
+                if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
+                    _error.value = "Unable to resolve stream URL for this song"
+                    return@launch
+                }
+
+                val currentQueue = _queue.value.toMutableList()
+                val currentIndex = currentQueue.indexOfFirst { it.id == _currentSong.value?.id }
+                val insertIndex = if (currentIndex >= 0) currentIndex + 1 else currentQueue.size
+                currentQueue.add(insertIndex.coerceIn(0, currentQueue.size), updatedSong)
+                _queue.value = currentQueue
+                _currentSong.value = updatedSong
+                _isPlaying.value = true
+
+                localViewModel.playSongNow(updatedSong.toLocalSong())
+                if (ProductCapabilities.lanSubsonicOnly) {
+                    runCatching {
+                        providerRepository?.publicMusicClient()?.metadata(
+                            LanSubsonicPlaybackPolicy.trackIdFromMediaId(updatedSong.id).orEmpty(),
+                            updatedSong.title, updatedSong.artist, updatedSong.album,
+                            updatedSong.duration, updatedSong.artworkUri,
+                        )
+                    }.onFailure { error ->
+                        if (error is kotlinx.coroutines.CancellationException) throw error
+                        android.util.Log.w("StreamingMusicViewModel", "Public music metadata lookup failed after play-now", error)
+                    }.getOrNull()?.let(::applyLanMetadata)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("StreamingMusicViewModel", "Error in playSongNow for streaming song", e)
+                _error.value = "Failed to play: ${e.message}"
+            }
+        }
+    }
+
+    /**
      * Add the streaming song to the end of the active local playback queue.
      */
     fun addSongToQueue(song: StreamingSong, localViewModel: MusicViewModel) {

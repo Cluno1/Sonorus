@@ -5169,135 +5169,116 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Play a song - finds it in the queue or adds it
+     * Plays one tapped device / public-music song with the issue 162 rule (see [playSongNow]).
+     * Catalog songs need their queue entry and go through [playSongNow] directly.
      */
     fun playSong(song: Song) {
         if (song.id.startsWith("rhythm-catalog:")) {
             Log.w(TAG, "Catalog songs must enter through playCatalogQueue")
             return
         }
-        Log.d(TAG, "Playing song: ${song.title}")
+        playSongNow(song)
+    }
 
-        if (!canStartPlayback("playSong")) {
+    /**
+     * issue 162: single-song tap — insert [song] right after the playing item and switch to it.
+     *
+     * Invariants (rule in [PlayNowQueuePolicy]): the existing queue keeps every song in the same
+     * relative order, the playing song is not removed, and after [song] ends the song that
+     * originally followed it plays. Only "play all" / "shuffle" on a collection replace the queue.
+     * Why here: one queue-layer entry keeps the UI queue, Media3 timeline and the restore snapshot
+     * in step for device, Catalog and public-music songs alike; [onMediaItemTransition] then
+     * refreshes the current song, Catalog now-playing, lyrics and favourite state.
+     * Silent failure if changed carelessly: inserting into `_currentQueue` at a different index
+     * than the Media3 timeline makes the queue screen show the wrong song as playing.
+     * Accepted residue: with shuffle on, Media3 places the new item at a random point of its
+     * shuffle order, so the song after [song] is not guaranteed to be the old next one; the queue
+     * is re-synced from the controller right after.
+     * Tapping the song that is already playing leaves the queue alone and just keeps it playing.
+     */
+    fun playSongNow(song: Song, catalogEntry: RhythmQueueEntry? = null) {
+        if (song.isCatalogLibrarySong() && catalogEntry == null) {
+            Log.w(TAG, "Catalog song cannot play now without its queue entry")
+            return
+        }
+        if (!canStartPlayback("playSongNow")) return
+        val controller = mediaController
+        val queueSongs = _currentQueue.value.songs
+        val currentControllerIndex = controller?.currentMediaItemIndex ?: C.INDEX_UNSET
+        if (
+            controller == null ||
+            controller.mediaItemCount <= 0 ||
+            queueSongs.isEmpty() ||
+            currentControllerIndex == C.INDEX_UNSET
+        ) {
+            if (catalogEntry != null) {
+                playUnifiedQueue(listOf(song), listOf(catalogEntry))
+            } else {
+                playQueue(listOf(song))
+            }
             return
         }
 
-        // Clear current lyrics to prevent showing stale lyrics from previous song
+        val mediaItem = catalogEntry?.playback?.toMediaItem() ?: song.toMediaItem()
+        if (catalogEntry != null && !CatalogPlaybackPolicy.allowsDeferred(
+                mediaId = mediaItem.mediaId,
+                uri = mediaItem.localConfiguration?.uri?.toString(),
+                mediaType = mediaItem.localConfiguration?.mimeType,
+            )
+        ) {
+            Log.w(TAG, "Rejected Catalog play-now because the item failed deferred policy")
+            return
+        }
+
+        if (controller.currentMediaItem?.mediaId == mediaItem.mediaId) {
+            Log.d(TAG, "playSongNow: tapped song is already playing, keeping the queue")
+            if (!controller.isPlaying) {
+                controller.prepare()
+                controller.play()
+                _isPlaying.value = true
+                startProgressUpdates()
+            }
+            return
+        }
+
         _currentLyrics.value = null
         currentFetchingSongId = null
 
-        updateRecentlyPlayed(song)
-        updateListeningStats(song)
+        val insertIndex = PlayNowQueuePolicy.insertIndex(currentControllerIndex, controller.mediaItemCount)
+        val queueCurrentIndex = if (controller.shuffleModeEnabled) {
+            _currentQueue.value.currentIndex
+        } else {
+            currentControllerIndex
+        }
+        val (updatedQueue, newQueueIndex) = PlayNowQueuePolicy.insertAfterCurrent(queueSongs, queueCurrentIndex, song)
 
-        val shouldClearQueue = clearQueueOnNewSong.value
-        val shouldAutoAddToQueue = autoAddToQueue.value
-        val shouldShowQueueDialog = appSettings.showQueueDialog.value
-        val currentQueueSongs = _currentQueue.value.songs.toMutableList()
-        val songIndexInQueue = currentQueueSongs.indexOfFirst { it.id == song.id }
+        if (catalogEntry != null) {
+            _catalogQueue.value = (_catalogQueue.value + catalogEntry)
+                .distinctBy { it.playback.toMediaItem().mediaId }
+        }
+        controller.addMediaItem(insertIndex, mediaItem)
+        _currentQueue.value = Queue(updatedQueue, newQueueIndex)
+        _currentSong.value = song
+        controller.seekToDefaultPosition(insertIndex)
+        controller.prepare()
+        if (!canStartPlayback("playSongNow.prepare")) return
+        controller.play()
+        _isPlaying.value = true
+        if (catalogEntry == null) {
+            updateRecentlyPlayed(song)
+            updateListeningStats(song)
+        }
+        startProgressUpdates()
+        saveQueueToPersistence()
+        Log.i(
+            TAG,
+            "playSongNow: inserted at index=$insertIndex after current=$currentControllerIndex, queue size=${updatedQueue.size}, catalog=${catalogEntry != null}"
+        )
 
-        mediaController?.let { controller ->
-            if (shouldClearQueue) {
-                // Clear queue setting enabled - start fresh
-                if (shouldAutoAddToQueue) {
-                    val contextualQueue = createContextualQueue(song)
-                    if (contextualQueue.size > 1) {
-                        Log.d(TAG, "Clearing queue and creating contextual queue with ${contextualQueue.size} songs (clearQueueOnNewSong=true, autoAddToQueue=true)")
-                        playQueue(contextualQueue)
-                        return
-                    }
-                }
-
-                Log.d(TAG, "Clearing queue and playing single song (clearQueueOnNewSong=true, autoAddToQueue=$shouldAutoAddToQueue)")
-                playQueue(listOf(song))
-                return
-            }
-            
-            // Check if queue is not empty and song is not in queue - ask user
-            if (currentQueueSongs.isNotEmpty() && songIndexInQueue == -1) {
-                if (shouldShowQueueDialog) {
-                    // Show dialog to ask user what to do
-                    Log.d(TAG, "Queue exists with ${currentQueueSongs.size} songs, requesting user action")
-                    _queueActionRequest.value = QueueActionRequest(song)
-                    return
-                } else {
-                    // Default behavior when dialog is disabled - add to queue
-                    Log.d(TAG, "Queue exists with ${currentQueueSongs.size} songs, adding to queue (dialog disabled)")
-                    handleQueueActionChoice(song, clearQueue = false)
-                    return
-                }
-            }
-            
-            if (songIndexInQueue != -1) {
-                // Song is already in the queue, just play it
-                val targetControllerIndex = resolveControllerIndexForQueueSelection(song, songIndexInQueue)
-                    ?: songIndexInQueue.coerceIn(0, (controller.mediaItemCount - 1).coerceAtLeast(0))
-
-                controller.seekToDefaultPosition(targetControllerIndex)
-                _currentQueue.value = _currentQueue.value.copy(currentIndex = songIndexInQueue)
-                Log.d(
-                    TAG,
-                    "Playing existing song in queue at queueIndex=$songIndexInQueue mappedControllerIndex=$targetControllerIndex"
-                )
-            } else {
-                // Song is not in the queue
-                if (shouldAutoAddToQueue) {
-                    // Create a contextual queue
-                    val contextualQueue = createContextualQueue(song)
-                    if (contextualQueue.size > 1) {
-                        // If we have a contextual queue, play that instead
-                        Log.d(TAG, "Creating contextual queue with ${contextualQueue.size} songs (autoAddToQueue=true)")
-                        playQueue(contextualQueue)
-                        return
-                    }
-                }
-                
-                // Fallback: add single song to current queue
-                val controllerCurrentIndex = controller.currentMediaItemIndex
-                val insertIndex = if (
-                    controller.mediaItemCount <= 0 ||
-                    controllerCurrentIndex == C.INDEX_UNSET
-                ) {
-                    0
-                } else {
-                    (controllerCurrentIndex + 1).coerceAtMost(controller.mediaItemCount)
-                }
-                currentQueueSongs.add(insertIndex, song)
-
-                val mediaItem = song.toMediaItem()
-                controller.addMediaItem(insertIndex, mediaItem)
-
-                if (controller.shuffleModeEnabled) {
-                    viewModelScope.launch {
-                        delay(50)
-                        syncQueueWithMediaController()
-                    }
-                } else {
-                    _currentQueue.value = Queue(currentQueueSongs, insertIndex)
-                }
-
-                controller.seekToDefaultPosition(insertIndex)
-                Log.d(
-                    TAG,
-                    "Added single song to queue at controllerInsertIndex=$insertIndex (autoAddToQueue=$shouldAutoAddToQueue, queue size: ${currentQueueSongs.size})"
-                )
-            }
-
-            controller.prepare()
-            if (!canStartPlayback("playSong.prepare")) return@let
-            controller.play()
-
-            _currentSong.value = song
-            _isPlaying.value = true
-            _isFavorite.value = _favoriteSongs.value.contains(song.id)
-            startProgressUpdates()
-            
-            // Verify queue state after operation
+        if (controller.shuffleModeEnabled) {
             viewModelScope.launch {
-                delay(200)
-                if (controller.mediaItemCount != _currentQueue.value.songs.size) {
-                    Log.w(TAG, "Queue count mismatch after playSong - MediaController: ${controller.mediaItemCount}, ViewModel: ${_currentQueue.value.songs.size}")
-                    syncQueueWithMediaController()
-                }
+                delay(50)
+                syncQueueWithMediaController()
             }
         }
     }

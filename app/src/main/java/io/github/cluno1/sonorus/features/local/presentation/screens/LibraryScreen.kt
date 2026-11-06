@@ -3035,12 +3035,8 @@ fun SingleCardSongsContent(
                                 if (isSelectionMode) {
                                     onSongSelectionToggle(song)
                                 } else {
-                                    val songIndex = preparedSongs.indexOf(song)
-                                    if (songIndex >= 0) {
-                                        onPlayQueueFromIndex(preparedSongs, songIndex)
-                                    } else {
-                                        onSongClick(song)
-                                    }
+                                    // issue 162: a song row plays just this song (inserted after the current one).
+                                    onSongClick(song)
                                 }
                             },
                             onMoreClick = onAddToPlaylist?.let { action ->
@@ -7063,12 +7059,8 @@ fun YearGroupedSongsContent(
                                 if (isSelectionMode) {
                                     onSongSelectionToggle(song)
                                 } else {
-                                    val songIndex = yearSongs.indexOf(song)
-                                    if (songIndex >= 0) {
-                                        onPlayQueueFromIndex(yearSongs, songIndex)
-                                    } else {
-                                        onSongClick(song)
-                                    }
+                                    // issue 162: a song row plays just this song (inserted after the current one).
+                                    onSongClick(song)
                                 }
                             },
                             onMoreClick = { onAddToPlaylist(song) },

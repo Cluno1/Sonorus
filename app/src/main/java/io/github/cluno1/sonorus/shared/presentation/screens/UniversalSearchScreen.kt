@@ -10,6 +10,8 @@ import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.Rhyt
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmDetailActionButton
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmButtonType
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 import io.github.cluno1.sonorus.shared.presentation.components.common.ExpressiveCookieEmptyState
@@ -157,6 +159,8 @@ fun UniversalSearchScreen(
     onLocalArtistClick: (Artist) -> Unit = {},
     onLocalPlaylistClick: (Playlist) -> Unit = {},
     onStreamingSongClick: (StreamingSong) -> Unit = {},
+    // issue 162: "view all songs" page play all / shuffle (local+Catalog songs, public songs, shuffle).
+    onPlayAllSongs: (List<Song>, List<StreamingSong>, Boolean) -> Unit = { _, _, _ -> },
     onStreamingAlbumClick: (StreamingAlbum) -> Unit = {},
     onStreamingArtistClick: (StreamingArtist) -> Unit = {},
     onStreamingPlaylistClick: (StreamingPlaylist) -> Unit = {},
@@ -1918,6 +1922,10 @@ fun UniversalSearchScreen(
                     handleAction("LOCAL") { onLocalSongClick(song, matchedLocalSongs) }
                 },
                 onStreamingSongClick = { song -> handleAction("STREAMING") { onStreamingSongClick(song) } },
+                onPlayAll = { shuffle ->
+                    val mode = if (matchedLocalSongs.isNotEmpty()) "LOCAL" else "STREAMING"
+                    handleAction(mode) { onPlayAllSongs(matchedLocalSongs, matchedStreamingSongs, shuffle) }
+                },
                 haptics = haptics
             )
         }
@@ -2519,6 +2527,7 @@ fun UniversalAllSongsPage(
     onOptionsClick: (Any) -> Unit,
     onLocalSongClick: (Song) -> Unit,
     onStreamingSongClick: (StreamingSong) -> Unit,
+    onPlayAll: (shuffle: Boolean) -> Unit,
     haptics: androidx.compose.ui.hapticfeedback.HapticFeedback
 ) {
     val context = LocalContext.current
@@ -2550,6 +2559,41 @@ fun UniversalAllSongsPage(
         ) {
             item(key = "header_spacer") {
                 Spacer(modifier = Modifier.height(16.dp))
+            }
+            if (allSongs.isNotEmpty()) {
+                // issue 162: explicit collection actions; only these replace the play queue.
+                item(key = "play_all_actions") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        RhythmDetailActionButton(
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                                onPlayAll(false)
+                            },
+                            isFirst = true,
+                            isLast = false,
+                            icon = RhythmIcons.Play,
+                            text = stringResource(R.string.action_play_all),
+                            fontWeight = FontWeight.Bold
+                        )
+                        RhythmDetailActionButton(
+                            onClick = {
+                                HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
+                                onPlayAll(true)
+                            },
+                            type = RhythmButtonType.Tonal,
+                            isFirst = false,
+                            isLast = true,
+                            icon = RhythmIcons.Shuffle,
+                            text = stringResource(R.string.action_shuffle),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
             itemsIndexed(
                 items = allSongs,
