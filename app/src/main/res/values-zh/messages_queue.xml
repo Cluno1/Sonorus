@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: batch add-to-queue messages. -->
+<resources>
+    <string name="queue_batch_added">已添加 %1$d 首到队列</string>
+    <string name="queue_batch_added_partial">已添加 %1$d 首到队列，%2$d 首无法加入</string>
+    <string name="queue_batch_play_next">%1$d 首将在接下来播放</string>
+    <string name="queue_batch_none">这些歌曲都无法加入队列</string>
+    <string name="queue_add_failed">无法加入队列</string>
+    <string name="public_music_not_connected_message">请先连接公共音乐聚合服务</string>
+</resources>

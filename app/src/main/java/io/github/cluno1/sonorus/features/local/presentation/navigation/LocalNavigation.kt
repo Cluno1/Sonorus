@@ -5,6 +5,10 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.navigation
 
+import io.github.cluno1.sonorus.features.local.presentation.viewmodel.queueWholeCollection
+import io.github.cluno1.sonorus.features.local.presentation.viewmodel.QueueAppendItem
+import androidx.compose.runtime.DisposableEffect
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.features.streaming.domain.DiscoverPlaylistIds
 import io.github.cluno1.sonorus.features.local.data.device.canSearchLyricsManually
 import io.github.cluno1.sonorus.features.local.data.device.isPublicMusicSong
@@ -777,9 +781,16 @@ fun LocalNavigation(
         label = "local_tablet_content_start_padding"
     )
 
-    val snackbarHostState = remember { SnackbarHostState() }
+    // issue 169: the app-wide host state; RhythmMessageHost at the Activity root renders it on every screen.
+    val snackbarHostState = RhythmMessages.hostState
     val coroutineScope = rememberCoroutineScope()
     val miniPlayerPaddingValues = PaddingValues(bottom = miniPlayerBottomPadding.coerceAtLeast(0.dp))
+    LaunchedEffect(miniPlayerBottomPadding) {
+        RhythmMessages.setBottomInset("main", miniPlayerBottomPadding.coerceAtLeast(0.dp))
+    }
+    DisposableEffect(Unit) {
+        onDispose { RhythmMessages.clearBottomInset("main") }
+    }
 
     CompositionLocalProvider(LocalMiniPlayerPadding provides miniPlayerPaddingValues) {
         if (isTablet) {
@@ -1413,6 +1424,17 @@ private fun LocalNavigationContent(
                 snackbarHostState.showSnackbar(context.getString(R.string.work_lyrics_score_unavailable))
             }
         }
+    }
+    // issue 169: a whole collection in one batch, page order, one message. Catalog songs need their queue
+    // entry; one whose identity expired is skipped and counted in the message instead of failing silently.
+    val queueNativeSongs: (List<Song>, Boolean) -> Unit = { songs, playNext ->
+        queueWholeCollection(songs, toItem = { song ->
+            if (song.isCatalogLibrarySong()) {
+                catalogQueueEntryForSong(song)?.let { QueueAppendItem<Song, RhythmQueueEntry>(song, it) }
+            } else {
+                QueueAppendItem<Song, RhythmQueueEntry>(song, null)
+            }
+        }) { items, skipped -> viewModel.appendToQueue(items, skipped, playNext) }
     }
     val queueNativeSong: (Song, Boolean) -> Unit = { song, playNext ->
         if (song.isCatalogLibrarySong()) {
@@ -2936,8 +2958,10 @@ private fun LocalNavigationContent(
                             },
                             // issue 168: append every result, in page order, like album detail "add to queue".
                             onAddAllSongsToQueue = { localResults, streamingResults ->
-                                universalSearchQueueSongs(localResults, streamingResults) { it.toLocalSong() }
-                                    .forEach { song -> queueNativeSong(song, false) }
+                                queueNativeSongs(
+                                    universalSearchQueueSongs(localResults, streamingResults) { it.toLocalSong() },
+                                    false,
+                                )
                             },
                             onStreamingAlbumClick = { streamingAlbum ->
                                 navController.navigate(StreamingRoutes.album(streamingAlbum.id, streamingAlbum.title)) {
@@ -3382,6 +3406,9 @@ private fun LocalNavigationContent(
                                 streamingMusicViewModel.addSongToQueue(streamingSong, viewModel)
                             }
                         },
+                        onAddToQueueAll = { localSongs ->
+                            streamingMusicViewModel.addSongsToQueue(localSongs.mapNotNull { albumSongsById[it.id] }, viewModel)
+                        },
                         onAddSongToPlaylist = { localSong ->
                             albumSongsById[localSong.id]?.let { onStreamingAddSongToPlaylist(it) }
                         },
@@ -3611,6 +3638,9 @@ private fun LocalNavigationContent(
                             artistSongsById[localSong.id]?.let { streamingSong ->
                                 streamingMusicViewModel.addSongToQueue(streamingSong, viewModel)
                             }
+                        },
+                        onAddToQueueAll = { localSongs ->
+                            streamingMusicViewModel.addSongsToQueue(localSongs.mapNotNull { artistSongsById[it.id] }, viewModel)
                         },
                         onAddSongToPlaylist = { localSong ->
                             artistSongsById[localSong.id]?.let { onStreamingAddSongToPlaylist(it) }
@@ -4139,6 +4169,17 @@ private fun LocalNavigationContent(
                             queueNativeSong(song, false)
                         },
                         onPlayNext = { song -> queueNativeSong(song, true) },
+                        onAddSongsToQueue = { songs, playNext ->
+                            if (isStreamingMode) {
+                                streamingMusicViewModel.addSongsToQueue(
+                                    songs.mapNotNull { song -> streamingSongById[song.id] },
+                                    viewModel,
+                                    playNext,
+                                )
+                            } else {
+                                queueNativeSongs(songs, playNext)
+                            }
+                        },
                         initialTab = initialTab,
                         musicViewModel = viewModel, // Pass musicViewModel
                         onExportAllPlaylists = if (isStreamingMode) null else { format, includeDefault, userDirectoryUri, resultCallback ->
@@ -4557,9 +4598,7 @@ private fun LocalNavigationContent(
                         onAddToQueue = { song ->
                             viewModel.addSongToQueue(song)
                         },
-                        onAddToQueueAll = { songs ->
-                            viewModel.addSongsToQueue(songs)
-                        },
+                        onAddToQueueAll = { songs -> queueNativeSongs(songs, false) },
                         onAddSongToPlaylist = { song ->
                             selectedSongForPlaylist = song
                             showAddToPlaylistSheet = true
@@ -4798,6 +4837,7 @@ private fun LocalNavigationContent(
                             }
                         },
                         onAddToQueue = { song -> queueNativeSong(song, false) },
+                        onAddToQueueAll = { songs -> queueNativeSongs(songs, false) },
                         onAddSongToPlaylist = { song ->
                             selectedSongForPlaylist = song
                             showAddToPlaylistSheet = true

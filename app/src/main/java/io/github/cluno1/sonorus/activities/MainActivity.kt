@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.activities
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessageHost
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -615,6 +616,8 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     }
+                    // issue 169: one themed message host for every screen, including the full player.
+                    RhythmMessageHost()
                 }
             }
         }

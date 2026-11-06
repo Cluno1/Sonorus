@@ -354,6 +354,8 @@ fun LibraryScreen(
     onSkipNext: () -> Unit = {},
     onAddToQueue: (Song) -> Unit,
     onPlayNext: (Song) -> Unit = {},
+    // issue 169: multi-select and folder actions queue the selection in one batch (playNext = true inserts next).
+    onAddSongsToQueue: ((List<Song>, Boolean) -> Unit)? = null,
     initialTab: LibraryTab = LibraryTab.SONGS,
     musicViewModel: MusicViewModel,
     onExportAllPlaylists: ((PlaylistImportExportUtils.PlaylistExportFormat, Boolean, Uri?, (Result<String>) -> Unit) -> Unit)? = null,
@@ -1092,12 +1094,14 @@ fun LibraryScreen(
                 multiSelectionState.clearSelection()
             },
             onAddToQueue = ({
-                selectedSongs.forEach { song -> onAddToQueue(song) }
+                onAddSongsToQueue?.invoke(selectedSongs.toList(), false)
+                    ?: selectedSongs.forEach { song -> onAddToQueue(song) }
                 multiSelectionState.clearSelection()
             }),
             onPlayNext = if (isStreamingMode) null else {
                 {
-                    selectedSongs.reversed().forEach(onPlayNext)
+                    onAddSongsToQueue?.invoke(selectedSongs.toList(), true)
+                        ?: selectedSongs.reversed().forEach(onPlayNext)
                     multiSelectionState.clearSelection()
                 }
             },
@@ -2371,6 +2375,7 @@ fun LibraryScreen(
                                             showAddToPlaylistSheet = true
                                         },
                                         onAddToQueue = onAddToQueue,
+                                        onAddSongsToQueue = onAddSongsToQueue?.let { batch -> { songs -> batch(songs, false) } },
                                         onShowSongInfo = { song ->
                                             selectedSong = song
                                             showSongInfoSheet = true

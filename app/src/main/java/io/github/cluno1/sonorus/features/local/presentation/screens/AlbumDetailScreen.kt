@@ -190,6 +190,8 @@ fun AlbumDetailScreen(
     onAddToQueue: (Song) -> Unit,
     onAddSongToPlaylist: (Song) -> Unit,
     onPlayerClick: () -> Unit,
+    // issue 169: "add to queue" on the whole album, one batch and one message.
+    onAddToQueueAll: ((List<Song>) -> Unit)? = null,
     onPlayNext: (Song) -> Unit = {},
     onToggleFavorite: (Song) -> Unit = {},
     favoriteSongs: Set<String> = emptySet(),
@@ -1058,7 +1060,7 @@ fun AlbumDetailScreen(
                                                 onClick = {
                                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                                                     addToQueuePressed = true
-                                                    displaySongs.forEach { onAddToQueue(it) }
+                                                    onAddToQueueAll?.invoke(displaySongs) ?: displaySongs.forEach { onAddToQueue(it) }
                                                 },
                                                 modifier = Modifier
                                                     .fillMaxWidth()

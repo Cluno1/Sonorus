@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: batch add-to-queue messages. -->
+<resources>
+    <string name="queue_batch_added">Added %1$d songs to queue</string>
+    <string name="queue_batch_added_partial">Added %1$d songs to queue; %2$d could not be added</string>
+    <string name="queue_batch_play_next">%1$d songs will play next</string>
+    <string name="queue_batch_none">None of these songs can be added to the queue</string>
+    <string name="queue_add_failed">Couldn\'t add to queue</string>
+    <string name="public_music_not_connected_message">Connect to the public music service first</string>
+</resources>

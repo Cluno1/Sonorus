@@ -5,6 +5,10 @@
 
 package io.github.cluno1.sonorus.features.streaming.presentation.viewmodel
 
+import io.github.cluno1.sonorus.features.catalog.domain.RhythmQueueEntry
+import io.github.cluno1.sonorus.features.local.presentation.viewmodel.queueWholeCollection
+import io.github.cluno1.sonorus.features.local.presentation.viewmodel.QueueAppendItem
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -1901,6 +1905,42 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     /**
      * Add the streaming song to the end of the active local playback queue.
      */
+    /**
+     * issue 169: a whole public album / artist / playlist in one batch: authenticate once, keep page order,
+     * one message (MusicViewModel.appendToQueue). Never loop over [addSongToQueue] for a collection.
+     */
+    fun addSongsToQueue(songs: List<StreamingSong>, localViewModel: MusicViewModel, playNext: Boolean = false) {
+        if (songs.isEmpty()) return
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            try {
+                if (!checkAndSyncAuthentication()) {
+                    android.util.Log.w("StreamingMusicViewModel", "addSongsToQueue: not connected, ${songs.size} songs not queued")
+                    RhythmMessages.error(context, R.string.public_music_not_connected_message)
+                    return@launch
+                }
+                val resolved = songs.map { song ->
+                    if (ProductCapabilities.lanSubsonicOnly) {
+                        song.takeIf { LanSubsonicPlaybackPolicy.trackIdFromMediaId(it.id) != null }
+                            ?.copy(streamingUrl = null, previewUrl = null)
+                    } else {
+                        val url = repository.getStreamingUrl(song.id) ?: song.streamingUrl ?: song.previewUrl
+                        if (url.isNullOrBlank()) null else song.copy(streamingUrl = url)
+                    }
+                }
+                _queue.value = _queue.value + resolved.filterNotNull()
+                queueWholeCollection(resolved, toItem = { song ->
+                    song?.let { QueueAppendItem<io.github.cluno1.sonorus.shared.data.model.Song, RhythmQueueEntry>(it.toLocalSong(), null) }
+                }) { items, skipped ->
+                    localViewModel.appendToQueue(items, skipped, playNext)
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("StreamingMusicViewModel", "addSongsToQueue failed for ${songs.size} songs", e)
+                RhythmMessages.error(context, R.string.queue_add_failed)
+            }
+        }
+    }
+
     fun addSongToQueue(song: StreamingSong, localViewModel: MusicViewModel) {
         viewModelScope.launch {
             try {

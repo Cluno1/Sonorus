@@ -5,6 +5,11 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens.player
 
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.WindowInsets
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1185,15 +1190,12 @@ fun PlayerScreen(
         )
     }
 
-    snackbarHostState?.let { hostState ->
-        SnackbarHost(
-            hostState = hostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 72.dp)
-                .zIndex(20f),
-        )
+    // issue 169: messages are drawn by RhythmMessageHost at the Activity root; the player only lifts them
+    // above its controls while it is open.
+    val playerMessageInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 72.dp
+    DisposableEffect(playerMessageInset) {
+        RhythmMessages.setBottomInset("player", playerMessageInset)
+        onDispose { RhythmMessages.clearBottomInset("player") }
     }
 }
 }

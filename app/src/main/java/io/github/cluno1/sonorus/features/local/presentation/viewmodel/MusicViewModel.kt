@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.viewmodel
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.features.local.data.model.FavoriteChange
 import android.app.Activity
 import android.app.Application
@@ -10158,6 +10159,106 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Add multiple songs to the queue
      */
+    /**
+     * issue 169: append a whole collection (album, artist, folder, search page, multi-select) in ONE batch,
+     * in page order, with exactly one message. Device and Catalog songs can be mixed: a Catalog song carries
+     * its [RhythmQueueEntry], a device or public song does not. [playNext] inserts the batch right after the
+     * playing song instead of at the end. See QueueAppend.kt for the invariants.
+     */
+    fun appendToQueue(items: List<QueueAppendItem<Song, RhythmQueueEntry>>, skipped: Int, playNext: Boolean = false) {
+        val context = getApplication<Application>()
+        val controller = mediaController
+        if (controller == null) {
+            Log.w(TAG, "appendToQueue: media controller is null; ${items.size} songs not queued")
+            RhythmMessages.error(context, R.string.queue_add_failed)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val accepted = mutableListOf<QueueAppendItem<Song, RhythmQueueEntry>>()
+                val mediaItems = withContext(Dispatchers.Default) {
+                    items.mapNotNull { item ->
+                        val entry = item.entry
+                        if (entry == null) {
+                            if (item.song.isCatalogLibrarySong()) return@mapNotNull null
+                            accepted += item
+                            item.song.toMediaItem()
+                        } else {
+                            val mediaItem = entry.playback.toMediaItem()
+                            val allowed = CatalogPlaybackPolicy.allowsDeferred(
+                                mediaId = mediaItem.mediaId,
+                                uri = mediaItem.localConfiguration?.uri?.toString(),
+                                mediaType = mediaItem.localConfiguration?.mimeType,
+                            )
+                            if (!allowed) return@mapNotNull null
+                            accepted += item
+                            mediaItem
+                        }
+                    }
+                }
+                val totalSkipped = skipped + (items.size - accepted.size)
+                when (queueAppendOutcome(accepted.size, totalSkipped)) {
+                    QueueAppendOutcome.NONE -> {
+                        Log.w(TAG, "appendToQueue: nothing queueable, skipped=$totalSkipped")
+                        RhythmMessages.error(context, R.string.queue_batch_none)
+                        return@launch
+                    }
+                    else -> Unit
+                }
+
+                val queueSongs = _currentQueue.value.songs.toMutableList()
+                val insertIndex = if (playNext && controller.currentMediaItemIndex >= 0) {
+                    controller.currentMediaItemIndex + 1
+                } else {
+                    controller.mediaItemCount
+                }.coerceIn(0, controller.mediaItemCount)
+                mediaItems.chunked(50).forEachIndexed { batchIndex, batch ->
+                    controller.addMediaItems(insertIndex + batchIndex * 50, batch)
+                }
+                val stateIndex = insertIndex.coerceIn(0, queueSongs.size)
+                queueSongs.addAll(stateIndex, accepted.map { it.song })
+
+                val newEntries = accepted.mapNotNull { it.entry }
+                if (newEntries.isNotEmpty()) {
+                    _catalogQueue.value = (_catalogQueue.value + newEntries)
+                        .distinctBy { it.playback.toMediaItem().mediaId }
+                }
+
+                if (controller.playbackState == Player.STATE_IDLE || controller.playbackState == Player.STATE_ENDED) {
+                    controller.prepare()
+                    if (canStartPlayback("appendToQueue")) controller.play()
+                }
+
+                if (controller.shuffleModeEnabled) {
+                    delay(100)
+                    syncQueueWithMediaController()
+                } else {
+                    val currentIndex = if (controller.currentMediaItemIndex >= 0) {
+                        controller.currentMediaItemIndex
+                    } else {
+                        _currentQueue.value.currentIndex.coerceAtLeast(0)
+                    }.coerceIn(0, (queueSongs.size - 1).coerceAtLeast(0))
+                    _currentQueue.value = Queue(queueSongs, currentIndex)
+                }
+                saveQueueToPersistence()
+                Log.i(TAG, "appendToQueue: added=${accepted.size} skipped=$totalSkipped playNext=$playNext")
+
+                val message = when (queueAppendOutcome(accepted.size, totalSkipped)) {
+                    QueueAppendOutcome.PARTIAL -> context.getString(R.string.queue_batch_added_partial, accepted.size, totalSkipped)
+                    else -> if (playNext) {
+                        context.getString(R.string.queue_batch_play_next, accepted.size)
+                    } else {
+                        context.getString(R.string.queue_batch_added, accepted.size)
+                    }
+                }
+                RhythmMessages.success(context, message)
+            } catch (e: Exception) {
+                Log.w(TAG, "appendToQueue failed for ${items.size} songs", e)
+                RhythmMessages.error(context, R.string.queue_add_failed)
+            }
+        }
+    }
+
     fun addSongsToQueue(songs: List<Song>) {
         viewModelScope.launch {
             Log.d(TAG, "Adding ${songs.size} songs to queue")

@@ -155,6 +155,8 @@ fun SingleCardExplorerContent(
     onSongClick: (Song) -> Unit,
     onAddToPlaylist: (Song) -> Unit,
     onAddToQueue: (Song) -> Unit,
+    // issue 169: a folder's songs go into the queue in one batch.
+    onAddSongsToQueue: ((List<Song>) -> Unit)? = null,
     onShowSongInfo: (Song) -> Unit,
     onPlayQueue: (List<Song>) -> Unit,
     onPlayQueueFromIndex: (List<Song>, Int) -> Unit,
@@ -804,7 +806,8 @@ fun SingleCardExplorerContent(
                                     }
                                 }
                                 if (folderSongs.isNotEmpty()) {
-                                    folderSongs.forEach { song -> onAddToQueue(song) }
+                                    onAddSongsToQueue?.invoke(folderSongs)
+                                        ?: folderSongs.forEach { song -> onAddToQueue(song) }
                                 }
                             },
                             currentSong = currentSong,
@@ -899,7 +902,8 @@ fun SingleCardExplorerContent(
                                     }
                                 }
                                 if (folderSongs.isNotEmpty()) {
-                                    folderSongs.forEach { song -> onAddToQueue(song) }
+                                    onAddSongsToQueue?.invoke(folderSongs)
+                                        ?: folderSongs.forEach { song -> onAddToQueue(song) }
                                 }
                             }
                         } else null,
