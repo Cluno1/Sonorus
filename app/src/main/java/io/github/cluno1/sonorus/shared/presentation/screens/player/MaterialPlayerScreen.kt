@@ -182,6 +182,9 @@ import io.github.cluno1.sonorus.util.HapticUtils
 import io.github.cluno1.sonorus.util.HapticType
 import io.github.cluno1.sonorus.util.LyricsFileUtils
 import io.github.cluno1.sonorus.util.LrcUtils
+import io.github.cluno1.sonorus.util.LyricsTranslationMode
+import io.github.cluno1.sonorus.util.lyricsHaveTranslation
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricsLanguageSideButton
 import io.github.cluno1.sonorus.util.SemanticLyrics
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -364,6 +367,14 @@ fun MaterialPlayerScreen(
             song?.id?.startsWith(LanSubsonicPlaybackPolicy.MEDIA_ID_PREFIX) == true)
     val showLyricsTranslation by appSettingsInstance.showLyricsTranslation.collectAsState()
     val showLyricsRomanization by appSettingsInstance.showLyricsRomanization.collectAsState()
+    // issue 163: 原 / 译 / 原译 and the Catalog lyrics language, shared with full-screen lyrics.
+    val lyricsTranslationOnly by appSettingsInstance.lyricsTranslationOnly.collectAsState()
+    val lyricsTranslationMode = LyricsTranslationMode.fromSettings(showLyricsTranslation, lyricsTranslationOnly)
+    val hasLineTranslation by produceState(initialValue = false, lyrics) {
+        value = withContext(Dispatchers.Default) { lyricsHaveTranslation(lyrics) }
+    }
+    val catalogLyricsLanguages by musicViewModel.catalogLyricsLanguages.collectAsState()
+    val selectedCatalogLyricsLanguage by musicViewModel.catalogLyricsLanguage.collectAsState()
     val keepScreenOnLyrics by appSettingsInstance.keepScreenOnLyrics.collectAsState()
     val forcePlayerCompactMode by appSettingsInstance.forcePlayerCompactMode.collectAsState()
     
@@ -2301,6 +2312,7 @@ fun MaterialPlayerScreen(
                                                             textSizeMultiplier = playerLyricsTextSize,
                                                             textAlignment = lyricsTextAlign,
                                                             showTranslation = showLyricsTranslation,
+                                                            translationOnly = lyricsTranslationOnly,
                                                             showRomanization = showLyricsRomanization
                                                         )
                                                     } else {
@@ -2364,6 +2376,7 @@ fun MaterialPlayerScreen(
                                                                 onSeek = onLyricsSeek,
                                                                 onTapLyricsView = onTapLyricsView,
                                                                 showTranslation = showLyricsTranslation,
+                                                                translationOnly = lyricsTranslationOnly,
                                                                 showRomanization = showLyricsRomanization,
                                                                 lyricsSource = lyrics.source,
                                                                 contributions = lyrics.contributions,
@@ -2415,6 +2428,24 @@ fun MaterialPlayerScreen(
                                                 }
                                             }
                                         }
+                                        // issue 163/165: same 原 / 译 / 原译 or Catalog language entry as the Expressive player.
+                                        LyricsLanguageSideButton(
+                                            catalogLanguages = catalogLyricsLanguages,
+                                            selectedCatalogLanguage = selectedCatalogLyricsLanguage,
+                                            onCatalogLanguageSelect = { language ->
+                                                HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                                                musicViewModel.selectCatalogLyricsLanguage(language)
+                                            },
+                                            hasTranslation = hasLineTranslation,
+                                            translationMode = lyricsTranslationMode,
+                                            onTranslationModeSelect = { mode ->
+                                                HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
+                                                appSettingsInstance.setLyricsTranslationMode(mode)
+                                            },
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(8.dp),
+                                        )
                                     }
                                 }
                             }
