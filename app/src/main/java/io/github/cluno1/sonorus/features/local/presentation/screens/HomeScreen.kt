@@ -12,6 +12,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.features.streaming.domain.DiscoverCarousel
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
@@ -32,7 +33,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.Material3Settings
 import io.github.cluno1.sonorus.shared.presentation.components.Material3SettingsItem
 import io.github.cluno1.sonorus.util.ArtistSeparator
 
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.CoroutineScope
@@ -363,21 +363,21 @@ fun HomeScreen(
             if (musicViewModel.pendingBatchWriteRequest.value != null) {
                 musicViewModel.completeBatchMetadataWriteAfterPermission(
                     onSuccess = {
-                        Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                     }
                 )
             } else {
                 musicViewModel.completeMetadataWriteAfterPermission(
                     onSuccess = {
-                        Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                         pendingMetadataEditCompleteCallback?.invoke(true)
                         pendingMetadataEditCompleteCallback = null
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                         pendingMetadataEditCompleteCallback?.invoke(false)
                         pendingMetadataEditCompleteCallback = null
                     }
@@ -391,7 +391,7 @@ fun HomeScreen(
                 pendingMetadataEditCompleteCallback?.invoke(false)
                 pendingMetadataEditCompleteCallback = null
             }
-            Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
+            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
         }
     }
 
@@ -465,13 +465,13 @@ fun HomeScreen(
                     discNumber = discNumber,
                     onSuccess = { fileWriteSucceeded ->
                         if (fileWriteSucceeded) {
-                            Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                         }
                         pendingMetadataEditCompleteCallback?.invoke(true)
                         pendingMetadataEditCompleteCallback = null
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                         pendingMetadataEditCompleteCallback?.invoke(false)
                         pendingMetadataEditCompleteCallback = null
                     },
@@ -482,11 +482,7 @@ fun HomeScreen(
                             ).build()
                             writePermissionLauncher.launch(intentSenderRequest)
                         } catch (e: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Failed to request permission: ${e.message}",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                             musicViewModel.cancelPendingMetadataWrite()
                             pendingMetadataEditCompleteCallback?.invoke(false)
                             pendingMetadataEditCompleteCallback = null
@@ -543,7 +539,7 @@ fun HomeScreen(
             onConfirmWithSong = { name ->
                 selectedSongForPlaylist?.let { song ->
                     musicViewModel.createPlaylist(name, listOf(song)) { message ->
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.info(context, message)
                     }
                 } ?: run {
                     musicViewModel.createPlaylist(name)

@@ -76,7 +76,7 @@ fun RhythmSongMenuContent(
                 }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${s.title}"))
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, android.widget.Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
             }
         }
     }

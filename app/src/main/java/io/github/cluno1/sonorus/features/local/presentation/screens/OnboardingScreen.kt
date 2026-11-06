@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
@@ -124,7 +125,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.ActivityNotFoundException
-import android.widget.Toast
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -2968,7 +2968,7 @@ fun EnhancedBackupRestoreContent(
     LaunchedEffect(restoreResult) {
         when (val result = restoreResult) {
             is MusicViewModel.RestoreResult.Queued -> {
-                Toast.makeText(context, context.getString(R.string.onboarding_restore_queued_scan), Toast.LENGTH_LONG).show()
+                RhythmMessages.info(context, context.getString(R.string.onboarding_restore_queued_scan), long = true)
                 musicViewModel.clearRestoreResult()
             }
             is MusicViewModel.RestoreResult.Success -> {
@@ -3008,7 +3008,7 @@ fun EnhancedBackupRestoreContent(
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 if (isLibraryRefreshing) {
-                    Toast.makeText(context, context.getString(R.string.onboarding_cannot_backup_scanning), Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, context.getString(R.string.onboarding_cannot_backup_scanning), long = true)
                     isCreatingBackup = false
                     return@let
                 }
@@ -7104,7 +7104,7 @@ fun EnhancedMediaScanContent(
                             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
                             folderPickerLauncher.launch(intent)
                         } catch (e: ActivityNotFoundException) {
-                            Toast.makeText(context, context.getString(R.string.error_no_document_app), Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, context.getString(R.string.error_no_document_app), long = true)
                         }
                     },
                     onRemoveFolder = { folder ->
@@ -7168,7 +7168,7 @@ fun EnhancedMediaScanContent(
                         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
                         folderPickerLauncher.launch(intent)
                     } catch (e: ActivityNotFoundException) {
-                        Toast.makeText(context, context.getString(R.string.error_no_document_app), Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, context.getString(R.string.error_no_document_app), long = true)
                     }
                 },
                 onRemoveFolder = { folder ->

@@ -9,6 +9,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -24,7 +25,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -241,7 +241,7 @@ fun BackupRestoreSettingsScreen(onBackClick: () -> Unit) {
         when (val result = restoreResult) {
             is MusicViewModel.RestoreResult.Queued -> {
                 isPreparingRestore = false
-                Toast.makeText(context, context.getString(R.string.backup_restore_queued_message), Toast.LENGTH_LONG).show()
+                RhythmMessages.info(context, context.getString(R.string.backup_restore_queued_message), long = true)
                 musicViewModel.clearRestoreResult()
             }
             is MusicViewModel.RestoreResult.Success -> {
@@ -274,7 +274,7 @@ fun BackupRestoreSettingsScreen(onBackClick: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 if (isLibraryRefreshing) {
-                    Toast.makeText(context, context.getString(R.string.backup_restore_blocked_message), Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, context.getString(R.string.backup_restore_blocked_message), long = true)
                     isCreatingBackup = false
                     return@let
                 }
@@ -616,7 +616,7 @@ fun BackupRestoreSettingsScreen(onBackClick: () -> Unit) {
                             context.getString(R.string.settings_create_backup_desc),
                             onClick = {
                                 if (isLibraryRefreshing) {
-                                    Toast.makeText(context, context.getString(R.string.backup_restore_blocked_message), Toast.LENGTH_LONG).show()
+                                    RhythmMessages.error(context, context.getString(R.string.backup_restore_blocked_message), long = true)
                                 } else if (!isBusy) {
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                                     backupSections = AppSettings.BackupRestoreSections()

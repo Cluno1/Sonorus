@@ -9,6 +9,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -24,7 +25,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -349,7 +349,7 @@ fun LibraryTabOrderSettingsScreen(onBackClick: () -> Unit) {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                             appSettings.resetLibraryTabOrder()
                             reorderableList = listOf("SONGS", "LIKED", "PLAYLISTS", "ALBUMS", "ARTISTS", "EXPLORER")
-                            Toast.makeText(context, context.getString(R.string.settings_tab_order_reset), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.settings_tab_order_reset))
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
@@ -368,7 +368,7 @@ fun LibraryTabOrderSettingsScreen(onBackClick: () -> Unit) {
                         onClick = {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                             appSettings.setLibraryTabOrder(reorderableList)
-                            Toast.makeText(context, context.getString(R.string.settings_tab_order_saved), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.settings_tab_order_saved))
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)

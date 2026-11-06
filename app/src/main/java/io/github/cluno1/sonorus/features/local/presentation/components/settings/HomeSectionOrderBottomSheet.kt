@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.components.settings
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.StandardBottomSheetHeader
@@ -14,7 +15,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -351,7 +351,7 @@ fun HomeSectionOrderBottomSheet(
                                 onClick = {
                                     // Prevent hiding the last visible section
                                     if (isVisible && visibleSectionsCount <= 1) {
-                                        Toast.makeText(context, R.string.home_section_one_visible, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.error(context, R.string.home_section_one_visible)
                                         return@IconButton
                                     }
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
@@ -416,7 +416,7 @@ fun HomeSectionOrderBottomSheet(
                             "RECOMMENDED" to true,
                             "STATS" to true
                         )
-                        Toast.makeText(context, R.string.homesectionorderbottomsheet_section_order_and_visibility, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.homesectionorderbottomsheet_section_order_and_visibility)
                     },
                     weight = 1f,
                     isFirst = true,
@@ -446,7 +446,7 @@ fun HomeSectionOrderBottomSheet(
                         val rhythmGuardVisible = visibilityMap["RHYTHM_GUARD"] ?: true
                         appSettings.setHomeShowRhythmGuard(rhythmGuardVisible)
 
-                        Toast.makeText(context, R.string.homesectionorderbottomsheet_home_section_order_and, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.homesectionorderbottomsheet_home_section_order_and)
                         scope.launch {
                             sheetState.hide()
                         }.invokeOnCompletion {

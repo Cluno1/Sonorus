@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.features.catalog.domain.toStableCatalogSongId
 import io.github.cluno1.sonorus.features.local.data.model.LikedSongsProjection
@@ -25,7 +26,6 @@ import kotlin.math.abs
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.widget.Toast
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
@@ -476,21 +476,21 @@ fun LibraryScreen(
             if (musicViewModel.pendingBatchWriteRequest.value != null) {
                 musicViewModel.completeBatchMetadataWriteAfterPermission(
                     onSuccess = {
-                        Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                     }
                 )
             } else {
                 musicViewModel.completeMetadataWriteAfterPermission(
                     onSuccess = {
-                        Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                         pendingMetadataEditCompleteCallback?.invoke(true)
                         pendingMetadataEditCompleteCallback = null
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                         pendingMetadataEditCompleteCallback?.invoke(false)
                         pendingMetadataEditCompleteCallback = null
                     }
@@ -504,7 +504,7 @@ fun LibraryScreen(
                 pendingMetadataEditCompleteCallback?.invoke(false)
                 pendingMetadataEditCompleteCallback = null
             }
-            Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
+            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
         }
     }
     
@@ -753,13 +753,13 @@ fun LibraryScreen(
                     discNumber = discNumber,
                     onSuccess = { fileWriteSucceeded ->
                         if (fileWriteSucceeded) {
-                            Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                         }
                         pendingMetadataEditCompleteCallback?.invoke(true)
                         pendingMetadataEditCompleteCallback = null
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                         pendingMetadataEditCompleteCallback?.invoke(false)
                         pendingMetadataEditCompleteCallback = null
                     },
@@ -770,11 +770,7 @@ fun LibraryScreen(
                             ).build()
                             writePermissionLauncher.launch(intentSenderRequest)
                         } catch (e: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Failed to request permission: ${e.message}",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                             musicViewModel.cancelPendingMetadataWrite()
                             pendingMetadataEditCompleteCallback?.invoke(false)
                             pendingMetadataEditCompleteCallback = null
@@ -798,11 +794,7 @@ fun LibraryScreen(
                     onAddSongToPlaylist(songsToAddToPlaylist.first(), playlist.id)
                 } else {
                     val (successCount, playlistName) = musicViewModel.addSongsToPlaylist(songsToAddToPlaylist, playlist.id)
-                    Toast.makeText(
-                        context,
-                        "Added $successCount songs to $playlistName",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    RhythmMessages.success(context, R.string.msg_songs_added_to_playlist, successCount, playlistName)
                 }
                 scope.launch {
                     addToPlaylistSheetState.hide()
@@ -864,11 +856,7 @@ fun LibraryScreen(
         folderPickerInFlight = false
         val uri = result.data?.data
         if (result.resultCode != Activity.RESULT_OK || uri == null) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.device_library_folder_picker_cancelled),
-                Toast.LENGTH_LONG,
-            ).show()
+            RhythmMessages.error(context, context.getString(R.string.device_library_folder_picker_cancelled), long = true)
             return@rememberLauncherForActivityResult
         }
 
@@ -881,11 +869,7 @@ fun LibraryScreen(
             if (validRoots.none { it.treeUri == root.treeUri }) {
                 scanFolderAccess.removeByDisplayPath(root.displayPath)
                 validAuthorizedScanRoots = scanFolderAccess.validRoots()
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.device_library_folder_invalid, folderName),
-                    Toast.LENGTH_LONG,
-                ).show()
+                RhythmMessages.error(context, context.getString(R.string.device_library_folder_invalid, folderName), long = true)
                 return@rememberLauncherForActivityResult
             }
 
@@ -897,11 +881,7 @@ fun LibraryScreen(
                 previousAcceptedSongs = acceptedDeviceSongCount,
                 previousCompletedAtMs = scanDiagnostics.completedAtMs,
             )
-            Toast.makeText(
-                context,
-                context.getString(R.string.device_library_folder_authorized_scanning, folderName),
-                Toast.LENGTH_LONG,
-            ).show()
+            RhythmMessages.info(context, context.getString(R.string.device_library_folder_authorized_scanning, folderName), long = true)
             appSettings.requestFullMediaRescanOnNextLaunch(
                 reason = "device_library_low_result_folder_added",
             )
@@ -909,11 +889,7 @@ fun LibraryScreen(
         } catch (e: Exception) {
             Log.e("LibraryScreen", "Unable to retain guided scan folder access", e)
             validAuthorizedScanRoots = scanFolderAccess.validRoots()
-            Toast.makeText(
-                context,
-                context.getString(R.string.device_library_folder_invalid, folderName),
-                Toast.LENGTH_LONG,
-            ).show()
+            RhythmMessages.error(context, context.getString(R.string.device_library_folder_invalid, folderName), long = true)
         }
     }
 
@@ -934,7 +910,7 @@ fun LibraryScreen(
                     pendingScan.folderName,
                 )
             }
-            Toast.makeText(context, resultMessage, Toast.LENGTH_LONG).show()
+            RhythmMessages.info(context, resultMessage, long = true)
             pendingDeviceFolderScan = null
         }
     }
@@ -958,11 +934,7 @@ fun LibraryScreen(
     )
     val launchGuidedFolderPicker = {
         HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
-        Toast.makeText(
-            context,
-            context.getString(R.string.device_library_folder_picker_instruction),
-            Toast.LENGTH_SHORT,
-        ).show()
+        RhythmMessages.info(context, context.getString(R.string.device_library_folder_picker_instruction))
         try {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -979,11 +951,7 @@ fun LibraryScreen(
             scanSourcePickerLauncher.launch(intent)
         } catch (e: ActivityNotFoundException) {
             folderPickerInFlight = false
-            Toast.makeText(
-                context,
-                context.getString(R.string.error_no_document_app),
-                Toast.LENGTH_LONG,
-            ).show()
+            RhythmMessages.error(context, context.getString(R.string.error_no_document_app), long = true)
         }
     }
     val pullToRefreshState = rememberPullToRefreshState()

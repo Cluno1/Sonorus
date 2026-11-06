@@ -7,6 +7,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
@@ -28,7 +29,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -288,16 +288,16 @@ fun ThemeCustomizationSettingsScreen(onBackClick: () -> Unit) {
 
                     // Show success feedback
                     HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
-                    Toast.makeText(context, context.getString(R.string.theme_font_imported), Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, context.getString(R.string.theme_font_imported))
                 } else {
                     // Font file copied but can't be loaded
                     HapticUtils.performHapticFeedback(context, haptic, HapticFeedbackType.Reject)
-                    Toast.makeText(context, context.getString(R.string.theme_font_invalid), Toast.LENGTH_SHORT).show()
+                    RhythmMessages.error(context, context.getString(R.string.theme_font_invalid))
                 }
             } else {
                 // Failed to copy font file
                 HapticUtils.performHapticFeedback(context, haptic, HapticFeedbackType.Reject)
-                Toast.makeText(context, context.getString(R.string.theme_font_import_failed), Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(context, context.getString(R.string.theme_font_import_failed))
             }
         }
     }

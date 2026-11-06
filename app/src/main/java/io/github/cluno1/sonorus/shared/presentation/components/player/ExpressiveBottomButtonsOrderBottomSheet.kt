@@ -6,7 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.shared.presentation.components.player
 
-import android.widget.Toast
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -394,11 +394,7 @@ fun ExpressiveBottomButtonsOrderBottomSheet(
                                 IconButton(
                                     onClick = {
                                         if (!isHidden && visibleButtonsCount <= 1) {
-                                            Toast.makeText(
-                                                context,
-                                                R.string.expressive_bottom_buttons_at_least_one,
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            RhythmMessages.error(context, R.string.expressive_bottom_buttons_at_least_one)
                                             return@IconButton
                                         }
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
@@ -477,7 +473,7 @@ fun ExpressiveBottomButtonsOrderBottomSheet(
                                 reorderableMergeList = full
                                 hiddenMergeSet = editableBottomButtons.filter { !defaultMerge.contains(it) }.toSet()
                             }
-                            Toast.makeText(context, R.string.expressive_bottom_buttons_reset, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.expressive_bottom_buttons_reset)
                         },
                         weight = 1f,
                         isFirst = true,
@@ -492,7 +488,7 @@ fun ExpressiveBottomButtonsOrderBottomSheet(
                             appSettings.setExpressiveHiddenBottomButtonsNormal(hiddenNormalSet - fixedBottomButtons.toSet())
                             appSettings.setExpressiveBottomButtonsMerge(restoreFixedButtons(mergeOrder, reorderableMergeList))
                             appSettings.setExpressiveHiddenBottomButtonsMerge(hiddenMergeSet - fixedBottomButtons.toSet())
-                            Toast.makeText(context, R.string.expressive_bottom_buttons_saved, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.expressive_bottom_buttons_saved)
                             scope.launch {
                                 sheetState.hide()
                             }.invokeOnCompletion {

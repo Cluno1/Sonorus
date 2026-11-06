@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.activities
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessageHost
 import android.Manifest
 import android.content.Intent
@@ -12,7 +13,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -698,7 +698,7 @@ class MainActivity : AppCompatActivity() {
                                 uri.scheme !in listOf("content", "file", "android.resource") -> "Unsupported file location type"
                                 else -> "Cannot access file location"
                             }
-                            Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.error(this, errorMsg)
                         }
                     } ?: run {
                         Log.w(TAG, "ACTION_VIEW intent received without data")
@@ -710,7 +710,7 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling intent", e)
-            Toast.makeText(this, R.string.mainactivity_error_opening_file, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(this, R.string.mainactivity_error_opening_file)
         }
     }
     
@@ -790,7 +790,7 @@ class MainActivity : AppCompatActivity() {
         // Validate URI and check if it's an audio file
         if (!isValidAudioUri(uri)) {
             Log.e(TAG, "Invalid or unsupported audio file: $uri")
-            Toast.makeText(applicationContext, R.string.mainactivity_unsupported_file_format, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(applicationContext, R.string.mainactivity_unsupported_file_format)
             return
         }
         
@@ -804,7 +804,7 @@ class MainActivity : AppCompatActivity() {
                 val serviceStarted = startMediaServiceAndWait()
                 if (!serviceStarted) {
                     Log.e(TAG, "Failed to start media service")
-                    Toast.makeText(applicationContext, R.string.mainactivity_failed_to_initialize_media, Toast.LENGTH_SHORT).show()
+                    RhythmMessages.error(applicationContext, R.string.mainactivity_failed_to_initialize_media)
                     return@launch
                 }
                 
@@ -840,7 +840,7 @@ class MainActivity : AppCompatActivity() {
                     is IllegalArgumentException -> "Invalid audio file format"
                     else -> "Error playing audio file: ${e.message}"
                 }
-                Toast.makeText(applicationContext, errorMessage, Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(applicationContext, errorMessage)
             }
         }
         
@@ -965,18 +965,18 @@ class MainActivity : AppCompatActivity() {
                 reason = "main_activity_fallback_external_play"
             )
             if (!started) {
-                Toast.makeText(applicationContext, R.string.externalplaybackactivity_failed_to_play_audio, Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(applicationContext, R.string.externalplaybackactivity_failed_to_play_audio)
                 return
             }
             
             // Give fallback some time to start
             delay(1000)
             if (!musicViewModel.isPlaying()) {
-                Toast.makeText(applicationContext, R.string.mainactivity_unable_to_play_audio, Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(applicationContext, R.string.mainactivity_unable_to_play_audio)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Fallback playback also failed", e)
-            Toast.makeText(applicationContext, R.string.externalplaybackactivity_failed_to_play_audio, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(applicationContext, R.string.externalplaybackactivity_failed_to_play_audio)
         }
     }
 

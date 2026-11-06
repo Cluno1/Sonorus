@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.shared.presentation.components.player
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.StandardBottomSheetHeader
@@ -14,7 +15,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -239,7 +239,7 @@ fun PlayerChipOrderBottomSheet(
                                 onClick = {
                                     // Prevent hiding the last visible chip
                                     if (!isHidden && visibleChipsCount <= 1) {
-                                        Toast.makeText(context, R.string.player_chip_one_visible, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.error(context, R.string.player_chip_one_visible)
                                         return@IconButton
                                     }
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
@@ -296,7 +296,7 @@ fun PlayerChipOrderBottomSheet(
                             appSettings.setHiddenPlayerChips(emptySet())
                             reorderableList = listOf("FAVORITE", "SPEED", "EQUALIZER", "SLEEP_TIMER", "LYRICS", "ALBUM", "ARTIST", "SHARE")
                             hiddenChipsSet = emptySet()
-                            Toast.makeText(context, R.string.player_chip_order_reset, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.player_chip_order_reset)
                         },
                         weight = 1f,
                         isFirst = true,
@@ -310,7 +310,7 @@ fun PlayerChipOrderBottomSheet(
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                             appSettings.setPlayerChipOrder(reorderableList)
                             appSettings.setHiddenPlayerChips(hiddenChipsSet)
-                            Toast.makeText(context, R.string.player_chip_order_saved, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.player_chip_order_saved)
                             scope.launch {
                                 sheetState.hide()
                             }.invokeOnCompletion {

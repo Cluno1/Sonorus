@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.components.lyrics
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
@@ -18,7 +19,6 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Log
-import android.widget.Toast
 import androidx.media3.common.Player
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContract
@@ -624,7 +624,7 @@ fun LyricsEditorBottomSheet(
             editedWordByWord = ""
             selectedFormat = LyricFormat.SOURCE
         }
-        Toast.makeText(context, R.string.lyrics_loaded_success, Toast.LENGTH_SHORT).show()
+        RhythmMessages.success(context, R.string.lyrics_loaded_success)
     }
 
     suspend fun performRename(
@@ -672,9 +672,9 @@ fun LyricsEditorBottomSheet(
                                         val success = performRename(context, selectedUri, songFile.parentFile, expectedLrcName, loadedLyrics)
                                         if (!success) {
                                             appSettings.setSongCustomLrcFile(song.id, loadedFileName)
-                                            Toast.makeText(context, context.getString(R.string.lyrics_rename_permission_denied), Toast.LENGTH_LONG).show()
+                                            RhythmMessages.error(context, context.getString(R.string.lyrics_rename_permission_denied), long = true)
                                         } else {
-                                            Toast.makeText(context, context.getString(R.string.lyrics_renamed_to_format, expectedLrcName), Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, context.getString(R.string.lyrics_renamed_to_format, expectedLrcName))
                                         }
                                         applyLoadedLyrics(loadedLyrics)
                                     }
@@ -698,15 +698,11 @@ fun LyricsEditorBottomSheet(
                             applyLoadedLyrics(loadedLyrics)
                         }
                     } else {
-                        Toast.makeText(
-                            context,
-                            result.errorMessage ?: context.getString(R.string.lyrics_load_file_error),
-                            Toast.LENGTH_LONG
-                        ).show()
+                        RhythmMessages.error(context, result.errorMessage ?: context.getString(R.string.lyrics_load_file_error), long = true)
                     }
                 } catch (e: Exception) {
                     Log.e("LyricsEditor", "Error loading lyrics file", e)
-                    Toast.makeText(context, context.getString(R.string.error_loading_lyrics, e.message ?: ""), Toast.LENGTH_LONG).show()
+                    RhythmMessages.failure(context, R.string.msg_lyrics_load_failed, e, long = true)
                 }
             }
         }
@@ -860,12 +856,12 @@ fun LyricsEditorBottomSheet(
 
                 maybeRenameLyricsDocument(it, defaultLyricsFileName)
 
-                Toast.makeText(context, R.string.lyrics_saved_success, Toast.LENGTH_SHORT).show()
+                RhythmMessages.success(context, R.string.lyrics_saved_success)
                 onSave(editedLyrics, timeOffset, selectedFormat.name)
                 onDismiss()
             } catch (e: Exception) {
                 Log.e("LyricsEditor", "Error saving lyrics file", e)
-                Toast.makeText(context, context.getString(R.string.error_saving_lyrics, e.message ?: ""), Toast.LENGTH_LONG).show()
+                RhythmMessages.failure(context, R.string.msg_lyrics_save_failed, e, long = true)
             }
         }
     }
@@ -1774,9 +1770,9 @@ fun LyricsEditorBottomSheet(
                                 val success = performRename(context, pendingUri!!, songFile.parentFile, pendingExpectedName, pendingLyrics)
                                 if (!success) {
                                     appSettings.setSongCustomLrcFile(song.id, pendingFileName)
-                                    Toast.makeText(context, context.getString(R.string.lyrics_rename_permission_denied), Toast.LENGTH_LONG).show()
+                                    RhythmMessages.error(context, context.getString(R.string.lyrics_rename_permission_denied), long = true)
                                 } else {
-                                    Toast.makeText(context, context.getString(R.string.lyrics_renamed_success), Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.success(context, context.getString(R.string.lyrics_renamed_success))
                                 }
                                 applyLoadedLyrics(pendingLyrics)
                             }

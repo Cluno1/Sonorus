@@ -5,10 +5,10 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -1205,12 +1205,12 @@ fun AlbumDetailScreen(
             onPlayNext = {
                 onPlayNext(selectedSongForOptions!!)
                 showSongOptionsSheet = false
-                Toast.makeText(context, context.getString(R.string.will_play_next, selectedSongForOptions!!.title), Toast.LENGTH_SHORT).show()
+                RhythmMessages.info(context, context.getString(R.string.will_play_next, selectedSongForOptions!!.title))
             },
             onAddToQueue = {
                 onAddToQueue(selectedSongForOptions!!)
                 showSongOptionsSheet = false
-                Toast.makeText(context, context.getString(R.string.added_to_queue, selectedSongForOptions!!.title), Toast.LENGTH_SHORT).show()
+                RhythmMessages.success(context, context.getString(R.string.added_to_queue, selectedSongForOptions!!.title))
             },
             onAddToPlaylist = {
                 onAddSongToPlaylist(selectedSongForOptions!!)

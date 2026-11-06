@@ -5,13 +5,13 @@
 
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.shared.presentation.components.bottomsheets
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -236,11 +236,7 @@ fun LyricallySourcesBottomSheet(
                                 checked = isEnabled,
                                 onCheckedChange = { nowEnabled: Boolean ->
                                     if (!nowEnabled && enabledCount <= 1) {
-                                        Toast.makeText(
-                                            context,
-                                            "At least one source must remain enabled.",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
+                                        RhythmMessages.error(context, R.string.msg_lyrics_source_keep_one)
                                         return@TunerAnimatedSwitch
                                     }
                                     disabledSourcesSet = if (nowEnabled) {
@@ -286,7 +282,7 @@ fun LyricallySourcesBottomSheet(
                             appSettings.setDisabledLyricallySources(defaultDisabled)
                             reorderableList = appSettings.defaultLyricallySources
                             disabledSourcesSet = defaultDisabled
-                            Toast.makeText(context, context.getString(R.string.lyricallysources_reset_to_defaults), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.lyricallysources_reset_to_defaults))
                         },
                         weight = 1f,
                         isFirst = true,
@@ -299,7 +295,7 @@ fun LyricallySourcesBottomSheet(
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                             appSettings.setLyricallySourcesOrder(reorderableList)
                             appSettings.setDisabledLyricallySources(disabledSourcesSet)
-                            Toast.makeText(context, context.getString(R.string.lyricallysources_saved), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.lyricallysources_saved))
                             scope.launch { sheetState.hide() }.invokeOnCompletion {
                                 if (!sheetState.isVisible) onDismiss()
                             }

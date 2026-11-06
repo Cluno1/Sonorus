@@ -9,6 +9,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -24,7 +25,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -180,9 +180,9 @@ fun LibrarySettingsScreen(onBackClick: () -> Unit) {
             runCatching { deviceFolderAccess.add(uri) }
                 .onSuccess {
                     deviceFolderRoots = deviceFolderAccess.roots().toList()
-                    Toast.makeText(context, R.string.settings_device_folder_added, Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, R.string.settings_device_folder_added)
                 }
-                .onFailure { Toast.makeText(context, R.string.settings_device_folder_failed, Toast.LENGTH_LONG).show() }
+                .onFailure { RhythmMessages.error(context, context.getString(R.string.settings_device_folder_failed), long = true) }
         }
     }
 
@@ -277,7 +277,7 @@ fun LibrarySettingsScreen(onBackClick: () -> Unit) {
                         onClick = {
                             deviceFolderAccess.clear()
                             deviceFolderRoots = emptyList()
-                            Toast.makeText(context, R.string.settings_device_folders_cleared, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.settings_device_folders_cleared)
                         }
                     ))
                     add(SettingItem(
@@ -288,7 +288,7 @@ fun LibrarySettingsScreen(onBackClick: () -> Unit) {
                             scope.launch {
                                 deviceMetadataRepository.clearAllCachedMetadata()
                                 appSettings.requestFullMediaRescanOnNextLaunch("device_metadata_cache_cleared")
-                                Toast.makeText(context, R.string.settings_device_metadata_cache_cleared, Toast.LENGTH_SHORT).show()
+                                RhythmMessages.success(context, R.string.settings_device_metadata_cache_cleared)
                             }
                         }
                     ))

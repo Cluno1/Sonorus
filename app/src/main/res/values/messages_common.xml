@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: fixed user-facing messages; exception details go to the log only. -->
+<resources>
+    <string name="msg_artwork_fetch_failed">Couldn\'t fetch artwork</string>
+    <string name="msg_permission_request_failed">Couldn\'t request permission</string>
+    <string name="msg_unexpected_error">Something went wrong. Please try again.</string>
+    <string name="msg_lyrics_load_failed">Couldn\'t load lyrics</string>
+    <string name="msg_lyrics_save_failed">Couldn\'t save lyrics</string>
+    <string name="msg_backup_export_failed">Export failed</string>
+    <string name="msg_backup_import_failed">Import failed</string>
+    <string name="msg_equalizer_open_failed">Couldn\'t open the equalizer</string>
+    <string name="msg_lyrics_source_keep_one">At least one lyrics source must stay enabled</string>
+    <string name="msg_storage_permission_required_edit">Storage permission is required to edit audio file details</string>
+    <string name="msg_media_permission_required_edit">Media permission is required to edit audio file details</string>
+    <string name="msg_songs_added_to_playlist">Added %1$d songs to “%2$s”</string>
+</resources>

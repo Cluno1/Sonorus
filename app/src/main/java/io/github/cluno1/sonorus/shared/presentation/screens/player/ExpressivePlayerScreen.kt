@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens.player
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -163,7 +164,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.player.CanvasArtw
 import io.github.cluno1.sonorus.util.SemanticLyrics
 import android.annotation.SuppressLint
 import android.graphics.BitmapFactory
-import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -425,19 +425,19 @@ fun ExpressivePlayerScreen(
             if (musicViewModel?.pendingBatchWriteRequest?.value != null) {
                 musicViewModel.completeBatchMetadataWriteAfterPermission(
                     onSuccess = {
-                        Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                     }
                 )
             } else {
                 musicViewModel?.completeMetadataWriteAfterPermission(
                     onSuccess = {
-                        Toast.makeText(context, R.string.expressiveplayerscreen_artwork_embedded_toast, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.expressiveplayerscreen_artwork_embedded_toast)
                     },
                     onError = { errorMessage ->
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        RhythmMessages.error(context, errorMessage, long = true)
                     }
                 )
             }
@@ -447,7 +447,7 @@ fun ExpressivePlayerScreen(
             } else {
                 musicViewModel?.cancelPendingMetadataWrite()
             }
-            Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
+            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
         }
     }
 
@@ -911,11 +911,7 @@ fun ExpressivePlayerScreen(
                         if (debouncedSong.value?.id == currentSong.id) {
                             val artUri = uriStr.toUri()
                             musicViewModel.updateCurrentSongMetadata(currentSong.copy(artworkUri = artUri))
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.expressiveplayerscreen_artwork_applied),
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            RhythmMessages.success(context, context.getString(R.string.expressiveplayerscreen_artwork_applied))
                         }
                     } else {
                         pendingAutoFetchSong = currentSong
@@ -926,11 +922,7 @@ fun ExpressivePlayerScreen(
                     val now = android.os.SystemClock.elapsedRealtime()
                     if (now - lastNoArtworkToastTime > 5000) {
                         lastNoArtworkToastTime = now
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.expressiveplayerscreen_no_artwork_found),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        RhythmMessages.error(context, context.getString(R.string.expressiveplayerscreen_no_artwork_found))
                     }
                 }
             }
@@ -992,13 +984,13 @@ fun ExpressivePlayerScreen(
                                     artworkUri = artUri,
                                     onSuccess = { fileWritten ->
                                         if (fileWritten) {
-                                            Toast.makeText(context, context.getString(R.string.expressiveplayerscreen_artwork_embedded_toast), Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, context.getString(R.string.expressiveplayerscreen_artwork_embedded_toast))
                                         } else {
-                                            Toast.makeText(context, context.getString(R.string.expressiveplayerscreen_artwork_applied_toast), Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, context.getString(R.string.expressiveplayerscreen_artwork_applied_toast))
                                         }
                                     },
                                     onError = { err ->
-                                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.error(context, err)
                                     },
                                     onPermissionRequired = { pendingRequest ->
                                         try {
@@ -1007,11 +999,7 @@ fun ExpressivePlayerScreen(
                                             ).build()
                                             writePermissionLauncher.launch(intentSenderRequest)
                                         } catch (e: Exception) {
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.failed_to_request_permission, e.message ?: ""),
-                                                Toast.LENGTH_LONG
-                                            ).show()
+                                            RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                                             musicViewModel.cancelPendingMetadataWrite()
                                         }
                                     }

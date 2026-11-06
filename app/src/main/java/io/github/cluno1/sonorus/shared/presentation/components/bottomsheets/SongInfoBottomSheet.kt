@@ -4,6 +4,7 @@
  */
 
 package io.github.cluno1.sonorus.shared.presentation.components.bottomsheets
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
 
@@ -21,7 +22,6 @@ import android.provider.MediaStore
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import android.widget.Toast
 import androidx.compose.foundation.shape.CircleShape
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -376,7 +376,7 @@ fun SongInfoBottomSheet(
                             }
                             isLoadingBlacklist = false
                             val message = if (isBlacklisted) context.getString(R.string.blacklist_song_removed_msg) else context.getString(R.string.blacklist_song_added_msg)
-                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.info(context, message)
                         }
                         showBlacklistTrackConfirm = false
                     },
@@ -472,7 +472,7 @@ fun SongInfoBottomSheet(
                         }
                         isLoadingBlacklist = false
                         val message = if (isInBlacklistedFolder) context.getString(R.string.blacklist_folder_removed_msg) else context.getString(R.string.blacklist_folder_added_msg)
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.info(context, message)
                         showBlacklistFolderConfirm = false
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -1616,11 +1616,7 @@ private fun EditSongSheet(
             proceedWithSave()
         } else {
             isSaving = false
-            Toast.makeText(
-                context, 
-                "Storage permission is required to edit audio file metadata", 
-                Toast.LENGTH_LONG
-            ).show()
+            RhythmMessages.error(context, context.getString(R.string.msg_storage_permission_required_edit), long = true)
         }
     }
     
@@ -1632,11 +1628,7 @@ private fun EditSongSheet(
             proceedWithSave()
         } else {
             isSaving = false
-            Toast.makeText(
-                context,
-                "Media permissions are required to edit audio file metadata",
-                Toast.LENGTH_LONG
-            ).show()
+            RhythmMessages.error(context, context.getString(R.string.msg_media_permission_required_edit), long = true)
         }
     }
     
@@ -2129,31 +2121,31 @@ private fun EditSongSheet(
                                                                     withContext(Dispatchers.Main) {
                                                                         selectedImageUri = Uri.fromFile(tempFile)
                                                                         removeArtwork = false
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
+                                                                        RhythmMessages.success(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click)
                                                                     }
                                                                 } else {
                                                                     withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
+                                                                        RhythmMessages.error(context, R.string.songinfobottomsheet_failed_to_download_artwork_1)
                                                                     }
                                                                 }
                                                             } else {
                                                                 withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
+                                                                    RhythmMessages.error(context, R.string.songinfobottomsheet_no_artwork_found_for)
                                                                 }
                                                             }
                                                         } else {
                                                             withContext(Dispatchers.Main) {
-                                                                Toast.makeText(context, R.string.songinfobottomsheet_online_search_failed, Toast.LENGTH_SHORT).show()
+                                                                RhythmMessages.error(context, R.string.songinfobottomsheet_online_search_failed)
                                                             }
                                                         }
                                                     } else {
                                                         withContext(Dispatchers.Main) {
-                                                            Toast.makeText(context, R.string.songinfobottomsheet_online_api_service_unavailable, Toast.LENGTH_SHORT).show()
+                                                            RhythmMessages.error(context, R.string.songinfobottomsheet_online_api_service_unavailable)
                                                         }
                                                     }
                                                 } catch (e: Exception) {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                                        RhythmMessages.failure(context, R.string.msg_artwork_fetch_failed, e, long = true)
                                                     }
                                                 } finally {
                                                     withContext(Dispatchers.Main) {
@@ -2429,31 +2421,31 @@ private fun EditSongSheet(
                                                                 withContext(Dispatchers.Main) {
                                                                     selectedImageUri = Uri.fromFile(tempFile)
                                                                     removeArtwork = false
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
+                                                                    RhythmMessages.success(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click)
                                                                 }
                                                             } else {
                                                                 withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
+                                                                    RhythmMessages.error(context, R.string.songinfobottomsheet_failed_to_download_artwork_1)
                                                                 }
                                                             }
                                                         } else {
                                                             withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
+                                                                    RhythmMessages.error(context, R.string.songinfobottomsheet_no_artwork_found_for)
                                                             }
                                                         }
                                                     } else {
                                                         withContext(Dispatchers.Main) {
-                                                            Toast.makeText(context, R.string.songinfobottomsheet_online_search_failed, Toast.LENGTH_SHORT).show()
+                                                            RhythmMessages.error(context, R.string.songinfobottomsheet_online_search_failed)
                                                         }
                                                     }
                                                 } else {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(context, R.string.songinfobottomsheet_online_api_service_unavailable, Toast.LENGTH_SHORT).show()
+                                                        RhythmMessages.error(context, R.string.songinfobottomsheet_online_api_service_unavailable)
                                                     }
                                                 }
                                             } catch (e: Exception) {
                                                 withContext(Dispatchers.Main) {
-                                                    Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                                    RhythmMessages.failure(context, R.string.msg_artwork_fetch_failed, e, long = true)
                                                 }
                                             } finally {
                                                 withContext(Dispatchers.Main) {

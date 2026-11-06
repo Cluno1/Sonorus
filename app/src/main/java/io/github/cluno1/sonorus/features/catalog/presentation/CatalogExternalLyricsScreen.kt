@@ -1,10 +1,10 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.util.Log
-import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -164,7 +164,7 @@ fun CatalogExternalLyricsScreen(
                                 clipboard.setPrimaryClip(
                                     ClipData.newPlainText(title, shown.text(showFull, showTranslation)),
                                 )
-                                Toast.makeText(context, R.string.external_lyrics_copied, Toast.LENGTH_SHORT).show()
+                                RhythmMessages.success(context, R.string.external_lyrics_copied)
                             },
                         ) {
                             Icon(RhythmIcons.ContentCopy, contentDescription = stringResource(R.string.external_lyrics_copy))

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: fixed user-facing messages; exception details go to the log only. -->
+<resources>
+    <string name="msg_artwork_fetch_failed">無法取得封面</string>
+    <string name="msg_permission_request_failed">無法要求權限</string>
+    <string name="msg_unexpected_error">發生錯誤，請重試</string>
+    <string name="msg_lyrics_load_failed">無法載入歌詞</string>
+    <string name="msg_lyrics_save_failed">無法儲存歌詞</string>
+    <string name="msg_backup_export_failed">匯出失敗</string>
+    <string name="msg_backup_import_failed">匯入失敗</string>
+    <string name="msg_equalizer_open_failed">無法開啟等化器</string>
+    <string name="msg_lyrics_source_keep_one">至少要保留一個歌詞來源</string>
+    <string name="msg_storage_permission_required_edit">需要儲存空間權限才能編輯音訊檔案資訊</string>
+    <string name="msg_media_permission_required_edit">需要媒體權限才能編輯音訊檔案資訊</string>
+    <string name="msg_songs_added_to_playlist">已將 %1$d 首加入「%2$s」</string>
+</resources>

@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.streaming.presentation.components.settings
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.StandardBottomSheetHeader
@@ -14,7 +15,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -362,7 +362,7 @@ fun StreamingHomeSectionOrderBottomSheet(
                             IconButton(
                                 onClick = {
                                     if (isVisible && visibleSectionsCount <= 1) {
-                                        Toast.makeText(context, R.string.home_section_one_visible, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.error(context, R.string.home_section_one_visible)
                                         return@IconButton
                                     }
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
@@ -419,7 +419,7 @@ fun StreamingHomeSectionOrderBottomSheet(
                                 STREAMING_SECTION_RECENTLY_PLAYED to true,
                                 STREAMING_SECTION_NEW_RELEASES to true
                             )
-                            Toast.makeText(context, R.string.streaminghomesectionorderbottomsheet_streaming_section_order_and, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.streaminghomesectionorderbottomsheet_streaming_section_order_and)
                         },
                         weight = 1f,
                         isFirst = true,
@@ -440,7 +440,7 @@ fun StreamingHomeSectionOrderBottomSheet(
                             appSettings.setStreamingHomeShowRecentlyPlayed(visibilityMap[STREAMING_SECTION_RECENTLY_PLAYED] ?: true)
                             appSettings.setStreamingHomeShowNewReleases(visibilityMap[STREAMING_SECTION_NEW_RELEASES] ?: true)
 
-                            Toast.makeText(context, R.string.streaminghomesectionorderbottomsheet_streaming_section_order_and_1, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.streaminghomesectionorderbottomsheet_streaming_section_order_and_1)
                             scope.launch {
                                 sheetState.hide()
                             }.invokeOnCompletion {

@@ -5,10 +5,10 @@
 
 package io.github.cluno1.sonorus.activities
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import io.github.cluno1.sonorus.R
 import androidx.activity.compose.setContent
@@ -130,13 +130,13 @@ class ExternalPlaybackActivity : ComponentActivity() {
 
         val uri = intent.data ?: run {
             Log.e(TAG, "Intent data is null")
-            Toast.makeText(this, R.string.externalplaybackactivity_unable_to_open_audio, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(this, R.string.externalplaybackactivity_unable_to_open_audio)
             return
         }
 
         if (!isValidAudioUri(uri)) {
             Log.w(TAG, "Rejected non-audio or unreadable URI: $uri")
-            Toast.makeText(this, R.string.externalplaybackactivity_unsupported_or_unreadable_audio, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(this, R.string.externalplaybackactivity_unsupported_or_unreadable_audio)
             return
         }
 
@@ -227,7 +227,7 @@ class ExternalPlaybackActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "Error playing external file", e)
             withContext(Dispatchers.Main) {
-                Toast.makeText(this@ExternalPlaybackActivity, R.string.externalplaybackactivity_failed_to_play_audio, Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(this@ExternalPlaybackActivity, R.string.externalplaybackactivity_failed_to_play_audio)
             }
         }
     }

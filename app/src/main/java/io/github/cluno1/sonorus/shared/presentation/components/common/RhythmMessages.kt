@@ -134,6 +134,12 @@ object RhythmMessages {
     fun error(context: Context, text: CharSequence, long: Boolean = false) =
         show(context, text, RhythmMessageKind.ERROR, long)
 
+    /** A failure the user should see as fixed text; the exception detail only goes to the log (issue 169). */
+    fun failure(context: Context, @StringRes res: Int, cause: Throwable?, long: Boolean = false) {
+        Log.w(TAG, "Failure shown to user: ${runCatching { context.resources.getResourceEntryName(res) }.getOrDefault(res.toString())}", cause)
+        error(context, context.getString(res), long)
+    }
+
     fun success(context: Context, @StringRes res: Int, vararg args: Any) =
         success(context, context.getString(res, *args))
 

@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.util
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -14,7 +15,6 @@ import android.media.audiofx.AudioEffect
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import io.github.cluno1.sonorus.R
@@ -36,7 +36,7 @@ object EqualizerUtils {
      */
     fun openSystemEqualizer(context: Context, audioSessionId: Int = 0, activity: Activity? = null, requestCode: Int = 0): Boolean {
         if (audioSessionId == AudioEffect.ERROR_BAD_VALUE) {
-            Toast.makeText(context, R.string.no_audio_ID, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(context, R.string.no_audio_ID)
             return false
         }
         
@@ -58,11 +58,11 @@ object EqualizerUtils {
             Log.d(TAG, "Opened system equalizer with session ID: $audioSessionId")
             true
         } catch (_: ActivityNotFoundException) {
-            Toast.makeText(context, R.string.no_equalizer, Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(context, R.string.no_equalizer)
             false
         } catch (e: Exception) {
             Log.e(TAG, "Error opening system equalizer", e)
-            Toast.makeText(context, context.getString(R.string.equalizer_open_error, e.localizedMessage ?: ""), Toast.LENGTH_SHORT).show()
+            RhythmMessages.failure(context, R.string.msg_equalizer_open_failed, e)
             false
         }
     }

@@ -21,7 +21,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -1879,7 +1878,7 @@ private fun LocalNavigationContent(
                         },
                         onAddSongToPlaylist = { song, playlistId ->
                             viewModel.addSongToPlaylist(song, playlistId) { message ->
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                RhythmMessages.info(context, message)
                             }
                         },
                         onCreatePlaylist = { name ->
@@ -2515,7 +2514,7 @@ private fun LocalNavigationContent(
                             onAddToQueue = { song -> queueNativeSong(song, false) },
                             onAddSongToPlaylist = { song, playlistId ->
                                 viewModel.addSongToPlaylist(song, playlistId) { message ->
-                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.info(context, message)
                                 }
                             },
                             onNavigateToStats = {
@@ -2690,7 +2689,7 @@ private fun LocalNavigationContent(
                             onSaved = { metadata ->
                                 viewModel.applyLanSongMetadata(metadata)
                                 streamingMusicViewModel.applyLanMetadata(metadata)
-                                android.widget.Toast.makeText(context, R.string.lan_tags_saved, android.widget.Toast.LENGTH_SHORT).show()
+                                RhythmMessages.success(context, R.string.lan_tags_saved)
                                 navController.popBackStack()
                             },
                             onBack = { navController.popBackStack() },
@@ -3888,7 +3887,7 @@ private fun LocalNavigationContent(
                                 }
                                 context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${song.title}"))
                             } catch (e: Exception) {
-                                android.widget.Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, android.widget.Toast.LENGTH_SHORT).show()
+                                RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
                             }
                         }
                     )
@@ -4144,7 +4143,7 @@ private fun LocalNavigationContent(
                                 streamingSongById[song.id]?.let { onStreamingAddSongToPlaylist(it) }
                             } else {
                                 viewModel.addSongToPlaylist(song, playlistId) { message ->
-                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.info(context, message)
                                 }
                             }
                         },
@@ -4191,10 +4190,10 @@ private fun LocalNavigationContent(
                             ) { result ->
                                 result.fold(
                                     onSuccess = { message ->
-                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.info(context, message)
                                     },
                                     onFailure = { error ->
-                                        Toast.makeText(context, context.getString(R.string.backup_export_failed, error.message), Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.failure(context, R.string.msg_backup_export_failed, error)
                                     }
                                 )
                                 resultCallback(result)
@@ -4205,10 +4204,10 @@ private fun LocalNavigationContent(
                             viewModel.importPlaylist(uri, { result ->
                                 result.fold(
                                     onSuccess = { message ->
-                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.info(context, message)
                                     },
                                     onFailure = { error ->
-                                        Toast.makeText(context, context.getString(R.string.backup_import_failed, error.message), Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.failure(context, R.string.msg_backup_import_failed, error)
                                     }
                                 )
                                 resultCallback(result)
@@ -4359,19 +4358,19 @@ private fun LocalNavigationContent(
                             if (viewModel.pendingBatchWriteRequest.value != null) {
                                 viewModel.completeBatchMetadataWriteAfterPermission(
                                     onSuccess = {
-                                        android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, android.widget.Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                     }
                                 )
                             } else {
                                 viewModel.completeMetadataWriteAfterPermission(
                                     onSuccess = {
-                                        android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, android.widget.Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                     }
                                 )
                             }
@@ -4381,7 +4380,7 @@ private fun LocalNavigationContent(
                             } else {
                                 viewModel.cancelPendingMetadataWrite()
                             }
-                            android.widget.Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, android.widget.Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
                         }
                     }
 
@@ -4413,7 +4412,7 @@ private fun LocalNavigationContent(
                                     song,
                                     playlistId
                                 ) { snackbarMessage ->
-                                    Toast.makeText(context, snackbarMessage, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.info(context, snackbarMessage)
                                 }
                             },
                             onRenamePlaylist = { newName ->
@@ -4482,7 +4481,7 @@ private fun LocalNavigationContent(
                                     }
                                     context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${song.title}"))
                                 } catch (e: Exception) {
-                                    android.widget.Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, android.widget.Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
                                 }
                             },
                             onOpenManualMetadata = { song ->
@@ -4534,21 +4533,21 @@ private fun LocalNavigationContent(
                             if (viewModel.pendingBatchWriteRequest.value != null) {
                                 viewModel.completeBatchMetadataWriteAfterPermission(
                                     onSuccess = {
-                                        android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, android.widget.Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                     }
                                 )
                             } else {
                                 viewModel.completeMetadataWriteAfterPermission(
                                     onSuccess = {
-                                        android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, android.widget.Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                                         pendingMetadataEditCompleteCallback?.invoke(true)
                                         pendingMetadataEditCompleteCallback = null
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                         pendingMetadataEditCompleteCallback?.invoke(false)
                                         pendingMetadataEditCompleteCallback = null
                                     }
@@ -4562,7 +4561,7 @@ private fun LocalNavigationContent(
                                 pendingMetadataEditCompleteCallback?.invoke(false)
                                 pendingMetadataEditCompleteCallback = null
                             }
-                            android.widget.Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, android.widget.Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
                         }
                     }
                     
@@ -4642,7 +4641,7 @@ private fun LocalNavigationContent(
                             },
                             onAddToPlaylist = { playlist ->
                                 viewModel.addSongToPlaylist(selectedSongForPlaylist!!, playlist.id) { message ->
-                                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.info(context, message)
                                 }
                                 showAddToPlaylistSheet = false
                                 selectedSongForPlaylist = null
@@ -4670,7 +4669,7 @@ private fun LocalNavigationContent(
                             onConfirmWithSong = { name ->
                                 if (songForCreatePlaylistDialog != null) {
                                     viewModel.createPlaylist(name, listOf(songForCreatePlaylistDialog!!)) { message ->
-                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.info(context, message)
                                     }
                                 } else {
                                     viewModel.createPlaylist(name)
@@ -4708,13 +4707,13 @@ private fun LocalNavigationContent(
                                     discNumber = discNumber,
                                     onSuccess = { fileWriteSucceeded ->
                                         if (fileWriteSucceeded) {
-                                            android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, android.widget.Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                                         }
                                         pendingMetadataEditCompleteCallback?.invoke(true)
                                         pendingMetadataEditCompleteCallback = null
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                         pendingMetadataEditCompleteCallback?.invoke(false)
                                         pendingMetadataEditCompleteCallback = null
                                     },
@@ -4725,7 +4724,7 @@ private fun LocalNavigationContent(
                                             ).build()
                                             writePermissionLauncher.launch(intentSenderRequest)
                                         } catch (e: Exception) {
-                                            android.widget.Toast.makeText(context, R.string.localnavigation_permission_required_to_modify, android.widget.Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.error(context, R.string.localnavigation_permission_required_to_modify)
                                             pendingMetadataEditCompleteCallback?.invoke(false)
                                             pendingMetadataEditCompleteCallback = null
                                         }
@@ -4794,16 +4793,16 @@ private fun LocalNavigationContent(
                             if (viewModel.pendingBatchWriteRequest.value != null) {
                                 viewModel.completeBatchMetadataWriteAfterPermission(
                                     onSuccess = {
-                                        android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, android.widget.Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                     }
                                 )
                             }
                         } else {
                             viewModel.cancelPendingBatchMetadataWrite()
-                            android.widget.Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, android.widget.Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
                         }
                     }
 
@@ -4893,11 +4892,7 @@ private fun LocalNavigationContent(
                                             ).build()
                                             writePermissionLauncher.launch(intentSenderRequest)
                                         } catch (e: Exception) {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "Failed to request permission: ${e.message}",
-                                                android.widget.Toast.LENGTH_LONG
-                                            ).show()
+                                            RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                                             viewModel.cancelPendingBatchMetadataWrite()
                                         }
                                     }
@@ -4932,7 +4927,7 @@ private fun LocalNavigationContent(
                                 }
                                 context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${song.title}"))
                             } catch (e: Exception) {
-                                android.widget.Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, android.widget.Toast.LENGTH_SHORT).show()
+                                RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
                             }
                         },
                         viewModel = viewModel
@@ -4949,7 +4944,7 @@ private fun LocalNavigationContent(
                             },
                             onAddToPlaylist = { playlist ->
                                 viewModel.addSongToPlaylist(selectedSongForPlaylist!!, playlist.id) { message ->
-                                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.info(context, message)
                                 }
                                 showAddToPlaylistSheet = false
                                 selectedSongForPlaylist = null
@@ -4977,7 +4972,7 @@ private fun LocalNavigationContent(
                             onConfirmWithSong = { name ->
                                 if (songForCreatePlaylistDialog != null) {
                                     viewModel.createPlaylist(name, listOf(songForCreatePlaylistDialog!!)) { message ->
-                                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.info(context, message)
                                     }
                                 } else {
                                     viewModel.createPlaylist(name)
@@ -5015,12 +5010,12 @@ private fun LocalNavigationContent(
                                     discNumber = discNumber,
                                     onSuccess = { fileWriteSucceeded ->
                                         if (fileWriteSucceeded) {
-                                            android.widget.Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, android.widget.Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                                         }
                                         onComplete(true)
                                     },
                                     onError = { errorMessage ->
-                                        android.widget.Toast.makeText(context, errorMessage, android.widget.Toast.LENGTH_LONG).show()
+                                        RhythmMessages.error(context, errorMessage, long = true)
                                         onComplete(false)
                                     },
                                     onPermissionRequired = { pendingRequest ->
@@ -5030,7 +5025,7 @@ private fun LocalNavigationContent(
                                             ).build()
                                             writePermissionLauncher.launch(intentSenderRequest)
                                         } catch (e: Exception) {
-                                            android.widget.Toast.makeText(context, R.string.localnavigation_permission_required_to_modify, android.widget.Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.error(context, R.string.localnavigation_permission_required_to_modify)
                                             onComplete(false)
                                         }
                                     }
@@ -5143,7 +5138,7 @@ private fun LocalNavigationContent(
                                                 songs[0],
                                                 targetPlaylistId
                                             ) { message ->
-                                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                                RhythmMessages.info(context, message)
                                             }
                                         } else {
                                             val (successCount, playlistName) = viewModel.addSongsToPlaylist(
@@ -5155,7 +5150,7 @@ private fun LocalNavigationContent(
                                                 successCount == songs.size -> "Added $successCount songs to $playlistName"
                                                 else -> "Added $successCount of ${songs.size} songs to $playlistName"
                                             }
-                                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.info(context, message)
                                         }
                                     }
                                 )
@@ -5191,7 +5186,7 @@ private fun LocalNavigationContent(
                                         songToAdd,
                                         newPlaylist.id
                                     ) { message ->
-                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.info(context, message)
                                     }
                                     viewModel.clearSelectedSongForPlaylist()
                                     navigateBackOrToLanding()
@@ -5293,7 +5288,7 @@ private fun LocalNavigationContent(
             onConfirmWithSong = { name ->
                 if (songForDialog != null) {
                     viewModel.createPlaylist(name, listOf(songForDialog)) { message ->
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.info(context, message)
                     }
                 } else {
                     viewModel.createPlaylist(name)

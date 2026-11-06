@@ -1,6 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
-import android.widget.Toast
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -257,7 +257,7 @@ private fun CatalogWorkTagsEditorSheet(
         scope.launch {
             repository.replaceWorkTags(base.id, valid.tags, base.revision)
                 .onSuccess { updated ->
-                    Toast.makeText(context, savedMessage, Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, savedMessage)
                     onWorkUpdated(updated)
                 }
                 .onFailure { failure = it }

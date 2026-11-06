@@ -1,7 +1,7 @@
 package io.github.cluno1.sonorus.shared.presentation.components.lyrics
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -280,7 +280,7 @@ private fun LyricSourceShareButton(pages: List<CatalogLyricSourceImage>, title: 
             try {
                 sharer.prepare(request).fold(
                     onSuccess = { file -> sharer.launch(file, request.caption, chooserTitle) },
-                    onFailure = { Toast.makeText(context, failedMessage, Toast.LENGTH_SHORT).show() },
+                    onFailure = { RhythmMessages.error(context, failedMessage) },
                 )
             } finally {
                 preparing = false

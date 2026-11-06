@@ -10,6 +10,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -25,7 +26,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -305,7 +305,7 @@ fun CrashLogHistorySettingsScreen(onBackClick: () -> Unit, appSettings: AppSetti
                         val clip = ClipData.newPlainText(context.getString(R.string.crashlog_clip_label), selectedLog)
                         clipboard.setPrimaryClip(clip)
                         showLogDetailDialog = false
-                        Toast.makeText(context, context.getString(R.string.settings_log_copied), Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, context.getString(R.string.settings_log_copied))
                     }
                 ) {
                     Icon(

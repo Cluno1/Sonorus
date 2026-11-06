@@ -1814,7 +1814,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
                 if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
                     _error.value = "Unable to resolve stream URL for this song"
-                    android.widget.Toast.makeText(getApplication(), R.string.streamingmusicviewmodel_failed_to_play_next, android.widget.Toast.LENGTH_SHORT).show()
+                    RhythmMessages.error(getApplication(), R.string.streamingmusicviewmodel_failed_to_play_next)
                     return@launch
                 }
 
@@ -1963,7 +1963,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
                 if (!ProductCapabilities.lanSubsonicOnly && updatedSong.streamingUrl.isNullOrBlank()) {
                     _error.value = "Unable to resolve stream URL for this song"
-                    android.widget.Toast.makeText(getApplication(), R.string.streamingmusicviewmodel_failed_to_add_to, android.widget.Toast.LENGTH_SHORT).show()
+                    RhythmMessages.error(getApplication(), R.string.streamingmusicviewmodel_failed_to_add_to)
                     return@launch
                 }
 

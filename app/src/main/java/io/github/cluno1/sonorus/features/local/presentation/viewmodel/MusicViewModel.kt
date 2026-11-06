@@ -3168,7 +3168,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     repository.deleteSong(song)
                     refreshLibrary(showMediaScanLoader = false)
                     withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, context.getString(R.string.song_deleted_successfully), android.widget.Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, context.getString(R.string.song_deleted_successfully))
                     }
                 } else if (deletedStatus == 0) {
                     Log.e(TAG, "Failed to delete song: ${song.title}")
@@ -3198,7 +3198,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 refreshLibrary(showMediaScanLoader = false)
                 _pendingDeleteRequest.value = null
                 withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(getApplication(), getApplication<Application>().getString(R.string.song_deleted_successfully), android.widget.Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(getApplication(), getApplication<Application>().getString(R.string.song_deleted_successfully))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error completing song deletion", e)
@@ -5905,7 +5905,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             } else {
                                 "Added ${songs.size} ${if (songs.size == 1) "song" else "songs"} to queue"
                             }
-                            android.widget.Toast.makeText(toastContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+                            RhythmMessages.info(toastContext, msg)
 
                             Log.d(
                                 TAG,
@@ -9850,18 +9850,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 saveQueueToPersistence()
                 
                 val toastContext = getApplication<android.app.Application>().applicationContext
-                android.widget.Toast.makeText(toastContext, toastContext.getString(R.string.added_to_queue_simple, song.title), android.widget.Toast.LENGTH_SHORT).show()
+                RhythmMessages.success(toastContext, toastContext.getString(R.string.added_to_queue_simple, song.title))
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding song to queue", e)
                 val errorMsg = "Failed to add '${song.title}' to queue: ${e.message}"
                 _queueOperationError.value = errorMsg
-                android.widget.Toast.makeText(getApplication<android.app.Application>().applicationContext, errorMsg, android.widget.Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(getApplication<android.app.Application>().applicationContext, errorMsg)
             }
         } ?: run {
             val errorMsg = "Cannot add song to queue - media controller is null"
             Log.e(TAG, errorMsg)
             _queueOperationError.value = errorMsg
-            android.widget.Toast.makeText(getApplication<android.app.Application>().applicationContext, R.string.musicviewmodel_failed_to_add_to, android.widget.Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(getApplication<android.app.Application>().applicationContext, R.string.musicviewmodel_failed_to_add_to)
         }
     }
 
@@ -9928,18 +9928,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 saveQueueToPersistence()
 
                 val toastContext = getApplication<android.app.Application>().applicationContext
-                android.widget.Toast.makeText(toastContext, toastContext.getString(R.string.playing_next_simple, song.title), android.widget.Toast.LENGTH_SHORT).show()
+                RhythmMessages.info(toastContext, toastContext.getString(R.string.playing_next_simple, song.title))
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding song to play next", e)
                 val errorMsg = "Failed to add '${song.title}' to play next: ${e.message}"
                 _queueOperationError.value = errorMsg
-                android.widget.Toast.makeText(getApplication<android.app.Application>().applicationContext, errorMsg, android.widget.Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(getApplication<android.app.Application>().applicationContext, errorMsg)
             }
         } ?: run {
             val errorMsg = "Cannot add song to play next - media controller is null"
             Log.e(TAG, errorMsg)
             _queueOperationError.value = errorMsg
-            android.widget.Toast.makeText(getApplication<android.app.Application>().applicationContext, R.string.musicviewmodel_failed_to_play_next, android.widget.Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(getApplication<android.app.Application>().applicationContext, R.string.musicviewmodel_failed_to_play_next)
         }
     }
 

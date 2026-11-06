@@ -1,10 +1,10 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -410,11 +410,7 @@ internal fun CatalogIssuedInviteDialog(
         runCatching { createSmartText() }
             .onSuccess(action)
             .onFailure {
-                Toast.makeText(
-                    context,
-                    R.string.catalog_smart_enrollment_generation_failed,
-                    Toast.LENGTH_SHORT,
-                ).show()
+                RhythmMessages.error(context, R.string.catalog_smart_enrollment_generation_failed)
             }
     }
 
@@ -442,7 +438,7 @@ internal fun CatalogIssuedInviteDialog(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("Sonorus invitation", invite.inviteCode))
-                        Toast.makeText(context, R.string.catalog_invite_copied, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.success(context, R.string.catalog_invite_copied)
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
@@ -453,11 +449,7 @@ internal fun CatalogIssuedInviteDialog(
                         withSmartText { smartText ->
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText("Sonorus smart enrollment", smartText))
-                            Toast.makeText(
-                                context,
-                                R.string.catalog_smart_enrollment_copied,
-                                Toast.LENGTH_SHORT,
-                            ).show()
+                            RhythmMessages.success(context, R.string.catalog_smart_enrollment_copied)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

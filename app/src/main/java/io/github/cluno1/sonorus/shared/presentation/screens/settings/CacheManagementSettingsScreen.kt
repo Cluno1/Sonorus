@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 
 package io.github.cluno1.sonorus.shared.presentation.screens.settings
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.features.local.data.repository.MusicRepository
 
 
@@ -25,7 +26,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -570,10 +570,10 @@ fun CacheManagementSettingsScreen(onBackClick: () -> Unit) {
                                             isClearingCache = true
                                             musicViewModel.clearLyricsCacheAndRefetch()
                                             refreshCacheStats()
-                                            Toast.makeText(context, context.getString(R.string.settings_lyrics_cache_cleared), Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, context.getString(R.string.settings_lyrics_cache_cleared))
                                         } catch (e: Exception) {
                                             Log.e("CacheManagement", "Error clearing lyrics cache", e)
-                                            Toast.makeText(context, context.getString(R.string.settings_lyrics_cache_clear_failed), Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.error(context, context.getString(R.string.settings_lyrics_cache_clear_failed))
                                         } finally {
                                             isClearingCache = false
                                         }
@@ -620,10 +620,10 @@ fun CacheManagementSettingsScreen(onBackClick: () -> Unit) {
                                         showClearCacheSuccess = true
                                         restartDialogMessage = context.getString(R.string.settings_cache_restart_required)
                                         showRestartDialog = true
-                                        Toast.makeText(context, context.getString(R.string.settings_all_cache_cleared), Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.success(context, context.getString(R.string.settings_all_cache_cleared))
                                     } catch (e: Exception) {
                                         Log.e("CacheManagement", "Error clearing cache", e)
-                                        Toast.makeText(context, context.getString(R.string.settings_cache_clear_failed), Toast.LENGTH_SHORT).show()
+                                        RhythmMessages.error(context, context.getString(R.string.settings_cache_clear_failed))
                                     } finally {
                                         isClearingCache = false
                                     }
@@ -676,10 +676,10 @@ fun CacheManagementSettingsScreen(onBackClick: () -> Unit) {
                                                 musicViewModel.getMusicRepository().clearSongCacheData()
                                                 musicViewModel.refreshLibrary()
                                                 roomSongCount = musicViewModel.getMusicRepository().getRoomSongCount()
-                                                Toast.makeText(context, context.getString(R.string.settings_storage_rebuild_success), Toast.LENGTH_SHORT).show()
+                                                RhythmMessages.success(context, context.getString(R.string.settings_storage_rebuild_success))
                                             } catch (e: Exception) {
                                                 Log.e("CacheManagement", "Error rebuilding Room DB", e)
-                                                Toast.makeText(context, context.getString(R.string.settings_storage_rebuild_failed), Toast.LENGTH_SHORT).show()
+                                                RhythmMessages.error(context, context.getString(R.string.settings_storage_rebuild_failed))
                                             } finally {
                                                 isRebuildingRoom = false
                                                 restartDialogMessage = context.getString(R.string.settings_storage_rebuild_room_desc)

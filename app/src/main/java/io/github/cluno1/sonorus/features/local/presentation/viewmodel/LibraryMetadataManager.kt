@@ -5,12 +5,12 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.viewmodel
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.util.Log
-import android.widget.Toast
 import androidx.core.net.toUri
 import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.shared.data.model.Song
@@ -108,7 +108,7 @@ class LibraryMetadataManager(
                 if (fileExtension.isNotEmpty() && !MediaUtils.isSupportedByJaudiotagger(fileExtension)) {
                     withContext(Dispatchers.Main) {
                         val msg = ".$fileExtension files are not supported for metadata editing. Supported: MP3, FLAC, OGG, WAV, M4A, WMA"
-                        Toast.makeText(appContext, msg, Toast.LENGTH_LONG).show()
+                        RhythmMessages.info(appContext, msg, long = true)
                         onError(msg)
                     }
                     return@launch
@@ -866,7 +866,7 @@ class LibraryMetadataManager(
                     withContext(Dispatchers.Main) {
                         val msg = appContext.getString(R.string.lyrics_embed_failed) +
                             " — .$fileExtension files are not supported. Try MP3, FLAC, OGG, WAV, or M4A."
-                        Toast.makeText(appContext, msg, Toast.LENGTH_LONG).show()
+                        RhythmMessages.info(appContext, msg, long = true)
                         onError?.invoke(msg)
                     }
                     return@launch
@@ -875,11 +875,7 @@ class LibraryMetadataManager(
                 val success = MediaUtils.embedLyricsInFile(appContext, song, lyrics)
                 withContext(Dispatchers.Main) {
                     if (success) {
-                        Toast.makeText(
-                            appContext,
-                            appContext.getString(R.string.lyrics_embed_success),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        RhythmMessages.success(appContext, appContext.getString(R.string.lyrics_embed_success))
                         onSuccess?.invoke()
                     } else {
                         // File update failed - on Android 11+, try createWriteRequest
@@ -893,19 +889,11 @@ class LibraryMetadataManager(
                                 onPermissionRequired?.invoke(pendingRequest)
                                     ?: onError?.invoke("Permission required to embed lyrics.")
                             } else {
-                                Toast.makeText(
-                                    appContext,
-                                    appContext.getString(R.string.lyrics_embed_failed),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                RhythmMessages.error(appContext, appContext.getString(R.string.lyrics_embed_failed))
                                 onError?.invoke("Failed to embed lyrics")
                             }
                         } else {
-                            Toast.makeText(
-                                appContext,
-                                appContext.getString(R.string.lyrics_embed_failed),
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            RhythmMessages.error(appContext, appContext.getString(R.string.lyrics_embed_failed))
                             onError?.invoke("Failed to embed lyrics")
                         }
                     }
@@ -934,11 +922,7 @@ class LibraryMetadataManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Error embedding lyrics in file", e)
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.lyrics_embed_failed),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    RhythmMessages.error(context, context.getString(R.string.lyrics_embed_failed))
                     onError?.invoke("Error: ${e.message}")
                 }
             }
@@ -966,11 +950,7 @@ class LibraryMetadataManager(
                 _pendingLyricsWriteRequest.value = null
                 withContext(Dispatchers.Main) {
                     if (success) {
-                        Toast.makeText(
-                            appContext,
-                            appContext.getString(R.string.lyrics_embed_success),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        RhythmMessages.success(appContext, appContext.getString(R.string.lyrics_embed_success))
                         onSuccess()
                     } else {
                         onError("Failed to embed lyrics even after permission was granted")

@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
@@ -15,7 +16,6 @@ import android.content.Context
 import androidx.compose.ui.focus.FocusRequester
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import android.widget.Toast
 import io.github.cluno1.sonorus.shared.presentation.screens.settings.SettingsSearchBar
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -298,12 +298,12 @@ fun PlaylistDetailScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             musicViewModel.completeMetadataWriteAfterPermission(
                 onSuccess = {
-                    Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                     pendingMetadataEditCompleteCallback?.invoke(true)
                     pendingMetadataEditCompleteCallback = null
                 },
                 onError = { errorMessage ->
-                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, errorMessage, long = true)
                     pendingMetadataEditCompleteCallback?.invoke(false)
                     pendingMetadataEditCompleteCallback = null
                 }
@@ -312,7 +312,7 @@ fun PlaylistDetailScreen(
             musicViewModel.cancelPendingMetadataWrite()
             pendingMetadataEditCompleteCallback?.invoke(false)
             pendingMetadataEditCompleteCallback = null
-            Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
+            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
         }
     }
     val useHoursFormat by appSettings.useHoursInTimeFormat.collectAsState()
@@ -560,12 +560,12 @@ fun PlaylistDetailScreen(
             onPlayNext = {
                 onPlayNext(selectedSongForOptions!!)
                 showSongOptionsSheet = false
-                Toast.makeText(context, context.getString(R.string.will_play_next, selectedSongForOptions!!.title), Toast.LENGTH_SHORT).show()
+                RhythmMessages.info(context, context.getString(R.string.will_play_next, selectedSongForOptions!!.title))
             },
             onAddToQueue = {
                 onAddToQueue(selectedSongForOptions!!)
                 showSongOptionsSheet = false
-                Toast.makeText(context, context.getString(R.string.added_to_queue, selectedSongForOptions!!.title), Toast.LENGTH_SHORT).show()
+                RhythmMessages.success(context, context.getString(R.string.added_to_queue, selectedSongForOptions!!.title))
             },
             onAddToPlaylist = {
                 onAddToPlaylist(selectedSongForOptions!!)
@@ -654,13 +654,13 @@ fun PlaylistDetailScreen(
                         discNumber = discNumber,
                         onSuccess = { fileWriteSucceeded ->
                             if (fileWriteSucceeded) {
-                                Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, Toast.LENGTH_SHORT).show()
+                                RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                             }
                             pendingMetadataEditCompleteCallback?.invoke(true)
                             pendingMetadataEditCompleteCallback = null
                         },
                         onError = { errorMessage ->
-                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, errorMessage, long = true)
                             pendingMetadataEditCompleteCallback?.invoke(false)
                             pendingMetadataEditCompleteCallback = null
                         },
@@ -671,7 +671,7 @@ fun PlaylistDetailScreen(
                                 ).build()
                                 writePermissionLauncher.launch(intentSenderRequest)
                             } catch (e: Exception) {
-                                Toast.makeText(context, context.getString(R.string.failed_to_request_permission, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                                 musicViewModel.cancelPendingMetadataWrite()
                                 pendingMetadataEditCompleteCallback?.invoke(false)
                                 pendingMetadataEditCompleteCallback = null
@@ -679,7 +679,7 @@ fun PlaylistDetailScreen(
                         }
                     )
                 } catch (e: Exception) {
-                    Toast.makeText(context, context.getString(R.string.unexpected_error, e.message ?: ""), Toast.LENGTH_LONG).show()
+                    RhythmMessages.failure(context, R.string.msg_unexpected_error, e, long = true)
                     android.util.Log.w("PlaylistDetailScreen", "Metadata update failed for song: ${infoSong.title}", e)
                     pendingMetadataEditCompleteCallback?.invoke(false)
                     pendingMetadataEditCompleteCallback = null

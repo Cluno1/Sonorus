@@ -4,10 +4,10 @@
  */
 
 package io.github.cluno1.sonorus.shared.presentation.components.bottomsheets
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -175,11 +175,11 @@ fun EditAlbumSheet(
 
     fun handleSave() {
         if (albumTitle.trim().isBlank()) {
-            Toast.makeText(context, context.getString(R.string.editalbumsheet_title_empty), Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(context, context.getString(R.string.editalbumsheet_title_empty))
             return
         }
         if (albumArtist.trim().isBlank()) {
-            Toast.makeText(context, context.getString(R.string.editalbumsheet_artist_empty), Toast.LENGTH_SHORT).show()
+            RhythmMessages.error(context, context.getString(R.string.editalbumsheet_artist_empty))
             return
         }
         showWarningDialog = true
@@ -200,7 +200,7 @@ fun EditAlbumSheet(
                 onDismiss()
                 val msg = if (failCount == 0) "Updated album successfully"
                           else "Updated album with $failCount failures"
-                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                RhythmMessages.info(context, msg)
             }
         )
     }
@@ -372,26 +372,26 @@ fun EditAlbumSheet(
                                                                     withContext(Dispatchers.Main) {
                                                                         selectedImageUri = Uri.fromFile(tempFile)
                                                                         removeArtwork = false
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
+                                                                        RhythmMessages.success(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click)
                                                                     }
                                                                 } else {
                                                                     withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
+                                                                        RhythmMessages.error(context, R.string.songinfobottomsheet_failed_to_download_artwork_1)
                                                                     }
                                                                 }
                                                             } else {
                                                                 withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
+                                                                    RhythmMessages.error(context, R.string.songinfobottomsheet_no_artwork_found_for)
                                                                 }
                                                             }
                                                         } else {
                                                             withContext(Dispatchers.Main) {
-                                                                Toast.makeText(context, R.string.songinfobottomsheet_online_api_service_unavailable, Toast.LENGTH_SHORT).show()
+                                                                RhythmMessages.error(context, R.string.songinfobottomsheet_online_api_service_unavailable)
                                                             }
                                                         }
                                                 } catch (e: Exception) {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                                        RhythmMessages.failure(context, R.string.msg_artwork_fetch_failed, e, long = true)
                                                     }
                                                 } finally {
                                                     withContext(Dispatchers.Main) {
@@ -788,26 +788,26 @@ fun EditAlbumSheet(
                                                                     withContext(Dispatchers.Main) {
                                                                         selectedImageUri = Uri.fromFile(tempFile)
                                                                         removeArtwork = false
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
+                                                                        RhythmMessages.success(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click)
                                                                     }
                                                                 } else {
                                                                     withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
+                                                                        RhythmMessages.error(context, R.string.songinfobottomsheet_failed_to_download_artwork_1)
                                                                     }
                                                                 }
                                                             } else {
                                                                 withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
+                                                                    RhythmMessages.error(context, R.string.songinfobottomsheet_no_artwork_found_for)
                                                                 }
                                                             }
                                                         } else {
                                                             withContext(Dispatchers.Main) {
-                                                                Toast.makeText(context, R.string.songinfobottomsheet_online_api_service_unavailable, Toast.LENGTH_SHORT).show()
+                                                                RhythmMessages.error(context, R.string.songinfobottomsheet_online_api_service_unavailable)
                                                             }
                                                         }
                                                 } catch (e: Exception) {
                                                     withContext(Dispatchers.Main) {
-                                                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                                        RhythmMessages.failure(context, R.string.msg_artwork_fetch_failed, e, long = true)
                                                     }
                                                 } finally {
                                                     withContext(Dispatchers.Main) {

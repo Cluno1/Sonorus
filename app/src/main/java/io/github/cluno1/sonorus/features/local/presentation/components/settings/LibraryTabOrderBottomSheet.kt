@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.components.settings
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.StandardBottomSheetHeader
@@ -14,7 +15,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -228,7 +228,7 @@ fun LibraryTabOrderBottomSheet(
                                     onClick = {
                                         // Prevent hiding the last visible tab
                                         if (!isHidden && visibleTabsCount <= 1) {
-                                            Toast.makeText(context, R.string.library_tab_one_visible, Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.error(context, R.string.library_tab_one_visible)
                                             return@IconButton
                                         }
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
@@ -283,7 +283,7 @@ fun LibraryTabOrderBottomSheet(
                             appSettings.setHiddenLibraryTabs(emptySet())
                             reorderableList = listOf("SONGS", "LIKED", "PLAYLISTS", "ALBUMS", "ARTISTS", "EXPLORER")
                             hiddenTabsSet = emptySet()
-                            Toast.makeText(context, R.string.library_tab_order_reset, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.library_tab_order_reset)
                         },
                         weight = 1f,
                         isFirst = true,
@@ -297,7 +297,7 @@ fun LibraryTabOrderBottomSheet(
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                             appSettings.setLibraryTabOrder(reorderableList)
                             appSettings.setHiddenLibraryTabs(hiddenTabsSet)
-                            Toast.makeText(context, R.string.library_tab_order_saved, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.library_tab_order_saved)
                             scope.launch {
                                 sheetState.hide()
                             }.invokeOnCompletion {

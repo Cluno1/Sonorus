@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus issue 169: fixed user-facing messages; exception details go to the log only. -->
+<resources>
+    <string name="msg_artwork_fetch_failed">无法获取封面</string>
+    <string name="msg_permission_request_failed">无法申请权限</string>
+    <string name="msg_unexpected_error">出了点问题，请重试</string>
+    <string name="msg_lyrics_load_failed">无法加载歌词</string>
+    <string name="msg_lyrics_save_failed">无法保存歌词</string>
+    <string name="msg_backup_export_failed">导出失败</string>
+    <string name="msg_backup_import_failed">导入失败</string>
+    <string name="msg_equalizer_open_failed">无法打开均衡器</string>
+    <string name="msg_lyrics_source_keep_one">至少要保留一个歌词来源</string>
+    <string name="msg_storage_permission_required_edit">需要存储权限才能编辑音频文件信息</string>
+    <string name="msg_media_permission_required_edit">需要媒体权限才能编辑音频文件信息</string>
+    <string name="msg_songs_added_to_playlist">已将 %1$d 首加入「%2$s」</string>
+</resources>

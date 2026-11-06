@@ -1,6 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
-import android.widget.Toast
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -94,12 +94,12 @@ internal fun CatalogWorkLyricsEditSheet(
                     .replaceWorkLyrics(work.id, target.language, text, work.revision)
                     .fold(
                         onSuccess = { updated ->
-                            Toast.makeText(context, context.getString(R.string.work_lyrics_edit_saved), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.work_lyrics_edit_saved))
                             onSaved(updated)
                         },
                         onFailure = { failure ->
                             if (failure is CatalogFailure.StaleRevision) {
-                                Toast.makeText(context, context.getString(R.string.work_lyrics_edit_stale), Toast.LENGTH_LONG).show()
+                                RhythmMessages.info(context, context.getString(R.string.work_lyrics_edit_stale), long = true)
                                 onStale()
                             } else {
                                 error = failure.message ?: context.getString(R.string.work_lyrics_edit_failed)

@@ -5,12 +5,12 @@
 
 package io.github.cluno1.sonorus.infrastructure.service
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.BroadcastReceiver
 import android.content.Context
-import android.widget.Toast
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.AudioMixerAttributes
@@ -231,7 +231,7 @@ class MediaPlaybackService : MediaLibraryService(), Player.Listener {
         val bits = info.bitsPerSample?.let { "$it bits" } ?: ""
         val quality = info.quality?.let { " ($it)" } ?: ""
         val message = "Bluetooth Codec: $codecName, $sampleRate, $bits$quality"
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        RhythmMessages.info(this, message, long = true)
     }
 
     /**

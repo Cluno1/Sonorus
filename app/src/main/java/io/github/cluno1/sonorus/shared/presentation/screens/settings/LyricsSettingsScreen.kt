@@ -10,6 +10,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -25,7 +26,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -188,9 +188,9 @@ fun LyricsSettingsScreen(onBackClick: () -> Unit) {
             scope.launch {
                 val success = appSettings.exportLyricsPreferencesToCsv(context, it)
                 if (success) {
-                    Toast.makeText(context, context.getString(R.string.lyrics_exported_success), Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, context.getString(R.string.lyrics_exported_success))
                 } else {
-                    Toast.makeText(context, context.getString(R.string.lyrics_export_failed), Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, context.getString(R.string.lyrics_export_failed), long = true)
                 }
             }
         }
@@ -203,9 +203,9 @@ fun LyricsSettingsScreen(onBackClick: () -> Unit) {
             scope.launch {
                 val success = appSettings.importLyricsPreferencesFromCsv(context, it)
                 if (success) {
-                    Toast.makeText(context, context.getString(R.string.lyrics_imported_success), Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, context.getString(R.string.lyrics_imported_success))
                 } else {
-                    Toast.makeText(context, context.getString(R.string.lyrics_import_failed), Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, context.getString(R.string.lyrics_import_failed), long = true)
                 }
             }
         }

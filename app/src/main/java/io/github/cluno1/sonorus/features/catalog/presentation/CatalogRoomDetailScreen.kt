@@ -1,6 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
-import android.widget.Toast
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -116,7 +116,7 @@ fun CatalogRoomDetailScreen(
 
     fun fail(failure: Throwable) {
         if (failure is CatalogFailure.RoomUnavailable) gone = true
-        Toast.makeText(context, roomErrorMessage(context, failure), Toast.LENGTH_SHORT).show()
+        RhythmMessages.error(context, roomErrorMessage(context, failure))
         // A stale revision or any rejected write: show what the server has now.
         reloadKey++
     }

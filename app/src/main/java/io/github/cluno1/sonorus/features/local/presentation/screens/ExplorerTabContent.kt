@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
@@ -19,7 +20,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -249,11 +249,7 @@ fun SingleCardExplorerContent(
             scanStartedForCurrentGrant.value = false
         } else if (!permissionWasGranted && !scanStartedForCurrentGrant.value) {
             scanStartedForCurrentGrant.value = true
-            Toast.makeText(
-                context,
-                context.getString(R.string.device_library_permission_granted_scanning),
-                Toast.LENGTH_SHORT,
-            ).show()
+            RhythmMessages.info(context, context.getString(R.string.device_library_permission_granted_scanning))
             musicViewModel.refreshLibrary(showMediaScanLoader = false)
         }
     }

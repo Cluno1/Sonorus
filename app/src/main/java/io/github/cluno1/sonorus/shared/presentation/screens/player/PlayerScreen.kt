@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.WindowInsets
 import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -342,12 +341,12 @@ fun PlayerScreen(
             musicViewModel.completeLyricsWriteAfterPermission(
                 onSuccess = { },
                 onError = { errorMessage ->
-                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, errorMessage, long = true)
                 }
             )
         } else {
             musicViewModel.cancelPendingLyricsWrite()
-            Toast.makeText(context, R.string.materialplayerscreen_permission_denied_could_not, Toast.LENGTH_LONG).show()
+            RhythmMessages.error(context, context.getString(R.string.materialplayerscreen_permission_denied_could_not), long = true)
         }
     }
 
@@ -445,21 +444,21 @@ fun PlayerScreen(
                 if (musicViewModel.pendingBatchWriteRequest.value != null) {
                     musicViewModel.completeBatchMetadataWriteAfterPermission(
                         onSuccess = {
-                            Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                         },
                         onError = { errorMessage ->
-                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, errorMessage, long = true)
                         }
                     )
                 } else {
                     musicViewModel.completeMetadataWriteAfterPermission(
                         onSuccess = {
-                            Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                             pendingMetadataEditCompleteCallback?.invoke(true)
                             pendingMetadataEditCompleteCallback = null
                         },
                         onError = { errorMessage ->
-                            Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, errorMessage, long = true)
                             pendingMetadataEditCompleteCallback?.invoke(false)
                             pendingMetadataEditCompleteCallback = null
                         }
@@ -473,7 +472,7 @@ fun PlayerScreen(
                     pendingMetadataEditCompleteCallback?.invoke(false)
                     pendingMetadataEditCompleteCallback = null
                 }
-                Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
+                RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
             }
         }
 
@@ -623,7 +622,7 @@ fun PlayerScreen(
                         }
                         context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${currentSong.title}"))
                     } catch (_: Exception) {
-                        Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
                     }
                 }
             },
@@ -748,13 +747,13 @@ fun PlayerScreen(
                             discNumber = discNumber,
                             onSuccess = { fileWriteSucceeded ->
                                 if (fileWriteSucceeded) {
-                                    Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                                 }
                                 pendingMetadataEditCompleteCallback?.invoke(true)
                                 pendingMetadataEditCompleteCallback = null
                             },
                             onError = { errorMessage ->
-                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                RhythmMessages.error(context, errorMessage, long = true)
                                 pendingMetadataEditCompleteCallback?.invoke(false)
                                 pendingMetadataEditCompleteCallback = null
                             },
@@ -765,7 +764,7 @@ fun PlayerScreen(
                                     ).build()
                                     writePermissionLauncher.launch(intentSenderRequest)
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, context.getString(R.string.failed_to_request_permission, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                    RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                                     musicViewModel.cancelPendingMetadataWrite()
                                     pendingMetadataEditCompleteCallback?.invoke(false)
                                     pendingMetadataEditCompleteCallback = null
@@ -773,7 +772,7 @@ fun PlayerScreen(
                             }
                         )
                     } catch (e: Exception) {
-                        Toast.makeText(context, context.getString(R.string.unexpected_error, e.message ?: ""), Toast.LENGTH_LONG).show()
+                        RhythmMessages.failure(context, R.string.msg_unexpected_error, e, long = true)
                         pendingMetadataEditCompleteCallback?.invoke(false)
                         pendingMetadataEditCompleteCallback = null
                         android.util.Log.w("PlayerScreen", "Metadata update failed for song: ${song.title}", e)
@@ -885,7 +884,7 @@ fun PlayerScreen(
                             }
                             context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${currentSong.title}"))
                         } catch (_: Exception) {
-                            Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
                         }
                     }
                 },
@@ -1177,11 +1176,7 @@ fun PlayerScreen(
                             ).build()
                             lyricsWritePermissionLauncher.launch(intentSenderRequest)
                         } catch (e: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Failed to request permission: ${e.message}",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                             musicViewModel.cancelPendingLyricsWrite()
                         }
                     }

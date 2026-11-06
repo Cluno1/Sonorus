@@ -9,6 +9,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -24,7 +25,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -702,7 +702,7 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                                 Button(
                                     onClick = {
                                         if (simulateEnabled) {
-                                            Toast.makeText(context, R.string.updatessettingsscreen_simulating_update_installation_success, Toast.LENGTH_SHORT).show()
+                                            RhythmMessages.success(context, R.string.updatessettingsscreen_simulating_update_installation_success)
                                             simDownloadedFile = null
                                             simUpdateAvailable = false
                                         } else {

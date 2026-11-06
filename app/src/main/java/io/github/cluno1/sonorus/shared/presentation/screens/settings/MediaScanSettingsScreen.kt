@@ -7,6 +7,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
@@ -29,7 +30,6 @@ import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.os.Build
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -236,11 +236,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
 
     fun updateAllowedFormats(newFormats: Set<String>) {
         if (newFormats.isEmpty()) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.settings_formats_at_least_one),
-                Toast.LENGTH_SHORT
-            ).show()
+            RhythmMessages.error(context, context.getString(R.string.settings_formats_at_least_one))
             return
         }
         appSettings.setAllowedFormats(newFormats)
@@ -288,11 +284,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     }
                 } catch (e: Exception) {
                     Log.e("MediaScanSettingsScreen", "Unable to retain folder access", e)
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.settings_scan_folder_permission_failed),
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    RhythmMessages.error(context, context.getString(R.string.settings_scan_folder_permission_failed), long = true)
                 }
             }
         }
@@ -316,11 +308,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     }
                 } catch (e: Exception) {
                     Log.e("MediaScanSettingsScreen", "Unable to retain scan source access", e)
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.settings_scan_folder_permission_failed),
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    RhythmMessages.error(context, context.getString(R.string.settings_scan_folder_permission_failed), long = true)
                 }
             }
         }
@@ -448,7 +436,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                 )
                             folderPickerLauncher.launch(intent)
                         } catch (e: ActivityNotFoundException) {
-                            Toast.makeText(context, context.getString(R.string.error_no_document_app), Toast.LENGTH_LONG).show()
+                            RhythmMessages.error(context, context.getString(R.string.error_no_document_app), long = true)
                         }
                     }
                 ),
@@ -1255,7 +1243,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                         )
                                     folderPickerLauncher.launch(intent)
                                 } catch (e: ActivityNotFoundException) {
-                                    Toast.makeText(context, context.getString(R.string.error_no_document_app), Toast.LENGTH_LONG).show()
+                                    RhythmMessages.error(context, context.getString(R.string.error_no_document_app), long = true)
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
@@ -1407,11 +1395,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                 )
                                 scanSourcePickerLauncher.launch(intent)
                             } catch (e: ActivityNotFoundException) {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.error_no_document_app),
-                                    Toast.LENGTH_LONG,
-                                ).show()
+                                RhythmMessages.error(context, context.getString(R.string.error_no_document_app), long = true)
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),

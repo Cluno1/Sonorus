@@ -1,6 +1,6 @@
 package io.github.cluno1.sonorus.features.catalog.presentation
 
-import android.widget.Toast
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,11 +90,7 @@ fun CatalogAddToRoomSheet(
     fun added(room: CatalogRoom) {
         val position = room.sections.flatMap { it.items }.firstOrNull { it.work.workId == workId }?.position
             ?: room.itemCount
-        Toast.makeText(
-            context,
-            context.getString(R.string.rooms_added_toast, room.name, position),
-            Toast.LENGTH_SHORT,
-        ).show()
+        RhythmMessages.success(context, context.getString(R.string.rooms_added_toast, room.name, position))
         onDismiss()
     }
 
@@ -117,7 +113,7 @@ fun CatalogAddToRoomSheet(
                         } else {
                             roomErrorMessage(context, failure)
                         }
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.info(context, message)
                         reloadKey++
                     },
                 )

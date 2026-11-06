@@ -7,6 +7,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.components.bottomsheets
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import androidx.compose.foundation.lazy.rememberLazyListState
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
@@ -26,7 +27,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -160,7 +160,7 @@ fun DeviceConfigurationBottomSheet(
             if (content != null) {
                 importText = content
             } else {
-                Toast.makeText(context, R.string.autoeq_failed_read_file, Toast.LENGTH_SHORT).show()
+                RhythmMessages.error(context, R.string.autoeq_failed_read_file)
             }
         }
     }
@@ -467,11 +467,7 @@ fun DeviceConfigurationBottomSheet(
                 musicViewModel.applyAutoEQProfile(profile)
                 
                 // Show feedback
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.device_configuration_applied_profile, profile.name),
-                    Toast.LENGTH_SHORT
-                ).show()
+                RhythmMessages.success(context, context.getString(R.string.device_configuration_applied_profile, profile.name))
                 
                 showAutoEQSelector = false
                 deviceForAutoEQ = null
@@ -596,7 +592,7 @@ fun DeviceConfigurationBottomSheet(
                             showImportDialog = false
                             importText = ""
                             importError = null
-                            Toast.makeText(context, context.getString(R.string.deviceconfiguration_profile_imported, profile.name), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.deviceconfiguration_profile_imported, profile.name))
                         } else {
                             importError = context.getString(R.string.device_configuration_parse_error)
                         }
@@ -734,7 +730,7 @@ fun DeviceConfigurationBottomSheet(
                             FilledTonalButton(
                                 onClick = {
                                     clipboardManager.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.deviceconfiguration_clip_label), exportText))
-                                    Toast.makeText(context, R.string.deviceconfigurationbottomsheet_copied_to_clipboard, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.success(context, R.string.deviceconfigurationbottomsheet_copied_to_clipboard)
                                 },
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp)

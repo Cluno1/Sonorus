@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.RhythmMessages
 import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
@@ -21,7 +22,6 @@ import io.github.cluno1.sonorus.shared.presentation.components.common.rememberEx
 import io.github.cluno1.sonorus.shared.presentation.components.common.ExpressiveShapeTarget
 import io.github.cluno1.sonorus.shared.presentation.components.common.M3Placeholder
 
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -285,12 +285,12 @@ fun UniversalSearchScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             localViewModel.completeMetadataWriteAfterPermission(
                 onSuccess = {
-                    Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully, Toast.LENGTH_SHORT).show()
+                    RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully)
                     pendingMetadataEditCompleteCallback?.invoke(true)
                     pendingMetadataEditCompleteCallback = null
                 },
                 onError = { errorMessage ->
-                    Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                    RhythmMessages.error(context, errorMessage, long = true)
                     pendingMetadataEditCompleteCallback?.invoke(false)
                     pendingMetadataEditCompleteCallback = null
                 }
@@ -299,7 +299,7 @@ fun UniversalSearchScreen(
             localViewModel.cancelPendingMetadataWrite()
             pendingMetadataEditCompleteCallback?.invoke(false)
             pendingMetadataEditCompleteCallback = null
-            Toast.makeText(context, R.string.localnavigation_permission_denied_changes_saved, Toast.LENGTH_LONG).show()
+            RhythmMessages.error(context, context.getString(R.string.localnavigation_permission_denied_changes_saved), long = true)
         }
     }
 
@@ -2060,10 +2060,10 @@ fun UniversalSearchScreen(
                         val isCurrentlyLiked = streamingLikedSongs.any { it.id == streamingSong.id }
                         if (isCurrentlyLiked) {
                             streamingViewModel.unlikeSong(streamingSong)
-                            Toast.makeText(context, R.string.universalsearchscreen_removed_from_streaming_favorites, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.universalsearchscreen_removed_from_streaming_favorites)
                         } else {
                             streamingViewModel.likeSong(streamingSong)
-                            Toast.makeText(context, R.string.universalsearchscreen_added_to_streaming_favorites, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, R.string.universalsearchscreen_added_to_streaming_favorites)
                         }
                     }
                     showSongOptionsSheet = false
@@ -2086,7 +2086,7 @@ fun UniversalSearchScreen(
                         val album = localViewModel.filteredAlbums.value.findAlbumForSong(songObj)
                         if (album != null) {
                             handleAction("LOCAL") { onLocalAlbumClick(album) }
-                        } else Toast.makeText(context, R.string.universalsearchscreen_album_not_found, Toast.LENGTH_SHORT).show()
+                        } else RhythmMessages.error(context, R.string.universalsearchscreen_album_not_found)
                     } else {
                         val streamingSong = songObj as StreamingSong
                         if (streamingSong.albumId != null) {
@@ -2101,7 +2101,7 @@ fun UniversalSearchScreen(
                             )
                             handleAction("STREAMING") { onStreamingAlbumClick(streamingAlbum) }
                         } else {
-                            Toast.makeText(context, R.string.universalsearchscreen_album_not_found, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.error(context, R.string.universalsearchscreen_album_not_found)
                         }
                     }
                 },
@@ -2120,7 +2120,7 @@ fun UniversalSearchScreen(
                         }
                         if (artist != null) {
                             handleAction("LOCAL") { onLocalArtistClick(artist) }
-                        } else Toast.makeText(context, R.string.universalsearchscreen_artist_not_found, Toast.LENGTH_SHORT).show()
+                        } else RhythmMessages.error(context, R.string.universalsearchscreen_artist_not_found)
                     } else {
                         val streamingSong = songObj as StreamingSong
                         val streamingArtist = StreamingArtist(
@@ -2138,7 +2138,7 @@ fun UniversalSearchScreen(
                     handleAction("LOCAL") {
                         if (isLocal) {
                             appSettings.addToBlacklist(songObj.id)
-                            Toast.makeText(context, context.getString(R.string.song_added_to_blacklist_format, songObj.title), Toast.LENGTH_SHORT).show()
+                            RhythmMessages.success(context, context.getString(R.string.song_added_to_blacklist_format, songObj.title))
                         }
                     }
                     showSongOptionsSheet = false
@@ -2162,7 +2162,7 @@ fun UniversalSearchScreen(
                 onDismissRequest = { showAddToPlaylistSheet = false },
                 onAddToPlaylist = { playlist ->
                     localViewModel.addSongToPlaylist(selectedSongForPlaylist!!, playlist.id) { msg ->
-                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        RhythmMessages.info(context, msg)
                     }
                     showAddToPlaylistSheet = false
                 },
@@ -2201,13 +2201,13 @@ fun UniversalSearchScreen(
                             discNumber = discNumber,
                             onSuccess = { fileWriteSucceeded ->
                                 if (fileWriteSucceeded) {
-                                    Toast.makeText(context, R.string.localnavigation_metadata_saved_successfully_to, Toast.LENGTH_SHORT).show()
+                                    RhythmMessages.success(context, R.string.localnavigation_metadata_saved_successfully_to)
                                 }
                                 pendingMetadataEditCompleteCallback?.invoke(true)
                                 pendingMetadataEditCompleteCallback = null
                             },
                             onError = { errorMessage ->
-                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                                RhythmMessages.error(context, errorMessage, long = true)
                                 pendingMetadataEditCompleteCallback?.invoke(false)
                                 pendingMetadataEditCompleteCallback = null
                             },
@@ -2218,7 +2218,7 @@ fun UniversalSearchScreen(
                                     ).build()
                                     writePermissionLauncher.launch(intentSenderRequest)
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, context.getString(R.string.failed_to_request_permission, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                    RhythmMessages.failure(context, R.string.msg_permission_request_failed, e, long = true)
                                     localViewModel.cancelPendingMetadataWrite()
                                     pendingMetadataEditCompleteCallback?.invoke(false)
                                     pendingMetadataEditCompleteCallback = null
@@ -2226,7 +2226,7 @@ fun UniversalSearchScreen(
                             }
                         )
                     } catch (e: Exception) {
-                        Toast.makeText(context, context.getString(R.string.unexpected_error, e.message ?: ""), Toast.LENGTH_LONG).show()
+                        RhythmMessages.failure(context, R.string.msg_unexpected_error, e, long = true)
                         android.util.Log.w("UniversalSearchScreen", "Metadata update failed for song: ${infoSong.title}", e)
                         pendingMetadataEditCompleteCallback?.invoke(false)
                         pendingMetadataEditCompleteCallback = null
@@ -2247,7 +2247,7 @@ fun UniversalSearchScreen(
                 onConfirmWithSong = { name ->
                     selectedSongForPlaylist?.let { song ->
                         localViewModel.createPlaylist(name, listOf(song)) { msg ->
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            RhythmMessages.info(context, msg)
                         }
                     } ?: run {
                         localViewModel.createPlaylist(name)
@@ -3079,7 +3079,7 @@ fun UniversalSongOptionsBottomSheet(
                                 }
                                 context.startActivity(android.content.Intent.createChooser(shareIntent, "Share ${resolvedSong.title}"))
                             } catch (e: Exception) {
-                                android.widget.Toast.makeText(context, R.string.materialplayerscreen_unable_to_share_file, android.widget.Toast.LENGTH_SHORT).show()
+                                RhythmMessages.error(context, R.string.materialplayerscreen_unable_to_share_file)
                             }
                         }
 
