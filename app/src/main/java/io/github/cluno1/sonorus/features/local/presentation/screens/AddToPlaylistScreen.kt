@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
@@ -115,7 +116,7 @@ fun AddToPlaylistScreen(
         title = if (isSelectionMode) {
             "${selectedSongs.size} selected"
         } else {
-            "Add to ${targetPlaylist.name}"
+            "Add to ${targetPlaylist.displayName()}"
         },
         showBackButton = true,
         onBackClick = {

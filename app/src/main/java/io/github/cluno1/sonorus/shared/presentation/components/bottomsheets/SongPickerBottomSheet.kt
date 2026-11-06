@@ -4,6 +4,7 @@
  */
 
 package io.github.cluno1.sonorus.shared.presentation.components.bottomsheets
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
@@ -93,7 +94,7 @@ fun SongPickerBottomSheet(
         tonalElevation = 0.dp
     ) {
         StandardBottomSheetHeader(
-            title = stringResource(R.string.add_to_playlist_named, targetPlaylist.name),
+            title = stringResource(R.string.add_to_playlist_named, targetPlaylist.displayName()),
             subtitle = if (isSelectionMode) "${selectedSongs.size} selected" else "${filteredSongs.size} songs",
             visible = true
         )

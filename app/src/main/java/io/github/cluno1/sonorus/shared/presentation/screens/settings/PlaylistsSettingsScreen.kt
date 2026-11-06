@@ -10,6 +10,7 @@ package io.github.cluno1.sonorus.shared.presentation.screens.settings
 
 
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -252,7 +253,7 @@ fun PlaylistsSettingsScreen(onBackClick: () -> Unit) {
                 defaultPlaylists.map { playlist ->
                     SettingItem(
                         RhythmIcons.MusicNote,
-                        playlist.name,
+                        playlist.displayName(context),
                         "${playlist.songs.size} songs",
                         onClick = null, // No action for default playlists
                         data = playlist.id

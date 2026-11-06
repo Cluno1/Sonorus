@@ -4,6 +4,7 @@
  */
 
 package io.github.cluno1.sonorus.shared.presentation.components.bottomsheets
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
 
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
@@ -500,7 +501,7 @@ private fun PlaylistCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = playlist.name,
+                    text = playlist.displayName(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,

@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.components.icons.MaterialSymbolIcon
 import io.github.cluno1.sonorus.shared.presentation.components.icons.Icon
@@ -689,7 +690,7 @@ fun PlaylistDetailScreen(
     }
 
     CollapsibleHeaderScreen(
-        title = playlist.name,
+        title = playlist.displayName(),
         showBackButton = true,
         onBackClick = {
             if (showSearchBar) {

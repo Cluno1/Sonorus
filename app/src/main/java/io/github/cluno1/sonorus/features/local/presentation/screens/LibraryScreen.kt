@@ -6,6 +6,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 package io.github.cluno1.sonorus.features.local.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.features.catalog.domain.toStableCatalogSongId
 import io.github.cluno1.sonorus.features.local.data.model.LikedSongsProjection
 import io.github.cluno1.sonorus.features.local.data.model.UnifiedLibraryPolicy
@@ -4176,7 +4177,7 @@ fun PlaylistItem(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = playlist.name,
+                    text = playlist.displayName(),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
@@ -4885,7 +4886,7 @@ fun PlaylistGridItem(
             Spacer(modifier = Modifier.height(14.dp))
             
             Text(
-                text = playlist.name,
+                text = playlist.displayName(),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonorus: display names of the three built-in playlists; the stored names stay English (see PlaylistDisplayName.kt). -->
+<resources>
+    <string name="default_playlist_liked">Liked</string>
+    <string name="default_playlist_recently_added">Recently Added</string>
+    <string name="default_playlist_most_played">Most Played</string>
+</resources>

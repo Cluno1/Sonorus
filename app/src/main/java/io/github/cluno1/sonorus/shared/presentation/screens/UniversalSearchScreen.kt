@@ -5,6 +5,7 @@
 
 package io.github.cluno1.sonorus.shared.presentation.screens
 
+import io.github.cluno1.sonorus.shared.presentation.components.common.displayName
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AdaptiveSheetScrollContainer
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.RhythmAdaptiveModalSheet
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.SheetAdaptiveType
@@ -494,7 +495,7 @@ fun UniversalSearchScreen(
     }
     val matchedLocalPlaylists = remember(searchedQuery, localPlaylists, filterPlaylists) {
         if (!filterPlaylists || searchedQuery.isBlank()) emptyList()
-        else localPlaylists.filter { it.name.contains(searchedQuery, true) }
+        else localPlaylists.filter { it.name.contains(searchedQuery, true) || it.displayName(context).contains(searchedQuery, true) }
     }
 
     val matchedStreamingSongs = if ((catalogSource == null || ProductCapabilities.lanSubsonicOnly) && filterSongs) streamingResults.songs else emptyList()
@@ -1066,7 +1067,7 @@ fun UniversalSearchScreen(
 
                                 val allPlaylists = buildList {
                                     matchedLocalPlaylists.take(5).forEach { playlist ->
-                                        add(Triple("LOCAL", playlist.name, "Local Playlist") to {
+                                        add(Triple("LOCAL", playlist.displayName(context), "Local Playlist") to {
                                             if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                             handleAction("LOCAL") { onLocalPlaylistClick(playlist) }
                                         })
@@ -1367,7 +1368,7 @@ fun UniversalSearchScreen(
 
                             val allPlaylists = buildList {
                                 matchedLocalPlaylists.take(5).forEach { playlist ->
-                                    add(Triple("LOCAL", playlist.name, "Local Playlist") to {
+                                    add(Triple("LOCAL", playlist.displayName(context), "Local Playlist") to {
                                         if (searchedQuery.isNotBlank()) localViewModel.addSearchQuery(searchedQuery)
                                         handleAction("LOCAL") { onLocalPlaylistClick(playlist) }
                                     })

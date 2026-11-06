@@ -18,6 +18,7 @@ class FavoriteWordingTest {
         "onboarding_gesture_doubletap_desc",
         "player_chip_favorite",
         "library_category_favorites",
+        "default_playlist_liked",
     )
     private val retired = listOf("liked", "点赞", "按讚", "喜欢的歌曲", "喜歡的歌曲", "最爱", "最愛", "最喜欢", "最喜歡")
 
