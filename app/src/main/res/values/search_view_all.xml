@@ -11,4 +11,7 @@
     <string name="search_lyrics_count">See all %1$d results</string>
     <string name="search_view_all_scores">View all scores</string>
     <string name="search_scores_count">See all %1$d scores</string>
+    <string name="search_view_all_numbers">View all numbers</string>
+    <string name="search_view_all_tags">View all tags</string>
+    <string name="search_tags_count">See all %1$d tags</string>
 </resources>

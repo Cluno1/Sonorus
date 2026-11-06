@@ -12,4 +12,7 @@
     <string name="search_view_all_scores">看全部歌譜</string>
     <string name="search_scores_count">查看全部 %1$d 首歌譜</string>
     <string name="search_view_all_count_format">查看全部 %1$d 首歌曲</string>
+    <string name="search_view_all_numbers">看全部序號</string>
+    <string name="search_view_all_tags">看全部標籤</string>
+    <string name="search_tags_count">查看全部 %1$d 個標籤</string>
 </resources>

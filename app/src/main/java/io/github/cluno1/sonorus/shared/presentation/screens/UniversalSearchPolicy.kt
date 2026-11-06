@@ -66,7 +66,7 @@ internal fun shouldShowUniversalSearchEmptyState(
 internal const val UNIVERSAL_SEARCH_PREVIEW_COUNT = 3
 
 /** issue 168: the group whose full list is open over the search results. */
-internal enum class UniversalSearchAllPage { SONGS, LYRICS, EXTERNAL_LYRICS, PUBLIC_PLAYLISTS, SCORES }
+internal enum class UniversalSearchAllPage { SONGS, LYRICS, EXTERNAL_LYRICS, NUMBERS, TAGS, PUBLIC_PLAYLISTS, SCORES }
 
 /**
  * issue 168: a group offers "view all" when its full list holds more than the preview, or when more

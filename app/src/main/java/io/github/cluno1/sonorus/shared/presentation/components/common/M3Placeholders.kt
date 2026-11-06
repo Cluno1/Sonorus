@@ -54,7 +54,9 @@ fun M3Placeholder(
     type: M3PlaceholderType,
     modifier: Modifier = Modifier,
     name: String? = null,
-    shape: Shape? = null
+    shape: Shape? = null,
+    // Sonorus issue 168: search rows without artwork (lyrics, numbers, tags) swap only the glyph.
+    icon: MaterialSymbolIcon? = null
 ) {
     val context = LocalContext.current
     val appSettings = remember { AppSettings.getInstance(context) }
@@ -82,7 +84,7 @@ fun M3Placeholder(
         defaultShape
     }
     
-    val icon = when (type) {
+    val glyph = icon ?: when (type) {
         M3PlaceholderType.ALBUM -> RhythmIcons.AlbumFilled
         M3PlaceholderType.ARTIST -> RhythmIcons.ArtistFilled
         M3PlaceholderType.TRACK -> RhythmIcons.MusicNote
@@ -106,7 +108,7 @@ fun M3Placeholder(
             val iconSize = (minDim * 0.42f).coerceIn(28.dp, 96.dp)
 
             Icon(
-                imageVector = icon,
+                imageVector = glyph,
                 contentDescription = null,
                 modifier = Modifier.size(iconSize),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
