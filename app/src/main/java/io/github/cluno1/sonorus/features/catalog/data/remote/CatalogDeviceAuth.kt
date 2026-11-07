@@ -298,8 +298,8 @@ internal class CatalogDeviceAuthClient(
         val isRead = request.method == "GET" || request.method == "HEAD"
         val isLyricWrite = request.method == "PUT" &&
             request.url.encodedPath.matches(Regex("^/v2/renditions/[^/]+/lyrics/[^/]+$"))
-        val isMusicMetadataWrite = request.method == "PUT" &&
-            request.url.encodedPath.matches(Regex("^/v2/music/sources/[a-z][a-z0-9_-]{1,39}/songs/[A-Za-z0-9_-]{1,80}/metadata$"))
+        // issue 176: metadata, song lyrics and device lyrics, as the public gateway allows.
+        val isMusicMetadataWrite = isPublicMusicWrite(request.method, request.url.encodedPath)
         val isOwnedImageWrite = (
             request.url.encodedPath.startsWith("/v2/labs/image-upload") ||
                 request.url.encodedPath.startsWith("/v2/labs/images")

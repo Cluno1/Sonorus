@@ -58,7 +58,14 @@ internal class CatalogApiClient(
                     val builder = request.newBuilder().removeHeader(INTERNAL_CONTENT_SHA256)
                     if (request.url.encodedPath != "/healthz" && CatalogEndpoint.sameOrigin(request.url, origin)) {
                         if (deviceAuth != null) {
-                            deviceAuth.proof(request, precomputedHash).forEach(builder::header)
+                            val proof = try {
+                                deviceAuth.proof(request, precomputedHash)
+                            } catch (refused: IllegalArgumentException) {
+                                // issue 176: OkHttp crashes the app on a non-IO exception thrown in an
+                                // async call; an unsigned route must fail as this request only.
+                                throw IOException(refused.message, refused)
+                            }
+                            proof.forEach(builder::header)
                         } else {
                             builder.header("Authorization", "Bearer ${requireNotNull(legacyAuth)}")
                         }
