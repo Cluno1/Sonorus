@@ -103,6 +103,9 @@ fun DeviceManualMetadataScreen(
     draftOnly: Boolean = false,
     // issue 166: public songs search lyrics only; the pick is stored on the backend.
     lyricsOnly: Boolean = false,
+    // issue 176: when the backend refuses a public song's pick.
+    onSaveLyricsLocally: (String, DeviceLyricsCandidate) -> Unit = { _, _ -> },
+    onDismissLyricsSaveFailure: () -> Unit = {},
 ) {
     val publicMetadataEnabled by appSettings.devicePublicMetadataEnabled.collectAsState()
     var kind by rememberSaveable(song?.id, initialKind, lyricsOnly) {
@@ -712,6 +715,36 @@ fun DeviceManualMetadataScreen(
                     selectedDetailFields = emptySet()
                 }) {
                     Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
+    }
+
+    state.publicLyricsSaveFailed?.let { candidate ->
+        // issue 176: the backend did not take the pick; let the user keep it on this phone or retry.
+        AlertDialog(
+            onDismissRequest = { if (!state.isApplying) onDismissLyricsSaveFailure() },
+            title = { Text(stringResource(R.string.public_lyrics_save_failed_title)) },
+            text = { Text(stringResource(R.string.public_lyrics_save_failed_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = { song?.let { onSaveLyricsLocally(it.id, candidate) } },
+                    enabled = !state.isApplying,
+                ) {
+                    Text(stringResource(R.string.public_lyrics_save_locally))
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = onDismissLyricsSaveFailure, enabled = !state.isApplying) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                    TextButton(
+                        onClick = { song?.let { onApplyLyrics(it.id, candidate) } },
+                        enabled = !state.isApplying,
+                    ) {
+                        Text(stringResource(R.string.public_lyrics_save_retry))
+                    }
                 }
             },
         )

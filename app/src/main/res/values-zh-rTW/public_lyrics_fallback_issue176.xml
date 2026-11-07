@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- issue 176: a public song's lyrics pick that the backend did not accept -->
+    <string name="public_lyrics_save_failed_title">無法儲存到伺服器</string>
+    <string name="public_lyrics_save_failed_body">這份歌詞暫時無法儲存到伺服器，其他使用者看不到。你可以先只儲存在這支手機上，或者重試。</string>
+    <string name="public_lyrics_save_locally">僅儲存到本機</string>
+    <string name="public_lyrics_save_retry">重試</string>
+    <string name="msg_public_lyrics_saved_locally">已儲存到本機，僅本機可見</string>
+</resources>

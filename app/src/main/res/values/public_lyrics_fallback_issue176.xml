@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- issue 176: a public song's lyrics pick that the backend did not accept -->
+    <string name="public_lyrics_save_failed_title">Couldn\'t save to the server</string>
+    <string name="public_lyrics_save_failed_body">These lyrics couldn\'t be saved to the server, so other users won\'t see them. You can keep them on this phone only for now, or try again.</string>
+    <string name="public_lyrics_save_locally">Keep on this phone</string>
+    <string name="public_lyrics_save_retry">Try again</string>
+    <string name="msg_public_lyrics_saved_locally">Saved on this phone only</string>
+</resources>

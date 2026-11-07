@@ -193,6 +193,8 @@ data class DeviceManualMetadataUiState(
     val providerStatuses: Map<DevicePublicMetadataProvider, DeviceManualProviderStatus> = emptyMap(),
     val error: DeviceManualMetadataError? = null,
     val applied: Boolean = false,
+    // issue 176: a public song's pick that the backend did not accept; the screen offers choices.
+    val publicLyricsSaveFailed: DeviceLyricsCandidate? = null,
 )
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
@@ -8426,15 +8428,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             lyricsFetchJob = viewModelScope.launch {
                 _isLoadingLyrics.value = true
                 try {
+                    // issue 176: lyrics kept on this phone (the backend refused them) show first and stay.
+                    val localLyrics = runCatching { repository.publicSongLocalLyrics(song) }
+                        .onFailure { Log.w(TAG, "Local lyrics for public song unreadable: ${song.id}", it) }
+                        .getOrNull()
+                    if (localLyrics != null && lanLyricsGeneration == generation && showLyrics.value) {
+                        _currentLyrics.value = localLyrics
+                    }
+                    var loadFailed = false
                     guardPublicMusicLoad(
-                        onFailure = { error -> Log.w(TAG, "Public music metadata unavailable for ${song.id}", error) },
+                        onFailure = { error ->
+                            loadFailed = true
+                            Log.w(TAG, "Public music metadata unavailable for ${song.id}", error)
+                        },
                     ) {
                         val load = streamingRepository.publicMusicMetadataLoad(song, manual = forceRefresh)
                         val metadata = load?.metadata
                         if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) {
                             // Read the shared lyrics and tags, including edits made by another user.
                             if (metadata != null) {
-                                if (showLyrics.value) _currentLyrics.value = metadata.lyrics()
+                                if (showLyrics.value) {
+                                    _currentLyrics.value = PublicLyricsFallbackPolicy.lyricsToShow(localLyrics, metadata.lyrics())
+                                }
                                 _currentSong.value = metadata.applyTo(_currentSong.value ?: song)
                                 _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map {
                                     if (it.id == song.id) metadata.applyTo(it) else it
@@ -8442,9 +8457,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                 streamingRepository.applyLanMetadata(metadata)
                             }
                         }
-                        if (load?.lyricsMissing == true && lanLyricsGeneration == generation) {
+                        if (
+                            PublicLyricsFallbackPolicy.shouldTryFallback(
+                                hasLocal = localLyrics != null, lyricsMissing = load?.lyricsMissing == true, loadFailed = false,
+                            ) && lanLyricsGeneration == generation
+                        ) {
                             applyPublicSongFallbackLyrics(song, generation, streamingRepository)
                         }
+                    }
+                    // issue 176: the backend failed (e.g. it rejected the write); still try the automatic match.
+                    if (
+                        PublicLyricsFallbackPolicy.shouldTryFallback(
+                            hasLocal = localLyrics != null, lyricsMissing = false, loadFailed = loadFailed,
+                        ) && lanLyricsGeneration == generation
+                    ) {
+                        guardPublicMusicLoad(
+                            onFailure = { error -> Log.w(TAG, "Public fallback lyrics failed for ${song.id}", error) },
+                        ) { applyPublicSongFallbackLyrics(song, generation, streamingRepository) }
                     }
                 } finally {
                     if (lanLyricsGeneration == generation && _currentSong.value?.id == song.id) _isLoadingLyrics.value = false
@@ -8866,9 +8895,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (isPublicSong(song)) {
                     // issue 166: a public song's pick is stored on the backend and replaces it for everyone.
                     applyPublicManualLyrics(song, candidate)
+                    // issue 176: the backend now holds the pick; drop a copy kept on this phone earlier.
+                    repository.clearPublicSongLocalLyrics(song)
                     if (requestId != deviceManualMetadataRequestId) return@launch
                     Log.i(TAG, "Applied manual lyrics to public song")
-                    _deviceManualMetadataState.value = state.copy(applied = true)
+                    _deviceManualMetadataState.value = state.copy(applied = true, publicLyricsSaveFailed = null)
                     RhythmMessages.success(getApplication<Application>(), R.string.msg_library_public_lyrics_applied)
                     return@launch
                 }
@@ -8883,12 +8914,56 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             } catch (error: Exception) {
                 Log.w(TAG, "Could not apply manual DEVICE lyrics", error)
                 if (requestId == deviceManualMetadataRequestId) {
+                    _deviceManualMetadataState.value = if (PublicLyricsFallbackPolicy.offerLocalSave(isPublicSong(song))) {
+                        state.copy(publicLyricsSaveFailed = candidate)
+                    } else {
+                        state.copy(error = DeviceManualMetadataError.APPLY_FAILED)
+                    }
+                }
+            }
+        }
+    }
+
+    /** issue 176: the backend did not take a public song's pick; keep it on this phone only. */
+    fun saveDeviceManualLyricsLocally(songId: String, candidate: DeviceLyricsCandidate) {
+        val state = _deviceManualMetadataState.value
+        val song = findDeviceSong(songId, allowPublicSong = true)
+        if (song == null) {
+            reportManualMetadataSongUnavailable("lyrics", songId)
+            return
+        }
+        if (state.songId != songId || state.publicLyricsSaveFailed != candidate) return
+        deviceManualMetadataJob?.cancel()
+        val requestId = ++deviceManualMetadataRequestId
+        deviceManualMetadataJob = viewModelScope.launch {
+            _deviceManualMetadataState.value = state.copy(isApplying = true, error = null)
+            try {
+                val saved = repository.savePublicSongLyricsLocally(song, candidate)
+                if (requestId != deviceManualMetadataRequestId) return@launch
+                if (_currentSong.value?.id == songId) _currentLyrics.value = saved
+                Log.i(TAG, "Saved public song lyrics on this device only")
+                _deviceManualMetadataState.value = state.copy(publicLyricsSaveFailed = null, applied = true)
+                RhythmMessages.success(getApplication<Application>(), R.string.msg_public_lyrics_saved_locally)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not save public song lyrics on this device", error)
+                if (requestId == deviceManualMetadataRequestId) {
                     _deviceManualMetadataState.value = state.copy(
+                        publicLyricsSaveFailed = null,
                         error = DeviceManualMetadataError.APPLY_FAILED,
                     )
                 }
             }
         }
+    }
+
+    /** issue 176: the user closed the choice; the pick was not stored anywhere. */
+    fun dismissPublicLyricsSaveFailure() {
+        _deviceManualMetadataState.value = _deviceManualMetadataState.value.copy(
+            publicLyricsSaveFailed = null,
+            error = DeviceManualMetadataError.APPLY_FAILED,
+        )
     }
 
     private suspend fun applyPublicManualLyrics(song: Song, candidate: DeviceLyricsCandidate) {

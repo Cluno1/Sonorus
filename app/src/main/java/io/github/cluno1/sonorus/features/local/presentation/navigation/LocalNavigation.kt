@@ -2651,6 +2651,8 @@ private fun LocalNavigationContent(
                         onStart = viewModel::startDeviceManualMetadata,
                         onSearch = viewModel::searchDeviceManualMetadata,
                         onApplyLyrics = viewModel::applyDeviceManualLyrics,
+                        onSaveLyricsLocally = viewModel::saveDeviceManualLyricsLocally,
+                        onDismissLyricsSaveFailure = viewModel::dismissPublicLyricsSaveFailure,
                         onApplyArtwork = viewModel::applyDeviceManualArtwork,
                         onApplyArtistArtwork = viewModel::applyDeviceManualArtistArtwork,
                         onApplyDetails = viewModel::applyDeviceManualDetails,

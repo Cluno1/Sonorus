@@ -104,6 +104,17 @@ class DeviceMetadataRepository(private val context: Context, private val allowLa
         return LyricsData(row.lyricsPlain, row.lyricsSynced, source = row.lyricsSource)
     }
 
+    /**
+     * issue 176: a public song's "this phone only" lyrics. Its fingerprint depends on duration and
+     * size, which change when shared metadata arrives, so only the stable song ID is checked.
+     */
+    suspend fun pinnedLyricsBySongId(song: Song): LyricsData? {
+        val row = dao.getBySongId(song.id) ?: return null
+        if (!row.lyricsPinned) return null
+        if (row.lyricsPlain.isNullOrBlank() && row.lyricsSynced.isNullOrBlank()) return null
+        return LyricsData(row.lyricsPlain, row.lyricsSynced, source = row.lyricsSource)
+    }
+
     suspend fun saveLyrics(song: Song, value: LyricsData, provider: String?, externalId: String?, confidence: Double?, cachePath: String? = null, pinned: Boolean = false) {
         val old = dao.getBySongId(song.id)
         if (

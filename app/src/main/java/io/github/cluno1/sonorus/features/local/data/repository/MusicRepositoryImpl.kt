@@ -4860,6 +4860,22 @@ class MusicRepository(context: Context) {
         return result
     }
 
+    /** issue 176: keep a public song's chosen lyrics on this phone only (not shared, not uploaded). */
+    suspend fun savePublicSongLyricsLocally(song: Song, candidate: DeviceLyricsCandidate): LyricsData {
+        val result = deviceMetadataRepository.applyLyrics(song, candidate, userSelected = true)
+        clearLyricsMemoryCacheForSong(song)
+        return result
+    }
+
+    /** issue 176: the lyrics kept on this phone for a public song, if any. */
+    suspend fun publicSongLocalLyrics(song: Song): LyricsData? = deviceMetadataRepository.pinnedLyricsBySongId(song)
+
+    /** issue 176: after a successful backend save the shared lyrics apply again. */
+    suspend fun clearPublicSongLocalLyrics(song: Song) {
+        deviceMetadataRepository.clearLyrics(song)
+        clearLyricsMemoryCacheForSong(song)
+    }
+
     suspend fun applyDeviceArtworkCandidate(
         song: Song,
         candidate: DeviceArtworkCandidate,
