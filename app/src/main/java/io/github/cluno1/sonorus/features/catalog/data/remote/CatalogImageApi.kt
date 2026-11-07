@@ -5,7 +5,6 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.HTTP
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -82,7 +81,8 @@ internal interface CatalogImageApi {
         @Header("Idempotency-Key") idempotencyKey: String,
     ): Response<ClientImageDeleteDto>
 
-    @HTTP(method = "DELETE", path = "v2/labs/images:batch-delete", hasBody = true)
+    // issue 176: the backend route and the public gateway accept POST only (DELETE answered 404).
+    @POST("v2/labs/images:batch-delete")
     suspend fun deleteImages(
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: ClientImageIdsDto,

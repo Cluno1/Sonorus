@@ -295,25 +295,7 @@ internal class CatalogDeviceAuthClient(
 
     @Synchronized
     fun proof(request: Request, precomputedContentSha256: String? = null): Map<String, String> {
-        val isRead = request.method == "GET" || request.method == "HEAD"
-        val isLyricWrite = request.method == "PUT" &&
-            request.url.encodedPath.matches(Regex("^/v2/renditions/[^/]+/lyrics/[^/]+$"))
-        // issue 176: metadata, song lyrics and device lyrics, as the public gateway allows.
-        val isMusicMetadataWrite = isPublicMusicWrite(request.method, request.url.encodedPath)
-        val isOwnedImageWrite = (
-            request.url.encodedPath.startsWith("/v2/labs/image-upload") ||
-                request.url.encodedPath.startsWith("/v2/labs/images")
-            ) && request.method in setOf("POST", "PATCH", "DELETE")
-        val isAdminWrite = request.url.encodedPath.startsWith("/v2/admin/") &&
-            request.method in setOf("POST", "PATCH", "DELETE")
-        // issue 116: the only Work write a device may sign is the narrow tag endpoint.
-        val isWorkTagWrite = request.method == "PATCH" &&
-            request.url.encodedPath.matches(Regex("^/v2/works/[^/]+/tags$"))
-        require(
-            isRead || isLyricWrite || isMusicMetadataWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite ||
-                isCatalogRoomWrite(request.method, request.url.encodedPath) ||
-                isCatalogWorkLyricWrite(request.method, request.url.encodedPath),
-        ) {
+        require(catalogDeviceMaySign(request.method, request.url.encodedPath)) {
             "public Catalog only signs reads and narrow owned writes"
         }
         // A mark left by an access-token 401 is retried once through the existing session; only a
@@ -452,6 +434,25 @@ private val CATALOG_ROOM_WRITES = listOf(
     "PUT" to Regex("^/v2/rooms/[^/]+/order$"),
     "PATCH" to Regex("^/v2/rooms/[^/]+/sections/[^/]+$"),
 )
+
+/**
+ * Requests a device may sign: reads plus the narrow writes the public gateway allows.
+ * issue 176: kept as one function so a contract test can check every declared Retrofit write.
+ */
+internal fun catalogDeviceMaySign(method: String, encodedPath: String): Boolean {
+    val isRead = method == "GET" || method == "HEAD"
+    val isLyricWrite = method == "PUT" && encodedPath.matches(Regex("^/v2/renditions/[^/]+/lyrics/[^/]+$"))
+    // issue 176: metadata, song lyrics and device lyrics, as the public gateway allows.
+    val isMusicWrite = isPublicMusicWrite(method, encodedPath)
+    val isOwnedImageWrite = (
+        encodedPath.startsWith("/v2/labs/image-upload") || encodedPath.startsWith("/v2/labs/images")
+        ) && method in setOf("POST", "PATCH", "DELETE")
+    val isAdminWrite = encodedPath.startsWith("/v2/admin/") && method in setOf("POST", "PATCH", "DELETE")
+    // issue 116: the only Work write a device may sign is the narrow tag endpoint.
+    val isWorkTagWrite = method == "PATCH" && encodedPath.matches(Regex("^/v2/works/[^/]+/tags$"))
+    return isRead || isLyricWrite || isMusicWrite || isOwnedImageWrite || isAdminWrite || isWorkTagWrite ||
+        isCatalogRoomWrite(method, encodedPath) || isCatalogWorkLyricWrite(method, encodedPath)
+}
 
 /** issue 125: a Work's plain lyrics of one language — the one extra Work write a device may sign. */
 internal fun isCatalogWorkLyricWrite(method: String, encodedPath: String): Boolean =

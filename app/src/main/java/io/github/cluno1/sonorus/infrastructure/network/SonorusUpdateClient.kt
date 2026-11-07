@@ -274,13 +274,20 @@ class SonorusUpdateClient(
             .followSslRedirects(true)
             .addNetworkInterceptor { chain ->
                 val outgoing = chain.request()
-                if (CatalogEndpoint.sameOrigin(outgoing.url, origin)) {
-                    require(outgoing.url == request.url) { "APK redirect changed the update service path" }
-                    chain.proceed(outgoing)
-                } else {
-                    SonorusUpdateCosRedirectPolicy.validate(outgoing.url, expectedCosPath)
-                    chain.proceed(SonorusUpdateCosRedirectPolicy.sanitize(outgoing))
+                // issue 176: this call is enqueued; a non-IO exception here would crash the app
+                // instead of reaching the download's onFailure.
+                val checked = try {
+                    if (CatalogEndpoint.sameOrigin(outgoing.url, origin)) {
+                        require(outgoing.url == request.url) { "APK redirect changed the update service path" }
+                        outgoing
+                    } else {
+                        SonorusUpdateCosRedirectPolicy.validate(outgoing.url, expectedCosPath)
+                        SonorusUpdateCosRedirectPolicy.sanitize(outgoing)
+                    }
+                } catch (rejected: IllegalArgumentException) {
+                    throw IOException(rejected.message, rejected)
                 }
+                chain.proceed(checked)
             }
             .build()
         val cosCapableRequest = request.newBuilder()
