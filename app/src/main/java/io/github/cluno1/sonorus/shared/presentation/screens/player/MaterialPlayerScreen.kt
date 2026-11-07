@@ -2144,26 +2144,34 @@ fun MaterialPlayerScreen(
                                                                 song?.takeIf {
                                                                     DeviceMetadataPolicy.isEligible(it.id, it.uri.scheme)
                                                                 }?.let { targetSong ->
-                                                                    FilledTonalButton(
-                                                                        onClick = {
-                                                                            HapticUtils.performHapticFeedback(
-                                                                                context,
-                                                                                haptic,
-                                                                                HapticType.HEAVY,
-                                                                            )
-                                                                            navController.navigateToDeviceManualMetadata(
-                                                                                targetSong.id,
-                                                                                DeviceManualMetadataKind.LYRICS,
-                                                                            )
-                                                                        },
+                                                                    // issue 175: same group style as the Editor button below
+                                                                    ExpressiveButtonGroup(
+                                                                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                                                                        style = ButtonGroupStyle.Tonal
                                                                     ) {
-                                                                        Icon(
-                                                                            imageVector = RhythmIcons.Search,
-                                                                            contentDescription = null,
-                                                                            modifier = Modifier.size(18.dp),
-                                                                        )
-                                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                                        Text(stringResource(R.string.device_manual_metadata_find_lyrics))
+                                                                        ExpressiveGroupButton(
+                                                                            onClick = {
+                                                                                HapticUtils.performHapticFeedback(
+                                                                                    context,
+                                                                                    haptic,
+                                                                                    HapticType.HEAVY,
+                                                                                )
+                                                                                navController.navigateToDeviceManualMetadata(
+                                                                                    targetSong.id,
+                                                                                    DeviceManualMetadataKind.LYRICS,
+                                                                                )
+                                                                            },
+                                                                            isStart = true,
+                                                                            isEnd = true
+                                                                        ) {
+                                                                            Icon(
+                                                                                imageVector = RhythmIcons.Search,
+                                                                                contentDescription = null,
+                                                                                modifier = Modifier.size(18.dp),
+                                                                            )
+                                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                                            Text(stringResource(R.string.device_manual_metadata_find_lyrics))
+                                                                        }
                                                                     }
                                                                     Spacer(modifier = Modifier.height(12.dp))
                                                                 }

@@ -2604,19 +2604,19 @@ private fun RhythmPlayerLyricsPanel(
                     if (!isLoadingLyrics) {
                         Spacer(Modifier.height(16.dp))
                         onManualLyricsSearch?.let { action ->
-                            Button(
-                                onClick = {
-                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.MEDIUM)
-                                    action()
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = buttonContainerColor ?: activeColor,
-                                    contentColor = buttonContentColor ?: MaterialTheme.colorScheme.onPrimary,
-                                ),
-                            ) {
-                                Icon(RhythmIcons.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.device_manual_metadata_find_lyrics))
+                            // issue 175: same component and colors as the Editor button below. A plain Button
+                            // on activeColor turned white-on-white over the album backdrop.
+                            RhythmGroupedButton(size = RhythmButtonSize.Small) {
+                                RhythmButtonWeighted(
+                                    onClick = { HapticUtils.performHapticFeedback(context, haptic, HapticType.MEDIUM); action() },
+                                    weight = 1f,
+                                    isFirst = true,
+                                    isLast = true,
+                                    icon = RhythmIcons.Search,
+                                    text = stringResource(R.string.device_manual_metadata_find_lyrics),
+                                    containerColor = buttonContainerColor,
+                                    contentColor = buttonContentColor
+                                )
                             }
                             Spacer(Modifier.height(12.dp))
                         }

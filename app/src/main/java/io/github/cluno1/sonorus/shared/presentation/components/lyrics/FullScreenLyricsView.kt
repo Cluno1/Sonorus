@@ -483,14 +483,18 @@ fun FullScreenLyricsView(
                                     }
                                     onManualLyricsSearch?.let { manualSearch ->
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        OutlinedButton(onClick = manualSearch) {
-                                            Icon(
+                                        RhythmGroupedButton(size = RhythmButtonSize.Small) { // issue 175
+                                            RhythmButtonWeighted(
+                                                onClick = {
+                                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                                                    manualSearch()
+                                                },
+                                                weight = 1f,
+                                                isFirst = true,
+                                                isLast = true,
                                                 icon = RhythmIcons.Search,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
+                                                text = stringResource(R.string.device_manual_metadata_find_lyrics)
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(stringResource(R.string.device_manual_metadata_find_lyrics))
                                         }
                                     }
                                 }
@@ -821,19 +825,18 @@ fun FullScreenLyricsView(
                                     }
                                     onManualLyricsSearch?.let { manualSearch ->
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        OutlinedButton(
-                                            onClick = {
-                                                HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
-                                                manualSearch()
-                                            },
-                                        ) {
-                                            Icon(
+                                        RhythmGroupedButton(size = RhythmButtonSize.Small) { // issue 175: Editor style
+                                            RhythmButtonWeighted(
+                                                onClick = {
+                                                    HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
+                                                    manualSearch()
+                                                },
+                                                weight = 1f,
+                                                isFirst = true,
+                                                isLast = true,
                                                 icon = RhythmIcons.Search,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp),
+                                                text = stringResource(R.string.device_manual_metadata_find_lyrics)
                                             )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(stringResource(R.string.device_manual_metadata_find_lyrics))
                                         }
                                     }
                                 }
