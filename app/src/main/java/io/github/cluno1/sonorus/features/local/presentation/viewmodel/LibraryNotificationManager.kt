@@ -27,6 +27,17 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 
+/**
+ * issue 179: whether app start shows the "library setup" progress / completion notification.
+ *
+ * Only an empty or stale library (a real rescan) does. The routine startup work — filling missing
+ * artwork, which in public-metadata mode runs on every launch while the phone has songs — keeps
+ * running silently; before this every launch showed "Resolving album art…" and a setup summary.
+ * Manual refreshes arm the notification themselves (MusicViewModel.refreshLibrary).
+ */
+internal fun startupNeedsLibrarySetupNotification(cachedSongCount: Int, libraryStale: Boolean): Boolean =
+    cachedSongCount == 0 || libraryStale
+
 class LibraryNotificationManager(private val context: Application) {
 
     companion object {

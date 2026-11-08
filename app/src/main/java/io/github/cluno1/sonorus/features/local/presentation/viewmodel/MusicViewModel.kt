@@ -1972,7 +1972,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * This is called AFTER _isInitialized is set to true, so UI is already responsive.
      */
     private fun startBackgroundTasksDeferred() {
-        armLibrarySetupCompletionNotification()
+        // issue 179: no "library setup" notification on an ordinary launch; it is armed below only
+        // when the startup check finds a real rescan to do (see startupNeedsLibrarySetupNotification).
 
         // Note: The redundant full MediaStore sync on startup has been removed.
         // It used to call loadSongs(forceRefresh=true) 500ms after app launch,
@@ -1994,8 +1995,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val lastScan = appSettings.lastScanTimestamp.value
                 val cachedCount = _songs.value.size
-                if (cachedCount == 0 || repository.isLibraryStale(lastScan, cachedCount)) {
+                val stale = cachedCount == 0 || repository.isLibraryStale(lastScan, cachedCount)
+                if (startupNeedsLibrarySetupNotification(cachedCount, stale)) {
                     Log.d(TAG, "Library is empty or stale on startup (count=$cachedCount), triggering background refresh")
+                    armLibrarySetupCompletionNotification()
                     performMediaStoreRefresh()
                 }
             } catch (e: Exception) {
