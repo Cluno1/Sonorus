@@ -2871,9 +2871,9 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
             val localPauseOnly = pauseOnly
 
             try {
-                if (localFadeOut && durationMs > 10000) {
+                if (localFadeOut && durationMs > SleepTimerExtendPolicy.FADE_WINDOW_MS) {
                     var remainingTime = durationMs
-                    while (remainingTime > 10000) {
+                    while (remainingTime > SleepTimerExtendPolicy.FADE_WINDOW_MS) {
                         delay(1000)
                         remainingTime = durationMs - (System.currentTimeMillis() - localStartTime)
                         if (remainingTime <= 0) break
@@ -2884,7 +2884,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                     sleepTimerOriginalVolume = originalVolume
                     rhythmPlayerEngine.isInternalVolumeAdjustment = true
                     val fadeSteps = 100
-                    val fadeInterval = 10000L / fadeSteps
+                    val fadeInterval = SleepTimerExtendPolicy.FADE_WINDOW_MS / fadeSteps
 
                     for (i in fadeSteps downTo 0) {
                         val volume = originalVolume * (i.toFloat() / fadeSteps)
@@ -2953,27 +2953,32 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
         Log.d(TAG, "Sleep timer job started for ${durationMs}ms")
     }
 
+    /** issue 180: only a volume change during the fade-out extends the timer, by a fixed time. */
     fun extendSleepTimer() {
         if (sleepTimerDurationMs <= 0L || sleepTimerStartTime <= 0L) return
 
         val now = System.currentTimeMillis()
         if (now - lastVolumeExtendTimeMs < 3000) return
+        val remaining = getRemainingTimeMs()
+        if (!SleepTimerExtendPolicy.shouldExtend(fadeOutEnabled, remaining)) return
         lastVolumeExtendTimeMs = now
 
-        Log.d(TAG, "Extending sleep timer due to volume change")
-
-        val duration = sleepTimerDurationMs
+        val duration = SleepTimerExtendPolicy.EXTEND_MS
         val fadeOut = fadeOutEnabled
         val pauseOnly = pauseOnlyEnabled
 
         sleepTimerJob?.cancel()
         sleepTimerJob = null
+        // The fade had already lowered the player: give the listener their volume back.
+        sleepTimerOriginalVolume?.let { player.volume = it }
+        sleepTimerOriginalVolume = null
         rhythmPlayerEngine.isInternalVolumeAdjustment = false
 
+        sleepTimerDurationMs = duration
         sleepTimerStartTime = now
         sleepTimerJob = launchTimerCoroutine(now, duration, fadeOut, pauseOnly)
         broadcastSleepTimerStatus()
-        Log.d(TAG, "Sleep timer extended for ${duration}ms")
+        Log.i(TAG, "Sleep timer extended during fade-out: remaining=${remaining}ms -> ${duration}ms")
     }
 
     fun stopSleepTimer() {
