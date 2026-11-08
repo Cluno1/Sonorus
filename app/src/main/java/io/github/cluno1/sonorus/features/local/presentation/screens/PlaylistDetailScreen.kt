@@ -91,6 +91,7 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -236,8 +237,9 @@ fun PlaylistDetailScreen(
     var operationInProgress by remember { mutableStateOf("") }
     var operationResult by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     var newPlaylistName by remember { mutableStateOf(playlist.name) }
-    var searchQuery by remember { mutableStateOf("") }
-    var showSearchBar by remember { mutableStateOf(false) }
+    // issue 177: the in-playlist search survives opening the player or another page on top.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showSearchBar by rememberSaveable { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
     var isReorderMode by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }

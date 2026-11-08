@@ -73,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.saveable.rememberSaveable
 import android.net.Uri
 import io.github.cluno1.sonorus.R
 import io.github.cluno1.sonorus.shared.presentation.components.bottomsheets.AddToPlaylistBottomSheet
@@ -200,11 +201,12 @@ fun UniversalSearchScreen(
     val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
     val horizontalPadding = if (isTablet) 32.dp else 24.dp
 
-    var query by remember { mutableStateOf("") }
+    // issue 177: the search survives a result opened on top of it (see UniversalSearchSession.kt).
+    var query by rememberSaveable { mutableStateOf("") }
     // What results are shown for: set only by the search button, the keyboard's search key, or a
     // history / genre tap, so typing never sends requests. Clearing the box clears the results.
-    var searchedQuery by remember { mutableStateOf("") }
-    var searchSubmission by remember { mutableIntStateOf(0) }
+    var searchedQuery by rememberSaveable { mutableStateOf("") }
+    var searchSubmission by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(query) {
         if (query.isBlank()) searchedQuery = ""
     }
@@ -218,7 +220,7 @@ fun UniversalSearchScreen(
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
-        if (showKeyboardOnSearchOpen) {
+        if (shouldFocusUniversalSearchOnOpen(showKeyboardOnSearchOpen, query)) {
             delay(300)
             try {
                 focusRequester.requestFocus()
@@ -228,41 +230,33 @@ fun UniversalSearchScreen(
         }
     }
 
-    var showFilters by remember { mutableStateOf(false) }
-    var filterSongs by remember { mutableStateOf(true) }
-    var filterAlbums by remember { mutableStateOf(true) }
-    var filterArtists by remember { mutableStateOf(true) }
-    var filterPlaylists by remember { mutableStateOf(true) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+    var filterSongs by rememberSaveable { mutableStateOf(true) }
+    var filterAlbums by rememberSaveable { mutableStateOf(true) }
+    var filterArtists by rememberSaveable { mutableStateOf(true) }
+    var filterPlaylists by rememberSaveable { mutableStateOf(true) }
     // issue 168: public playlists (歌单) have their own chip, apart from phone playlists (播放列表).
-    var filterPublicPlaylists by remember { mutableStateOf(true) }
-    var filterLyrics by remember { mutableStateOf(true) }
-    var filterNumbers by remember { mutableStateOf(true) }
-    var filterTags by remember { mutableStateOf(true) }
-    var filterExternalLyrics by remember { mutableStateOf(true) }
-    var lyricsSearchState by remember {
-        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
-    }
-    var numberSearchState by remember {
-        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
-    }
-    var tagSearchState by remember {
-        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
-    }
-    var scoreSearchState by remember {
-        mutableStateOf<UniversalCatalogTextSearchState>(UniversalCatalogTextSearchState.Idle)
-    }
-    var externalLyricsState by remember {
-        mutableStateOf<UniversalExternalLyricsSearchState>(UniversalExternalLyricsSearchState.Idle)
-    }
+    var filterPublicPlaylists by rememberSaveable { mutableStateOf(true) }
+    var filterLyrics by rememberSaveable { mutableStateOf(true) }
+    var filterNumbers by rememberSaveable { mutableStateOf(true) }
+    var filterTags by rememberSaveable { mutableStateOf(true) }
+    var filterExternalLyrics by rememberSaveable { mutableStateOf(true) }
+    // issue 177: server answers are scoped to this search page's back stack entry.
+    val searchSession: UniversalSearchSessionViewModel = viewModel()
+    var lyricsSearchState by searchSession::lyricsState
+    var numberSearchState by searchSession::numberState
+    var tagSearchState by searchSession::tagState
+    var scoreSearchState by searchSession::scoreState
+    var externalLyricsState by searchSession::externalLyricsState
 
     var showSwitchDialog by remember { mutableStateOf(false) }
     var pendingAction: (() -> Unit)? by remember { mutableStateOf(null) }
     var targetModeForPendingAction by remember { mutableStateOf("") }
 
     // issue 168: every group opens its full list on the same page as "view all songs".
-    var allResultsPage by remember { mutableStateOf<UniversalSearchAllPage?>(null) }
+    var allResultsPage by rememberSaveable { mutableStateOf<UniversalSearchAllPage?>(null) }
     // Kept while the page slides out, so the closing page keeps its content.
-    var lastAllResultsPage by remember { mutableStateOf(UniversalSearchAllPage.SONGS) }
+    var lastAllResultsPage by rememberSaveable { mutableStateOf(UniversalSearchAllPage.SONGS) }
     val openAllResults: (UniversalSearchAllPage) -> Unit = { page ->
         lastAllResultsPage = page
         allResultsPage = page
@@ -361,6 +355,11 @@ fun UniversalSearchScreen(
             (ProductCapabilities.thirdPartyMusicServices || ProductCapabilities.lanSubsonicOnly) &&
             normalizedQuery.isNotBlank()
         ) {
+            // issue 177: coming back from a result keeps the shared results and loaded pages.
+            val key = "$normalizedQuery#$searchSubmission#$lanConnectionEpoch"
+            val stillShown = streamingViewModel.searchQuery.value == normalizedQuery
+            if (shouldReuseUniversalSearchAnswer(searchSession.streamingKey, key, stillShown)) return@LaunchedEffect
+            searchSession.streamingKey = key
             streamingViewModel.search(normalizedQuery)
         }
     }
@@ -373,8 +372,13 @@ fun UniversalSearchScreen(
         val search = currentCatalogTextSearch
         if (search == null || !filterLyrics || catalogTextQuery.isEmpty()) {
             lyricsSearchState = UniversalCatalogTextSearchState.Idle
+            searchSession.lyricsKey = null
             return@LaunchedEffect
         }
+        if (shouldReuseUniversalSearchAnswer(searchSession.lyricsKey, catalogTextQuery, lyricsSearchState != UniversalCatalogTextSearchState.Loading)) {
+            return@LaunchedEffect
+        }
+        searchSession.lyricsKey = catalogTextQuery
         lyricsSearchState = UniversalCatalogTextSearchState.Loading
         lyricsSearchState = search(catalogTextQuery, CatalogLibrarySearchType.LYRICS).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
@@ -387,8 +391,13 @@ fun UniversalSearchScreen(
         val search = currentExternalLyricsSearch
         if (search == null || !filterExternalLyrics || catalogTextQuery.isEmpty()) {
             externalLyricsState = UniversalExternalLyricsSearchState.Idle
+            searchSession.externalLyricsKey = null
             return@LaunchedEffect
         }
+        if (shouldReuseUniversalSearchAnswer(searchSession.externalLyricsKey, catalogTextQuery, externalLyricsState != UniversalExternalLyricsSearchState.Loading)) {
+            return@LaunchedEffect
+        }
+        searchSession.externalLyricsKey = catalogTextQuery
         externalLyricsState = UniversalExternalLyricsSearchState.Loading
         // An old server without the endpoint, or a platform outage, is expected: hide the group.
         externalLyricsState = search(catalogTextQuery).fold(
@@ -400,8 +409,13 @@ fun UniversalSearchScreen(
         val search = currentCatalogTextSearch
         if (search == null || !filterNumbers || !isWorkNumberQuery(catalogTextQuery)) {
             numberSearchState = UniversalCatalogTextSearchState.Idle
+            searchSession.numberKey = null
             return@LaunchedEffect
         }
+        if (shouldReuseUniversalSearchAnswer(searchSession.numberKey, catalogTextQuery, numberSearchState != UniversalCatalogTextSearchState.Loading)) {
+            return@LaunchedEffect
+        }
+        searchSession.numberKey = catalogTextQuery
         numberSearchState = UniversalCatalogTextSearchState.Loading
         numberSearchState = search(catalogTextQuery, CatalogLibrarySearchType.NUMBER).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
@@ -412,8 +426,13 @@ fun UniversalSearchScreen(
         val search = currentCatalogTextSearch
         if (search == null || !filterTags || catalogTextQuery.isEmpty()) {
             tagSearchState = UniversalCatalogTextSearchState.Idle
+            searchSession.tagKey = null
             return@LaunchedEffect
         }
+        if (shouldReuseUniversalSearchAnswer(searchSession.tagKey, catalogTextQuery, tagSearchState != UniversalCatalogTextSearchState.Loading)) {
+            return@LaunchedEffect
+        }
+        searchSession.tagKey = catalogTextQuery
         tagSearchState = UniversalCatalogTextSearchState.Loading
         tagSearchState = search(catalogTextQuery, CatalogLibrarySearchType.TAGS).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
@@ -424,8 +443,13 @@ fun UniversalSearchScreen(
         val search = currentCatalogTextSearch
         if (search == null || catalogTextQuery.isEmpty()) {
             scoreSearchState = UniversalCatalogTextSearchState.Idle
+            searchSession.scoreKey = null
             return@LaunchedEffect
         }
+        if (shouldReuseUniversalSearchAnswer(searchSession.scoreKey, catalogTextQuery, scoreSearchState != UniversalCatalogTextSearchState.Loading)) {
+            return@LaunchedEffect
+        }
+        searchSession.scoreKey = catalogTextQuery
         scoreSearchState = UniversalCatalogTextSearchState.Loading
         scoreSearchState = search(catalogTextQuery, CatalogLibrarySearchType.SCORES).fold(
             onSuccess = { UniversalCatalogTextSearchState.Loaded(it) },
@@ -596,14 +620,16 @@ fun UniversalSearchScreen(
     }
 
     val handleBack = {
-        if (allResultsPage != null) {
-            allResultsPage = null
-        } else if (query.isNotEmpty() || showFilters) {
-            query = ""
-            showFilters = false
-            focusManager.clearFocus()
-        } else {
-            onBack()
+        when (universalSearchBackStep(allResultsPage != null, query, showFilters)) {
+            UniversalSearchBackStep.CLOSE_ALL_RESULTS -> {
+                allResultsPage = null
+            }
+            UniversalSearchBackStep.CLEAR_SEARCH -> {
+                query = ""
+                showFilters = false
+                focusManager.clearFocus()
+            }
+            UniversalSearchBackStep.LEAVE -> onBack()
         }
     }
 

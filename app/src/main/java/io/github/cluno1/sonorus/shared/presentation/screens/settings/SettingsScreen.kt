@@ -247,7 +247,8 @@ fun SettingsScreen(
     var showFdroidWarningDialog by remember { mutableStateOf(false) }
     
     // Search state
-    var searchQuery by remember { mutableStateOf("") }
+    // issue 177: the search stays when a result opens a settings page, so back returns to it.
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val searchIndex = remember(context) { buildSettingsSearchIndex(context) }
     val searchResults = remember(searchQuery, searchIndex) { 
         searchSettings(searchQuery, searchIndex) 
@@ -497,7 +498,6 @@ fun SettingsScreen(
                         "default_screen" -> showDefaultScreenDialog = true
                         else -> result.route?.let(onNavigateTo)
                     }
-                    searchQuery = "" // Clear search when item clicked
                 },
                 toggleStates = mapOf(
                     "haptic_feedback" to hapticFeedbackEnabled,
