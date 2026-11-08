@@ -52,4 +52,5 @@
     <string name="rooms_section_assignee">%1$s · led by %2$s</string>
     <string name="rooms_section_untitled">Section %1$d</string>
     <string name="rooms_action_failed">Something went wrong, please try again</string>
+    <string name="rooms_share_sources_none">No song in this room has source pages</string>
 </resources>

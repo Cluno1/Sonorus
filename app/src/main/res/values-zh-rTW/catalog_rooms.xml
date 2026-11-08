@@ -52,4 +52,5 @@
     <string name="rooms_section_assignee">%1$s · 負責人 %2$s</string>
     <string name="rooms_section_untitled">第 %1$d 段</string>
     <string name="rooms_action_failed">操作失敗，請重試</string>
+    <string name="rooms_share_sources_none">房間裡的歌都沒有來源圖片</string>
 </resources>

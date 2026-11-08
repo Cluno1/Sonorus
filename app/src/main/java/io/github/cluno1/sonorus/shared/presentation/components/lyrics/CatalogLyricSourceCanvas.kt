@@ -228,7 +228,7 @@ private fun LyricSourceDocumentPicker(
 }
 
 @Composable
-private fun LyricSourceToolbarButton(
+internal fun LyricSourceToolbarButton(
     icon: String,
     description: String,
     onClick: () -> Unit,

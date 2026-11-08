@@ -107,11 +107,20 @@ internal object LyricSourceSharePolicy {
     }
 
     fun intentSpec(mimeType: String, caption: String?): LyricSourceShareIntentSpec =
-        LyricSourceShareIntentSpec(
-            action = Intent.ACTION_SEND,
-            mimeType = mimeType.substringBefore(';').trim().lowercase(),
+        intentSpec(listOf(mimeType), caption)
+
+    /** issue 178: a room sends one image per song; several images go as one multiple send. */
+    fun intentSpec(mimeTypes: List<String>, caption: String?): LyricSourceShareIntentSpec {
+        val types = mimeTypes.map { it.substringBefore(';').trim().lowercase() }.distinct()
+        return LyricSourceShareIntentSpec(
+            action = if (mimeTypes.size == 1) Intent.ACTION_SEND else Intent.ACTION_SEND_MULTIPLE,
+            mimeType = types.singleOrNull() ?: "image/*",
             text = caption?.takeIf(String::isNotBlank),
         )
+    }
+
+    /** issue 178: "01 title", so a room's images also sort in room order in the share target. */
+    fun roomFileTitle(ordinal: Int, title: String): String = "${ordinal.toString().padStart(2, '0')} $title"
 
     /**
      * Grid for combining pages of the given pixel sizes into one image: [COMBINED_COLUMNS] per row,

@@ -42,45 +42,60 @@ internal class LyricSourceSharer(
     private val repository: CatalogRepository = CatalogModule.repository(context),
 ) {
     suspend fun prepare(request: LyricSourceShareRequest): Result<LyricSourceShareFile> =
+        prepareAll(listOf(request)).map { it.single() }
+
+    /** issue 178: one file per request (a room's songs), all or nothing, in the given order. */
+    suspend fun prepareAll(requests: List<LyricSourceShareRequest>): Result<List<LyricSourceShareFile>> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val directory = File(context.cacheDir, LyricSourceSharePolicy.DIRECTORY)
                 directory.deleteRecursively()
                 if (!directory.mkdirs() && !directory.isDirectory) throw IOException("share directory unavailable")
-                val artworks = request.pages.map { page ->
-                    repository.downloadArtwork(page.imageAssetId).getOrElse { error ->
-                        Log.w(TAG, "source page download failed: asset=${page.imageAssetId} (${error.javaClass.simpleName})")
-                        throw error
-                    }
-                }
-                val base = LyricSourceSharePolicy.fileBaseName(request.title)
-                val single = artworks.singleOrNull()
-                if (single != null) {
-                    val file = File(directory, LyricSourceSharePolicy.fileName(base, single.mediaType))
-                    file.writeBytes(single.bytes)
-                    LyricSourceShareFile(file, single.mediaType)
-                } else {
-                    LyricSourceShareFile(
-                        writeCombined(File(directory, LyricSourceSharePolicy.fileName(base, "image/png")), artworks),
-                        "image/png",
-                    )
-                }
+                requests.map { request -> writeShareFile(directory, request) }
             }.onFailure {
                 if (it !is CancellationException) {
-                    Log.w(TAG, "share preparation failed: pages=${request.pages.size} (${it.javaClass.simpleName})")
+                    Log.w(TAG, "share preparation failed: songs=${requests.size} pages=${requests.sumOf { r -> r.pages.size }} (${it.javaClass.simpleName})")
                 }
             }
         }
 
-    /** Opens the system share sheet; the target gets read access to exactly this one URI. */
-    fun launch(shared: LyricSourceShareFile, caption: String?, chooserTitle: String) {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", shared.file)
-        val spec = LyricSourceSharePolicy.intentSpec(shared.mimeType, caption)
+    private suspend fun writeShareFile(directory: File, request: LyricSourceShareRequest): LyricSourceShareFile {
+        val artworks = request.pages.map { page ->
+            repository.downloadArtwork(page.imageAssetId).getOrElse { error ->
+                Log.w(TAG, "source page download failed: asset=${page.imageAssetId} (${error.javaClass.simpleName})")
+                throw error
+            }
+        }
+        val base = LyricSourceSharePolicy.fileBaseName(request.title)
+        val single = artworks.singleOrNull()
+        return if (single != null) {
+            val file = File(directory, LyricSourceSharePolicy.fileName(base, single.mediaType))
+            file.writeBytes(single.bytes)
+            LyricSourceShareFile(file, single.mediaType)
+        } else {
+            LyricSourceShareFile(
+                writeCombined(File(directory, LyricSourceSharePolicy.fileName(base, "image/png")), artworks),
+                "image/png",
+            )
+        }
+    }
+
+    /** Opens the system share sheet; the target gets read access to exactly the shared URIs. */
+    fun launch(shared: LyricSourceShareFile, caption: String?, chooserTitle: String) =
+        launch(listOf(shared), caption, chooserTitle)
+
+    /** issue 178: several files go as one ACTION_SEND_MULTIPLE, each with its read grant. */
+    fun launch(shared: List<LyricSourceShareFile>, caption: String?, chooserTitle: String) {
+        val uris = shared.map { FileProvider.getUriForFile(context, "${context.packageName}.provider", it.file) }
+        val spec = LyricSourceSharePolicy.intentSpec(shared.map(LyricSourceShareFile::mimeType), caption)
         val send = Intent(spec.action).apply {
             type = spec.mimeType
-            putExtra(Intent.EXTRA_STREAM, uri)
+            if (uris.size == 1) putExtra(Intent.EXTRA_STREAM, uris.single())
+            else putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
             // ClipData carries the read grant to the target through the chooser.
-            clipData = ClipData.newRawUri(null, uri)
+            clipData = ClipData.newRawUri(null, uris.first()).apply {
+                uris.drop(1).forEach { addItem(ClipData.Item(it)) }
+            }
             spec.text?.let { putExtra(Intent.EXTRA_TEXT, it) }
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -88,7 +103,7 @@ internal class LyricSourceSharer(
             if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(chooser)
-        Log.i(TAG, "share sheet opened: type=${spec.mimeType} bytes=${shared.file.length()}")
+        Log.i(TAG, "share sheet opened: type=${spec.mimeType} files=${shared.size} bytes=${shared.sumOf { it.file.length() }}")
     }
 
     /** Draws the pages into one white PNG, one page decoded at a time to bound memory. */

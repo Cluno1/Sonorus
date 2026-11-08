@@ -65,6 +65,12 @@ import io.github.cluno1.sonorus.shared.presentation.components.icons.RhythmIcons
 import io.github.cluno1.sonorus.shared.presentation.screens.CatalogWorkEntryKind
 import io.github.cluno1.sonorus.shared.presentation.screens.CatalogWorkEntryRow
 import io.github.cluno1.sonorus.ui.LocalMiniPlayerPadding
+import android.util.Log
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricSourceShareGate
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricSourceShareRequest
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricSourceSharePolicy
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricSourceSharer
+import io.github.cluno1.sonorus.shared.presentation.components.lyrics.LyricSourceToolbarButton
 import kotlinx.coroutines.launch
 
 /**
@@ -192,6 +198,10 @@ fun CatalogRoomDetailScreen(
                     }
                 },
                 actions = {
+                    // issue 178: every chosen song's source pages, in room order, as one share.
+                    if (room?.itemCount?.let { it > 0 } == true) {
+                        RoomSourceShareButton(rows)
+                    }
                     IconButton(onClick = { reloadKey++ }) {
                         Icon(MaterialSymbolIcon("refresh"), contentDescription = stringResource(R.string.rooms_refresh))
                     }
@@ -538,4 +548,66 @@ private fun RoomSongRow(
             }
         }
     }
+}
+
+/**
+ * issue 178: shares each song's source pages exactly as the lyrics page does — one image per song,
+ * several pages combined into it, from the first document (the one the lyrics page opens on) — all
+ * songs in one share, in the order shown. Songs without pages are left out; a failed song fails the
+ * whole share, as a failed page does on the lyrics page.
+ */
+@Composable
+private fun RoomSourceShareButton(rows: List<CatalogRoomRow>) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val gate = remember { LyricSourceShareGate() }
+    var preparing by remember { mutableStateOf(false) }
+    val chooserTitle = stringResource(R.string.lyric_source_share_chooser)
+    val failedMessage = stringResource(R.string.lyric_source_share_failed)
+    val noneMessage = stringResource(R.string.rooms_share_sources_none)
+
+    fun share() {
+        if (!gate.tryStart()) return
+        preparing = true
+        val songs = rows.filterIsInstance<CatalogRoomRow.Song>().map { it.item.work }
+        scope.launch {
+            try {
+                val catalog = CatalogModule.repository(context)
+                val requests = songs.mapIndexedNotNull { index, work ->
+                    val images = catalog.getWorkBundle(work.workId).getOrElse { error ->
+                        Log.w("RoomSourceShare", "work bundle failed: work=${work.workId} (${error.javaClass.simpleName})")
+                        RhythmMessages.error(context, failedMessage)
+                        return@launch
+                    }.work.lyricsSourceImages.orEmpty()
+                    val pages = LyricSourceSharePolicy.pagesOf(images, images.firstOrNull()?.documentId)
+                    if (pages.isEmpty()) null
+                    else LyricSourceShareRequest(LyricSourceSharePolicy.roomFileTitle(index + 1, work.title), pages)
+                }
+                if (requests.isEmpty()) {
+                    RhythmMessages.info(context, noneMessage)
+                    return@launch
+                }
+                val sharer = LyricSourceSharer(context)
+                sharer.prepareAll(requests).fold(
+                    onSuccess = { files -> sharer.launch(files, caption = null, chooserTitle = chooserTitle) },
+                    onFailure = { RhythmMessages.error(context, failedMessage) },
+                )
+            } finally {
+                preparing = false
+                gate.finish()
+            }
+        }
+    }
+
+    LyricSourceToolbarButton(
+        icon = "share",
+        description = stringResource(R.string.lyric_source_share),
+        onClick = ::share,
+        enabled = !preparing,
+        content = if (preparing) {
+            { M3CircularLoader(modifier = Modifier.size(18.dp)) }
+        } else {
+            null
+        },
+    )
 }

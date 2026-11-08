@@ -68,6 +68,25 @@ class LyricSourceSharePolicyTest {
     }
 
     @Test
+    fun `房间多首歌一次批量分享，单首仍是普通分享`() {
+        val many = LyricSourceSharePolicy.intentSpec(listOf("image/png", "image/png"), caption = null)
+        assertEquals(Intent.ACTION_SEND_MULTIPLE, many.action)
+        assertEquals("image/png", many.mimeType)
+        assertEquals(Intent.ACTION_SEND, LyricSourceSharePolicy.intentSpec(listOf("image/jpeg"), caption = null).action)
+    }
+
+    @Test
+    fun `房间批量分享混合格式时类型取 image 通配`() {
+        assertEquals("image/*", LyricSourceSharePolicy.intentSpec(listOf("image/png", "IMAGE/JPEG"), null).mimeType)
+    }
+
+    @Test
+    fun `房间分享文件名带补零序号，按房间顺序排列`() {
+        assertEquals("01 奇异恩典", LyricSourceSharePolicy.roomFileTitle(1, "奇异恩典"))
+        assertEquals("12 奇异恩典", LyricSourceSharePolicy.roomFileTitle(12, "奇异恩典"))
+    }
+
+    @Test
     fun `两页合成一张时左右并排，宽度统一为较窄页`() {
         val gap = LyricSourceSharePolicy.COMBINED_GAP_PX
         val layout = LyricSourceSharePolicy.combinedLayout(listOf(1240 to 1754, 1500 to 1500))
