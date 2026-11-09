@@ -119,4 +119,27 @@ class CatalogAnnouncementsTest {
         controller.markRead("a")
         assertEquals(before + 1, persistence.saves)
     }
+
+    @Test
+    fun `标题保留一到三级，其他层级按二级显示`() {
+        val heading = { level: String ->
+            """{"type":"heading","attrs":{"level":$level},"content":[{"type":"text","text":"x"}]}"""
+        }
+        val doc = CatalogAnnouncementMapper.document(
+            body("[${heading("1")},${heading("3")},${heading("9")},{\"type\":\"heading\"}]"),
+        )
+        assertEquals(listOf(1, 3, 2, 2), doc.blocks.map { (it as AnnouncementBlock.Heading).level })
+    }
+
+    @Test
+    fun `超长图片的比例不再被限制成一比四`() {
+        assertEquals(0.1f, CatalogAnnouncementImagePolicy.aspectRatio(1_000, 10_000)!!, 0.0001f)
+    }
+
+    @Test
+    fun `比例上下限和缺少尺寸`() {
+        assertEquals(0.02f, CatalogAnnouncementImagePolicy.aspectRatio(1, 20_000)!!, 0.0001f)
+        assertEquals(4f, CatalogAnnouncementImagePolicy.aspectRatio(10_000, 1)!!, 0.0001f)
+        assertNull(CatalogAnnouncementImagePolicy.aspectRatio(1_000, null))
+    }
 }

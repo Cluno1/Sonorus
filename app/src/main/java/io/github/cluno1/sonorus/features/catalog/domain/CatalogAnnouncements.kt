@@ -40,7 +40,7 @@ data class AnnouncementDocument(
 
 sealed interface AnnouncementBlock {
     data class Paragraph(val inlines: List<AnnouncementInline>) : AnnouncementBlock
-    data class Heading(val inlines: List<AnnouncementInline>) : AnnouncementBlock
+    data class Heading(val level: Int, val inlines: List<AnnouncementInline>) : AnnouncementBlock
     data class BulletList(val items: List<List<AnnouncementBlock>>) : AnnouncementBlock
     data class OrderedList(val start: Int, val items: List<List<AnnouncementBlock>>) : AnnouncementBlock
     data class Quote(val blocks: List<AnnouncementBlock>) : AnnouncementBlock
@@ -67,6 +67,10 @@ object CatalogAnnouncementImagePolicy {
     private val PATH = Regex("^/v2/announcements/images/[a-f0-9]{64}\\.(?:jpg|png|webp|gif)$")
 
     fun isValidPath(path: String): Boolean = PATH.matches(path)
+
+    /** Long screenshots keep their full height; the floor only stops absurd sizes from overflowing layout. */
+    fun aspectRatio(width: Int?, height: Int?): Float? =
+        if (width != null && height != null) (width.toFloat() / height).coerceIn(0.02f, 4f) else null
 
     /** Only our own content-addressed images load: no third party learns a reader's address. */
     fun url(serverUrl: String, path: String?): String? {

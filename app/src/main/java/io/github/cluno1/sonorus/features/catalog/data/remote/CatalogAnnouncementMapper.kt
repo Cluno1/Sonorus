@@ -103,7 +103,10 @@ internal object CatalogAnnouncementMapper {
             val content = node?.array("content")
             return when (node?.string("type")) {
                 "paragraph" -> AnnouncementBlock.Paragraph(inlines(content))
-                "heading" -> AnnouncementBlock.Heading(inlines(content))
+                "heading" -> AnnouncementBlock.Heading(
+                    level = node.attrs()?.int("level")?.takeIf { it in 1..3 } ?: 2,
+                    inlines = inlines(content),
+                )
                 "bulletList" -> AnnouncementBlock.BulletList(listItems(content, depth))
                 "orderedList" -> AnnouncementBlock.OrderedList(
                     start = node.attrs()?.int("start")?.takeIf { it >= 1 } ?: 1,

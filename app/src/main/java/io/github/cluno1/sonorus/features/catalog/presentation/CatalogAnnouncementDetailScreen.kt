@@ -207,7 +207,11 @@ private fun AnnouncementBlockView(
         }
         is AnnouncementBlock.Heading -> Text(
             text = rememberAnnouncementText(block.inlines),
-            style = MaterialTheme.typography.titleLarge,
+            style = when (block.level) {
+                1 -> MaterialTheme.typography.headlineSmall
+                3 -> MaterialTheme.typography.titleMedium
+                else -> MaterialTheme.typography.titleLarge
+            },
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -276,12 +280,8 @@ private fun AnnouncementImage(
         )
         return
     }
-    val ratio = if (block.width != null && block.height != null) {
-        // Reserving the height keeps the article from jumping while the image loads.
-        (block.width.toFloat() / block.height).coerceIn(0.25f, 4f)
-    } else {
-        null
-    }
+    // Reserving the height keeps the article from jumping while the image loads.
+    val ratio = CatalogAnnouncementImagePolicy.aspectRatio(block.width, block.height)
     AsyncImage(
         model = url,
         contentDescription = block.alt ?: stringResource(R.string.announcements_image),
